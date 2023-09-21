@@ -87,6 +87,16 @@ RC BplusTreeIndex::close()
   return RC::SUCCESS;
 }
 
+RC BplusTreeIndex::drop(){
+  if (inited_) {
+    LOG_INFO("Begin to drop index, index:%s, field:%s", index_meta_.name(), index_meta_.field());
+    index_handler_.drop();
+    inited_ = false;
+  }
+  LOG_INFO("Successfully drop index.");
+  return RC::SUCCESS;
+}
+
 RC BplusTreeIndex::insert_entry(const char *record, const RID *rid)
 {
   return index_handler_.insert_entry(record + field_meta_.offset(), rid);

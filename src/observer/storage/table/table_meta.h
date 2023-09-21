@@ -74,7 +74,7 @@ protected:
   int32_t     table_id_ = -1;
   std::string name_;
   std::vector<FieldMeta> fields_;  // 包含sys_fields
-  std::vector<IndexMeta> indexes_;
+  std::vector<IndexMeta> indexes_; 
 
   int record_size_ = 0;
 };

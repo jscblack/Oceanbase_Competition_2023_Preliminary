@@ -9,17 +9,15 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 //
-// Created by wangyunlai on 2021/6/11
+// Created by Jiangshichao on 2023/9/19.
 //
 
-#pragma once
+#include "sql/stmt/drop_table_stmt.h"
+#include "event/sql_debug.h"
 
-namespace common {
-
-
-int compare_int(void *arg1, void *arg2);
-int compare_float(void *arg1, void *arg2);
-int compare_string(void *arg1, int arg1_max_length, void *arg2, int arg2_max_length);
-int compare_date(void *arg1, void *arg2);
-
+RC DropTableStmt::create(Db *db, const DropTableSqlNode &drop_table, Stmt *&stmt)
+{
+  stmt = new DropTableStmt(drop_table.relation_name);
+  sql_debug("drop table statement: table name %s", drop_table.relation_name.c_str());
+  return RC::SUCCESS;
 }

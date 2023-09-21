@@ -77,6 +77,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         INT_T
         STRING_T
         FLOAT_T
+        DATE_T
         HELP
         EXIT
         DOT //QUOTE
@@ -116,10 +117,12 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   char *                            string;
   int                               number;
   float                             floats;
+  char *                             dates;
 }
 
 %token <number> NUMBER
 %token <floats> FLOAT
+%token <dates> DATE
 %token <string> ID
 %token <string> SSS
 //非终结符
@@ -330,6 +333,9 @@ attr_def:
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = 4;
+      if ($$->type == DATES){
+        $$->length = 10;//XXXX-XX-XX
+      }
       free($1);
     }
     ;
@@ -340,6 +346,7 @@ type:
     INT_T      { $$=INTS; }
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
+    | DATE_T  { $$=DATES; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 
@@ -379,6 +386,11 @@ value:
     |FLOAT {
       $$ = new Value((float)$1);
       @$ = @1;
+    }
+    |DATE {
+      char *tmpDate = common::substr($1,1,strlen($1)-2);/*trim the*/
+      $$ = new Value(tmpDate);
+      free(tmpDate);
     }
     |SSS {
       char *tmp = common::substr($1,1,strlen($1)-2);
@@ -428,7 +440,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       $$->selection.relations.push_back($4);
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-
+ 
       if ($6 != nullptr) {
         $$->selection.conditions.swap(*$6);
         delete $6;

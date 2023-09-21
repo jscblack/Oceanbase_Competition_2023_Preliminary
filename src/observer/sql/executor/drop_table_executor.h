@@ -9,17 +9,24 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 //
-// Created by wangyunlai on 2021/6/11
+// Created by Jiangshichao on 2023/9/19.
 //
 
 #pragma once
 
-namespace common {
+#include "common/rc.h"
 
+class SQLStageEvent;
 
-int compare_int(void *arg1, void *arg2);
-int compare_float(void *arg1, void *arg2);
-int compare_string(void *arg1, int arg1_max_length, void *arg2, int arg2_max_length);
-int compare_date(void *arg1, void *arg2);
+/**
+ * @brief 描述表的执行器
+ * @ingroup Executor
+ */
+class DropTableExecutor
+{
+public:
+  DropTableExecutor() = default;
+  virtual ~DropTableExecutor() = default;
 
-}
+  RC execute(SQLStageEvent *sql_event);
+};
