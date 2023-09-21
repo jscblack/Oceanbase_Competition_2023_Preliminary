@@ -44,11 +44,7 @@ public:
     db->all_tables(all_tables);
 
     TupleSchema tuple_schema;
-    if (all_tables.empty()) {
-      tuple_schema.append_cell(TupleCellSpec("", "No_Tables", "No_Tables"));
-    } else {
-      tuple_schema.append_cell(TupleCellSpec("", "Tables_in_SYS", "Tables_in_SYS"));
-    }
+    tuple_schema.append_cell(TupleCellSpec("", "Tables_in_SYS", "Tables_in_SYS"));    
     sql_result->set_tuple_schema(tuple_schema);
 
     auto oper = new StringListPhysicalOperator;
