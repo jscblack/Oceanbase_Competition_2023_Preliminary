@@ -502,8 +502,12 @@ expression:
     ;
 
 select_attr:
-    '*' {
-      $$ = new std::vector<RelAttrSqlNode>;
+    '*' attr_list{
+      if ($2 != nullptr) {
+        $$ = $2;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
       RelAttrSqlNode attr;
       attr.relation_name  = "";
       attr.attribute_name = "*";
