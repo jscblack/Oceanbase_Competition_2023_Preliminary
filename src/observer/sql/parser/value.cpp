@@ -226,7 +226,6 @@ int Value::compare(const Value &other) const
     Value new_val = clone();
     new_val.auto_cast(INTS);
     return common::compare_int((void *)&new_val.num_value_.int_value_, (void *)&other.num_value_.int_value_);
-
   } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
     Value new_val = other.clone();
     new_val.auto_cast(INTS);
@@ -236,7 +235,6 @@ int Value::compare(const Value &other) const
     Value new_val = clone();
     new_val.auto_cast(FLOATS);
     return common::compare_int((void *)&new_val.num_value_.float_value_, (void *)&other.num_value_.float_value_);
-
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
     Value new_val = other.clone();
     new_val.auto_cast(FLOATS);
@@ -438,7 +436,8 @@ RC Value::str_to_number() const
       break;
     }
   }
-  return RC::VALUE_CAST_FAILED;
+  bypass_const_p->set_int(int_val);
+  return RC::SUCCESS;
 }
 
 RC Value::number_to_str() const
@@ -480,25 +479,26 @@ RC Value::int_to_float() const
 
 RC Value::auto_cast(AttrType field_type) const
 {
-  AttrType value_type = this->attr_type();
-  RC       rc         = RC::SUCCESS;
+  Value   *bypass_const_p = const_cast<Value *>(this);
+  AttrType value_type     = this->attr_type();
+  RC       rc             = RC::SUCCESS;
   if (value_type == CHARS) {
     // convert value to some specific type
     if (field_type == DATES) {
       // CHARS to DATES is ok
-      rc = str_to_date();
+      rc = bypass_const_p->str_to_date();
       if (rc != RC::SUCCESS) {
         return rc;
       }
       return rc;
     }
     if (field_type == INTS) {
-      rc = str_to_number();
+      rc = bypass_const_p->str_to_number();
       if (rc != RC::SUCCESS) {
         return rc;
       }
       if (attr_type() == FLOATS) {
-        rc = float_to_int();
+        rc = bypass_const_p->float_to_int();
         if (rc != RC::SUCCESS) {
           return rc;
         }
@@ -506,12 +506,12 @@ RC Value::auto_cast(AttrType field_type) const
       return rc;
     }
     if (field_type == FLOATS) {
-      rc = str_to_number();
+      rc = bypass_const_p->str_to_number();
       if (rc != RC::SUCCESS) {
         return rc;
       }
       if (attr_type() == INTS) {
-        rc = int_to_float();
+        rc = bypass_const_p->int_to_float();
         if (rc != RC::SUCCESS) {
           return rc;
         }
@@ -520,14 +520,14 @@ RC Value::auto_cast(AttrType field_type) const
     }
   } else if (value_type == INTS) {
     if (field_type == CHARS) {
-      rc = number_to_str();
+      rc = bypass_const_p->number_to_str();
       if (rc != RC::SUCCESS) {
         return rc;
       }
       return rc;
     }
     if (field_type == FLOATS) {
-      rc = int_to_float();
+      rc = bypass_const_p->int_to_float();
       if (rc != RC::SUCCESS) {
         return rc;
       }
@@ -535,14 +535,14 @@ RC Value::auto_cast(AttrType field_type) const
     }
   } else if (value_type == FLOATS) {
     if (field_type == CHARS) {
-      rc = number_to_str();
+      rc = bypass_const_p->number_to_str();
       if (rc != RC::SUCCESS) {
         return rc;
       }
       return rc;
     }
     if (field_type == INTS) {
-      rc = float_to_int();
+      rc = bypass_const_p->float_to_int();
       if (rc != RC::SUCCESS) {
         return rc;
       }

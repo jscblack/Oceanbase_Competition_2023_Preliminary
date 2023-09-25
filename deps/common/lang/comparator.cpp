@@ -74,9 +74,6 @@ int compare_date(void *arg1, void *arg2)
     if (month1 != month2) {
       return month1 - month2;
     } else {
-      if (day1 == day2) {
-        return 0;
-      }
       return day1 - day2;
     }
   }

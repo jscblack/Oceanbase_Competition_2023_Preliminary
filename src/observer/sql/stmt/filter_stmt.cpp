@@ -132,6 +132,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   filter_unit->set_comp(comp);
 
   // 检查两个类型是否能够比较
+
   if (type_left == DATES || type_right == DATES) {
     // advance check for date
     if (!filter_unit->left().is_attr && filter_unit->right().is_attr) {  // left:value, right:attr
