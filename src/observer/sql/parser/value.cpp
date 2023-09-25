@@ -241,6 +241,14 @@ int Value::compare(const Value &other) const
     Value new_val = other.clone();
     new_val.auto_cast(FLOATS);
     return common::compare_int((void *)&this->num_value_.float_value_, (void *)&new_val.num_value_.float_value_);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == DATES) {
+    Value new_val = clone();
+    new_val.auto_cast(DATES);
+    return common::compare_date((void *)new_val.str_value_.c_str(), (void *)other.str_value_.c_str());
+  } else if (this->attr_type_ == DATES && other.attr_type_ == CHARS) {
+    Value new_val = other.clone();
+    new_val.auto_cast(DATES);
+    return common::compare_date((void *)this->str_value_.c_str(), (void *)new_val.str_value_.c_str());
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?

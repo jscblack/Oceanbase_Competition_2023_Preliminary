@@ -62,7 +62,7 @@ RC ShowIndexExecutor::execute(SQLStageEvent *sql_event)
     for (int i = 0; i < table_meta.index_num(); i++) {
       const IndexMeta *index_meta = table_meta.index(i);
       oper->append({table_meta.name(),
-          index_meta->type() == IndexType::NonUnique ? "0" : "1",
+          index_meta->type() == IndexType::NonUnique ? "1" : "0",
           index_meta->name(),
           std::to_string(i + 1),
           index_meta->field()});
