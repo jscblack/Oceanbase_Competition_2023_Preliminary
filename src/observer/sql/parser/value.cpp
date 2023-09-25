@@ -399,6 +399,10 @@ RC Value::str_to_date() const
     LOG_WARN("date invalid. year=%d, month=%d, day=%d",year,month,day);
     return rc;
   }
+  char *date_formatted = new char[11];
+  sprintf(date_formatted, "%04d-%02d-%02d", year, month, day);
+  bypass_const_p->set_string(date_formatted);
+  bypass_const_p->set_type(DATES);
   return rc;
 }
 

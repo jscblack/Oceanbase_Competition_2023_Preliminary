@@ -12,10 +12,10 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/5/22.
 //
 
-#include "common/rc.h"
-#include "common/log/log.h"
-#include "common/lang/string.h"
 #include "sql/stmt/filter_stmt.h"
+#include "common/lang/string.h"
+#include "common/log/log.h"
+#include "common/rc.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
@@ -31,12 +31,12 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
-  stmt = nullptr;
+  stmt  = nullptr;
 
   FilterStmt *tmp_stmt = new FilterStmt();
   for (int i = 0; i < condition_num; i++) {
     FilterUnit *filter_unit = nullptr;
-    rc = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
+    rc                      = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
     if (rc != RC::SUCCESS) {
       delete tmp_stmt;
       LOG_WARN("failed to create filter unit. condition index=%d", i);
@@ -88,12 +88,13 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     return RC::INVALID_ARGUMENT;
   }
 
-  filter_unit = new FilterUnit;
-
+  filter_unit         = new FilterUnit;
+  AttrType type_left  = UNDEFINED;
+  AttrType type_right = UNDEFINED;
   if (condition.left_is_attr) {
-    Table *table = nullptr;
+    Table           *table = nullptr;
     const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
+    rc                     = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot find attr");
       return rc;
@@ -101,16 +102,18 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
+    type_left = field->type();
   } else {
     FilterObj filter_obj;
     filter_obj.init_value(condition.left_value);
     filter_unit->set_left(filter_obj);
+    type_left = filter_obj.value.attr_type();
   }
 
   if (condition.right_is_attr) {
-    Table *table = nullptr;
+    Table           *table = nullptr;
     const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
+    rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot find attr");
       return rc;
@@ -118,14 +121,40 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_right(filter_obj);
+    type_right = field->type();
   } else {
     FilterObj filter_obj;
     filter_obj.init_value(condition.right_value);
     filter_unit->set_right(filter_obj);
+    type_right = filter_obj.value.attr_type();
   }
 
   filter_unit->set_comp(comp);
 
   // 检查两个类型是否能够比较
+  if (type_left == DATES || type_right == DATES) {
+    // advance check for date
+    if (!filter_unit->left().is_attr && filter_unit->right().is_attr) {  // left:value, right:attr
+      if (type_right == DATES) {
+        // the attr is date type, so we need to convert the value to date type
+        if (filter_unit->left().value.attr_type() == CHARS) {
+          rc = filter_unit->left().value.auto_cast(DATES);
+          if (rc != RC::SUCCESS) {
+            return rc;
+          }
+        }
+      }
+    } else if (filter_unit->left().is_attr && !filter_unit->right().is_attr) {  // left:attr, right:value
+      if (type_left == DATES) {
+        // the attr is date type, so we need to convert the value to date type
+        if (filter_unit->right().value.attr_type() == CHARS) {
+          rc = filter_unit->right().value.auto_cast(DATES);
+          if (rc != RC::SUCCESS) {
+            return rc;
+          }
+        }
+      }
+    }
+  }
   return rc;
 }
