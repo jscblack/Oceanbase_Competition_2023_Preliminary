@@ -206,6 +206,16 @@ struct DescTableSqlNode
 };
 
 /**
+ * @brief 描述一个show index语句
+ * @ingroup SQLParser
+ * @details show index 是查询表索引信息的语句
+ */
+struct ShowIndexSqlNode
+{
+  std::string relation_name;
+};
+
+/**
  * @brief 描述一个load data语句
  * @ingroup SQLParser
  * @details 从文件导入数据到表中。文件中的每一行就是一条数据，每行的数据类型、字段个数都与表保持一致
@@ -269,6 +279,7 @@ enum SqlCommandFlag
   SCF_DROP_TABLE,
   SCF_CREATE_INDEX,
   SCF_DROP_INDEX,
+  SCF_SHOW_INDEX,
   SCF_SYNC,
   SCF_SHOW_TABLES,
   SCF_DESC_TABLE,
@@ -301,6 +312,7 @@ public:
   CreateIndexSqlNode  create_index;
   DropIndexSqlNode    drop_index;
   DescTableSqlNode    desc_table;
+  ShowIndexSqlNode    show_index;
   LoadDataSqlNode     load_data;
   ExplainSqlNode      explain;
   SetVariableSqlNode  set_variable;

@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include "storage/field/field.h"
+#include <cmath>
 #include <sstream>
 
 const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates", "booleans"};
@@ -45,6 +46,16 @@ Value::Value(float val) { set_float(val); }
 Value::Value(bool val) { set_boolean(val); }
 
 Value::Value(const char *s, int len /*= 0*/) { set_string(s, len); }
+
+Value Value::clone() const
+{
+  Value new_val;
+  new_val.attr_type_ = attr_type_;
+  new_val.length_    = length_;
+  new_val.num_value_ = num_value_;
+  new_val.str_value_ = str_value_;
+  return new_val;
+}
 
 void Value::set_data(char *data, int length)
 {
@@ -211,6 +222,25 @@ int Value::compare(const Value &other) const
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == INTS) {
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
+    Value new_val = clone();
+    new_val.auto_cast(INTS);
+    return common::compare_int((void *)&new_val.num_value_.int_value_, (void *)&other.num_value_.int_value_);
+
+  } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
+    Value new_val = other.clone();
+    new_val.auto_cast(INTS);
+    return common::compare_int((void *)&this->num_value_.int_value_, (void *)&new_val.num_value_.int_value_);
+
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
+    Value new_val = clone();
+    new_val.auto_cast(FLOATS);
+    return common::compare_int((void *)&new_val.num_value_.float_value_, (void *)&other.num_value_.float_value_);
+
+  } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
+    Value new_val = other.clone();
+    new_val.auto_cast(FLOATS);
+    return common::compare_int((void *)&this->num_value_.float_value_, (void *)&new_val.num_value_.float_value_);
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
@@ -313,7 +343,7 @@ bool Value::get_boolean() const
   return false;
 }
 
-RC Value::value_str_to_date() const
+RC Value::str_to_date() const
 {
   RC     rc             = RC::SUCCESS;
   Value *bypass_const_p = const_cast<Value *>(this);
@@ -362,4 +392,150 @@ RC Value::value_str_to_date() const
     return rc;
   }
   return rc;
+}
+
+RC Value::str_to_number() const
+{
+  Value *bypass_const_p = const_cast<Value *>(this);
+  if (bypass_const_p->attr_type() != CHARS) {
+    return RC::VALUE_CAST_FAILED;
+  }
+  // check if number is valid
+  int   int_val;
+  float float_val;
+  int   read_count = sscanf(bypass_const_p->data(), "%f", &float_val);
+  if (read_count != 1) {
+    bypass_const_p->set_int(0);
+    return RC::SUCCESS;
+  }
+  // is a number
+  // but not know int or float
+  read_count = sscanf(bypass_const_p->data(), "%d", &int_val);
+  for (int i = 0; i < bypass_const_p->length(); i++) {
+    if (!isdigit(bypass_const_p->data()[i])) {
+      // not a digit, over
+      if (bypass_const_p->data()[i] == '.') {
+        // float
+        bypass_const_p->set_float(float_val);
+        return RC::SUCCESS;
+      } else {
+        // int
+        bypass_const_p->set_int(int_val);
+        return RC::SUCCESS;
+      }
+      break;
+    }
+  }
+  return RC::VALUE_CAST_FAILED;
+}
+
+RC Value::number_to_str() const
+{
+  Value *bypass_const_p = const_cast<Value *>(this);
+  if (bypass_const_p->attr_type() == INTS) {
+    std::string tmp_str = std::to_string(bypass_const_p->get_int());
+    bypass_const_p->set_string(tmp_str.c_str(), tmp_str.length());
+    return RC::SUCCESS;
+  } else if (bypass_const_p->attr_type() == FLOATS) {
+    std::string tmp_str = std::to_string(bypass_const_p->get_float());
+    bypass_const_p->set_string(tmp_str.c_str(), tmp_str.length());
+    return RC::SUCCESS;
+
+  } else {
+    return RC::VALUE_CAST_FAILED;
+  }
+}
+
+RC Value::float_to_int() const
+{
+  Value *bypass_const_p = const_cast<Value *>(this);
+  if (bypass_const_p->attr_type() != FLOATS) {
+    return RC::VALUE_CAST_FAILED;
+  }
+  bypass_const_p->set_int(roundf(bypass_const_p->get_float()));
+  return RC::SUCCESS;
+}
+
+RC Value::int_to_float() const
+{
+  Value *bypass_const_p = const_cast<Value *>(this);
+  if (bypass_const_p->attr_type() != INTS) {
+    return RC::VALUE_CAST_FAILED;
+  }
+  bypass_const_p->set_float(bypass_const_p->get_int());
+  return RC::SUCCESS;
+}
+
+RC Value::auto_cast(AttrType field_type) const
+{
+  AttrType value_type = this->attr_type();
+  RC       rc         = RC::SUCCESS;
+  if (value_type == CHARS) {
+    // convert value to some specific type
+    if (field_type == DATES) {
+      // CHARS to DATES is ok
+      rc = str_to_date();
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      return rc;
+    }
+    if (field_type == INTS) {
+      rc = str_to_number();
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      if (attr_type() == FLOATS) {
+        rc = float_to_int();
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+      }
+      return rc;
+    }
+    if (field_type == FLOATS) {
+      rc = str_to_number();
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      if (attr_type() == INTS) {
+        rc = int_to_float();
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+      }
+      return rc;
+    }
+  } else if (value_type == INTS) {
+    if (field_type == CHARS) {
+      rc = number_to_str();
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      return rc;
+    }
+    if (field_type == FLOATS) {
+      rc = int_to_float();
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      return rc;
+    }
+  } else if (value_type == FLOATS) {
+    if (field_type == CHARS) {
+      rc = number_to_str();
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      return rc;
+    }
+    if (field_type == INTS) {
+      rc = float_to_int();
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      return rc;
+    }
+  }
+  return RC::SCHEMA_FIELD_TYPE_MISMATCH;
 }

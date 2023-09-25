@@ -70,22 +70,13 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
     const AttrType field_type = field_meta->type();
     const AttrType value_type = values[i].attr_type();
     if (field_type != value_type) {  // TODO try to convert the value type to field type
-      if (value_type == CHARS) {
-        // convert value to some specific type
-        if (field_type == DATES) {
-          // CHARS to DATES is ok
-          rc = values[i].value_str_to_date();
-          if (rc != RC::SUCCESS) {
-            return rc;
-          }
-          // break when convert success
-          break;
-        }
+      rc = values[i].auto_cast(field_type);
+      if (rc == RC::SUCCESS) {
+        continue;
       }
-      // else return error
       LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
           table_name, field_meta->name(), field_type, value_type);
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      return rc;
     }
     fields->push_back(field_meta->name());
   }

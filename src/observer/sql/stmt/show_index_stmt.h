@@ -9,7 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 //
-// Created by Wangyunlai on 2023/6/14.
+// Created by Jiangshichao on 2023/9/25.
 //
 
 #pragma once
@@ -26,17 +26,16 @@ class Db;
  * @ingroup Statement
  * @details 虽然解析成了stmt，但是与原始的SQL解析后的数据也差不多
  */
-class DescTableStmt : public Stmt
+class ShowIndexStmt : public Stmt
 {
 public:
-  DescTableStmt(const std::string &table_name) : table_name_(table_name) {}
-  virtual ~DescTableStmt() = default;
+  ShowIndexStmt(const std::string &table_name) : table_name_(table_name) {}
+  virtual ~ShowIndexStmt() = default;
 
-  StmtType type() const override { return StmtType::DESC_TABLE; }
-
+  StmtType           type() const override { return StmtType::SHOW_INDEX; }
   const std::string &table_name() const { return table_name_; }
 
-  static RC create(Db *db, const DescTableSqlNode &desc_table, Stmt *&stmt);
+  static RC create(Db *db, const ShowIndexSqlNode &desc_table, Stmt *&stmt);
 
 private:
   std::string table_name_;
