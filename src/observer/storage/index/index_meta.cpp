@@ -22,7 +22,7 @@ See the Mulan PSL v2 for more details. */
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_FIELD_NAME("field_name");
 
-RC IndexMeta::init(const char *name, const FieldMeta &field)
+RC IndexMeta::init(const char *name, const FieldMeta &field, IndexType type)
 {
   if (common::is_blank(name)) {
     LOG_ERROR("Failed to init index, name is empty.");
@@ -31,6 +31,7 @@ RC IndexMeta::init(const char *name, const FieldMeta &field)
 
   name_  = name;
   field_ = field.name();
+  type_  = type;
   return RC::SUCCESS;
 }
 

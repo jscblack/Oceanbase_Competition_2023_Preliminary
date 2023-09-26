@@ -126,6 +126,7 @@ RC Table::drop(const char *path)
   for (Index *index : indexes_) {
     // recast to BplusTreeIndex
     BplusTreeIndex *bpt_index = dynamic_cast<BplusTreeIndex *>(index);
+    std::string index_file= table_index_file(base_dir_.c_str(), name(), bpt_index->index_meta().name());
     bpt_index->drop();
   }
   // 删除关联record_handler

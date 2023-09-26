@@ -874,9 +874,12 @@ RC BplusTreeHandler::drop()
 {
   RC rc=RC::SUCCESS; 
   if (disk_buffer_pool_ != nullptr) {
-    // disk_buffer_pool_->dr();
     BufferPoolManager &bpm=BufferPoolManager::instance();
     rc=bpm.remove_file(disk_buffer_pool_->get_file_name());
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to remove file. file name=%s, rc=%d:%s", disk_buffer_pool_->get_file_name(), rc, strrc(rc));
+      return rc;
+    }
     // delete mem_pool_item_;
     // mem_pool_item_=nullptr;
     mem_pool_item_.release();
