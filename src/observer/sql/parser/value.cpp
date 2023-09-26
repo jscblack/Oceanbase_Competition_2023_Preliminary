@@ -224,21 +224,31 @@ int Value::compare(const Value &other) const
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
   } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
     Value new_val = clone();
-    new_val.auto_cast(INTS);
-    return common::compare_int((void *)&new_val.num_value_.int_value_, (void *)&other.num_value_.int_value_);
+    // need to check if new_val is a float
+    new_val.str_to_number();
+    if (new_val.attr_type_ == INTS) {
+      return common::compare_int((void *)&new_val.num_value_.int_value_, (void *)&other.num_value_.int_value_);
+    } else if (new_val.attr_type_ == FLOATS) {
+      float casted_int = other.num_value_.int_value_;
+      return common::compare_float((void *)&new_val.num_value_.float_value_, (void *)&casted_int);
+    }
   } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
     Value new_val = other.clone();
-    new_val.auto_cast(INTS);
-    return common::compare_int((void *)&this->num_value_.int_value_, (void *)&new_val.num_value_.int_value_);
-
+    new_val.str_to_number();
+    if (new_val.attr_type_ == INTS) {
+      return common::compare_int((void *)&this->num_value_.int_value_, (void *)&new_val.num_value_.int_value_);
+    } else if (new_val.attr_type_ == FLOATS) {
+      float casted_int = new_val.num_value_.int_value_;
+      return common::compare_float((void *)&this->num_value_.float_value_, (void *)&casted_int);
+    }
   } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
     Value new_val = clone();
     new_val.auto_cast(FLOATS);
-    return common::compare_int((void *)&new_val.num_value_.float_value_, (void *)&other.num_value_.float_value_);
+    return common::compare_float((void *)&new_val.num_value_.float_value_, (void *)&other.num_value_.float_value_);
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
     Value new_val = other.clone();
     new_val.auto_cast(FLOATS);
-    return common::compare_int((void *)&this->num_value_.float_value_, (void *)&new_val.num_value_.float_value_);
+    return common::compare_float((void *)&this->num_value_.float_value_, (void *)&new_val.num_value_.float_value_);
   } else if (this->attr_type_ == CHARS && other.attr_type_ == DATES) {
     Value new_val = clone();
     new_val.auto_cast(DATES);
