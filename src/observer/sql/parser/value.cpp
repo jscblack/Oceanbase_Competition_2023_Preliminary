@@ -448,7 +448,7 @@ RC Value::number_to_str() const
     bypass_const_p->set_string(tmp_str.c_str(), tmp_str.length());
     return RC::SUCCESS;
   } else if (bypass_const_p->attr_type() == FLOATS) {
-    std::string tmp_str = std::to_string(bypass_const_p->get_float());
+    std::string tmp_str = common::double_to_str(bypass_const_p->get_float());
     bypass_const_p->set_string(tmp_str.c_str(), tmp_str.length());
     return RC::SUCCESS;
 
