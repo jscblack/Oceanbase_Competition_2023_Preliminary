@@ -238,8 +238,8 @@ int Value::compare(const Value &other) const
     if (new_val.attr_type_ == INTS) {
       return common::compare_int((void *)&this->num_value_.int_value_, (void *)&new_val.num_value_.int_value_);
     } else if (new_val.attr_type_ == FLOATS) {
-      float casted_int = new_val.num_value_.int_value_;
-      return common::compare_float((void *)&this->num_value_.float_value_, (void *)&casted_int);
+      float casted_int = this->num_value_.int_value_;
+      return common::compare_float((void *)&casted_int, (void *)&new_val.num_value_.float_value_);
     }
   } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
     Value new_val = clone();
