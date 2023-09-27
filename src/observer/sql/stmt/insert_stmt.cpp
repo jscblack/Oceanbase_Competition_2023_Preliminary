@@ -17,8 +17,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-InsertStmt::InsertStmt(Table *table, const Value *values, int value_amount)
-    : table_(table), values_(values), value_amount_(value_amount)
+InsertStmt::InsertStmt(Table *table, std::vector<std::vector<Value>> values, int value_amount, int record_amount)
+    : table_(table), values_(values), value_amount_(value_amount), record_amount_(record_amount)
 {}
 
 RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
@@ -39,8 +39,11 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
   }
 
   // check the fields number
-  const Value     *values     = inserts.values.data();
-  const int        value_num  = static_cast<int>(inserts.values.size());
+  // const std::vector<Value> *tmp = inserts.values.data();
+  const std::vector<std::vector<Value>> values     = inserts.values;
+  const int                             record_num = static_cast<int>(inserts.values.size());
+  const int                             value_num  = static_cast<int>(inserts.values[0].size());
+
   const TableMeta &table_meta = table->table_meta();
   const int        field_num  = table_meta.field_num() - table_meta.sys_field_num();
   if (field_num != value_num) {
@@ -50,22 +53,25 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
 
   // check fields type
   const int sys_field_num = table_meta.sys_field_num();
-  for (int i = 0; i < value_num; i++) {
-    const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
-    const AttrType   field_type = field_meta->type();
-    const AttrType   value_type = values[i].attr_type();
-    if (field_type != value_type) {  // TODO try to convert the value type to field type
-      rc = values[i].auto_cast(field_type);
-      if (rc == RC::SUCCESS) {
-        continue;
-      }
-      LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+  for (int j = 0; j < record_num; j++) {
+    const std::vector<Value> &cur_values = values[j];
+    for (int i = 0; i < value_num; i++) {
+      const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
+      const AttrType   field_type = field_meta->type();
+      const AttrType   value_type = cur_values[i].attr_type();
+      if (field_type != value_type) {  // TODO try to convert the value type to field type
+        rc = cur_values[i].auto_cast(field_type);
+        if (rc == RC::SUCCESS) {
+          continue;
+        }
+        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
           table_name, field_meta->name(), field_type, value_type);
-      return rc;
+        return rc;
+      }
     }
   }
 
   // everything alright
-  stmt = new InsertStmt(table, values, value_num);
+  stmt = new InsertStmt(table, values, value_num, record_num);
   return RC::SUCCESS;
 }

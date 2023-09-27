@@ -110,6 +110,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   AttrInfoSqlNode *                 attr_info;
   Expression *                      expression;
   std::vector<Expression *> *       expression_list;
+  std::vector<std::vector<Value>> * insert_list;
   std::vector<Value> *              value_list;
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
@@ -137,6 +138,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
+%type <insert_list>         insert_list
 %type <value_list>          value_list
 %type <condition_list>      where
 %type <condition_list>      condition_list
@@ -362,17 +364,58 @@ type:
     | DATE_T  { $$=DATES; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
-    INSERT INTO ID VALUES LBRACE value value_list RBRACE 
+    INSERT INTO ID VALUES LBRACE value value_list RBRACE insert_list
     {
       $$ = new ParsedSqlNode(SCF_INSERT);
       $$->insertion.relation_name = $3;
-      if ($7 != nullptr) {
-        $$->insertion.values.swap(*$7);
+      if ($9 != nullptr) {
+        $$->insertion.values.swap(*$9);
       }
-      $$->insertion.values.emplace_back(*$6);
+      if ($7 != nullptr) {
+        $7->emplace_back(*$6);
+        // reverse the order of values
+        std::reverse($7->begin(), $7->end());
+        $$->insertion.values.emplace_back(*$7);
+        delete $7;
+      }else{
+        // a tmp vector<vector<Value>> to store the values
+        std::vector<Value> *tmp = new std::vector<Value>;
+        tmp->emplace_back(*$6);
+        $$->insertion.values.emplace_back(*tmp);
+        delete tmp;
+      }
       std::reverse($$->insertion.values.begin(), $$->insertion.values.end());
       delete $6;
       free($3);
+    }
+    ;
+
+insert_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA LBRACE value value_list RBRACE insert_list {
+      if ($6 != nullptr) {
+        $$ = $6;
+      } else {
+        $$ = new std::vector<std::vector<Value>>;
+      }
+      if($4!=nullptr){
+        $4->emplace_back(*$3);
+        // reverse the order of values
+        std::reverse($4->begin(), $4->end());
+        $$->emplace_back(*$4);
+        delete $4;
+      }else{
+        std::vector<Value> *tmp = new std::vector<Value>;
+        tmp->emplace_back(*$3);
+        $$->emplace_back(*tmp);
+        delete tmp;
+      }
+      delete $3;
+      // $$->emplace_back(*$3);
+      // delete $3;
     }
     ;
 

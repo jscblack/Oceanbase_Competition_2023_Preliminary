@@ -132,30 +132,53 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   filter_unit->set_comp(comp);
 
   // 检查两个类型是否能够比较
-  
-  if (type_left == DATES || type_right == DATES) {
-    // advance check for date
-    if (!filter_unit->left().is_attr && filter_unit->right().is_attr) {  // left:value, right:attr
-      if (type_right == DATES) {
-        // the attr is date type, so we need to convert the value to date type
-        if (filter_unit->left().value.attr_type() == CHARS) {
-          rc = filter_unit->left().value.auto_cast(DATES);
-          if (rc != RC::SUCCESS) {
-            return rc;
+  if (type_left != type_right) {
+    if (type_left == DATES || type_right == DATES) {
+      // date conversation
+      // advance check for date
+      if (!filter_unit->left().is_attr && filter_unit->right().is_attr) {  // left:value, right:attr
+        if (type_right == DATES) {
+          // the attr is date type, so we need to convert the value to date type
+          if (filter_unit->left().value.attr_type() == CHARS) {
+            rc = filter_unit->left().value.auto_cast(DATES);
+            if (rc != RC::SUCCESS) {
+              return rc;
+            }
+          }
+        }
+      } else if (filter_unit->left().is_attr && !filter_unit->right().is_attr) {  // left:attr, right:value
+        if (type_left == DATES) {
+          // the attr is date type, so we need to convert the value to date type
+          if (filter_unit->right().value.attr_type() == CHARS) {
+            rc = filter_unit->right().value.auto_cast(DATES);
+            if (rc != RC::SUCCESS) {
+              return rc;
+            }
           }
         }
       }
-    } else if (filter_unit->left().is_attr && !filter_unit->right().is_attr) {  // left:attr, right:value
-      if (type_left == DATES) {
-        // the attr is date type, so we need to convert the value to date type
-        if (filter_unit->right().value.attr_type() == CHARS) {
-          rc = filter_unit->right().value.auto_cast(DATES);
-          if (rc != RC::SUCCESS) {
-            return rc;
-          }
+    } else if (type_left == CHARS && (type_right == FLOATS || type_right == INTS)) {
+      // left is a string, and right is s a number
+      // convert the string to number
+      if (!filter_unit->left().is_attr) {
+        // left is a value
+        rc = filter_unit->left().value.str_to_number();
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+      }
+    } else if ((type_left == FLOATS || type_left == INTS) && type_right == CHARS) {
+      // left is a number, and right is a string
+      // convert the string to number
+      if (!filter_unit->right().is_attr) {
+        // right is a value
+        rc = filter_unit->right().value.str_to_number();
+        if (rc != RC::SUCCESS) {
+          return rc;
         }
       }
     }
   }
+
   return rc;
 }
