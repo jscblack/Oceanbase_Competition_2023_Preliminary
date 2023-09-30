@@ -46,7 +46,7 @@ RC UpdatePhysicalOperator::next()
 
   PhysicalOperator *child = children_[0].get();
   while (RC::SUCCESS == (rc = child->next())) {
-    Tuple *tuple = child->current_tuple(); // 拿上来每一行
+    Tuple *tuple = child->current_tuple();  // 拿上来每一行
     if (nullptr == tuple) {
       LOG_WARN("failed to get current record: %s", strrc(rc));
       return rc;

@@ -48,7 +48,7 @@ int init_seda(ProcessParam *process_cfg)
   static StageFactory seda_stats_factory("MetricsStage", &MetricsStage::make_stage);
 
   // try to parse the seda configuration files
-  SedaConfig *config = SedaConfig::get_instance();
+  SedaConfig          *config = SedaConfig::get_instance();
   SedaConfig::status_t config_stat;
 
   config_stat = config->parse();

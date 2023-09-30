@@ -47,6 +47,6 @@ public:
 private:
   Table                          *table_ = nullptr;
   std::vector<std::vector<Value>> values_;
-  int                             value_amount_  = 0;// 现在已经不用了
+  int                             value_amount_  = 0;  // 现在已经不用了
   int                             record_amount_ = 0;
 };

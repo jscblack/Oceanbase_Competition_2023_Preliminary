@@ -25,7 +25,7 @@ class SQLStageEvent;
 class ShowIndexExecutor
 {
 public:
-  ShowIndexExecutor() = default;
+  ShowIndexExecutor()          = default;
   virtual ~ShowIndexExecutor() = default;
 
   RC execute(SQLStageEvent *sql_event);

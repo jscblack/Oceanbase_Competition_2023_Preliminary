@@ -20,7 +20,8 @@ namespace common {
 
 #define DEFAULT_RANDOM_BUFF_SIZE 512
 
-class RandomGenerator {
+class RandomGenerator
+{
 
 public:
   RandomGenerator();

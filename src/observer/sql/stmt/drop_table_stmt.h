@@ -29,9 +29,7 @@ class Db;
 class DropTableStmt : public Stmt
 {
 public:
-  DropTableStmt(const std::string &table_name)
-        : table_name_(table_name)
-  {}
+  DropTableStmt(const std::string &table_name) : table_name_(table_name) {}
   virtual ~DropTableStmt() = default;
 
   StmtType type() const override { return StmtType::DROP_TABLE; }

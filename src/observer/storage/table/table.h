@@ -31,9 +31,9 @@ class Trx;
 
 /**
  * @brief 表
- * 
+ *
  */
-class Table 
+class Table
 {
 public:
   Table() = default;
@@ -47,14 +47,10 @@ public:
    * @param attribute_count 字段个数
    * @param attributes 字段
    */
-  RC create(int32_t table_id, 
-            const char *path, 
-            const char *name, 
-            const char *base_dir, 
-            int attribute_count, 
-            const AttrInfoSqlNode attributes[]);
+  RC create(int32_t table_id, const char *path, const char *name, const char *base_dir, int attribute_count,
+      const AttrInfoSqlNode attributes[]);
 
-    /**
+  /**
    * 删除一个表
    * @param path 元数据保存的文件(完整路径)
    */
@@ -97,13 +93,10 @@ public:
 
   RC get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly);
 
-  RecordFileHandler *record_handler() const
-  {
-    return record_handler_;
-  }
+  RecordFileHandler *record_handler() const { return record_handler_; }
 
 public:
-  int32_t table_id() const { return table_meta_.table_id(); }
+  int32_t     table_id() const { return table_meta_.table_id(); }
   const char *name() const;
 
   const TableMeta &table_meta() const;
@@ -122,9 +115,9 @@ public:
   Index *find_index_by_field(const char *field_name) const;
 
 private:
-  std::string base_dir_;
-  TableMeta   table_meta_;
-  DiskBufferPool *data_buffer_pool_ = nullptr;   /// 数据文件关联的buffer pool
-  RecordFileHandler *record_handler_ = nullptr;  /// 记录操作
+  std::string          base_dir_;
+  TableMeta            table_meta_;
+  DiskBufferPool      *data_buffer_pool_ = nullptr;  /// 数据文件关联的buffer pool
+  RecordFileHandler   *record_handler_   = nullptr;  /// 记录操作
   std::vector<Index *> indexes_;
 };
