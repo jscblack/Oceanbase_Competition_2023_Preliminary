@@ -26,5 +26,3 @@ GPATH
 GTAGS
 docs/book
 #*#
-.vscode/*
-deps/*
