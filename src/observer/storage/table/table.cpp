@@ -53,6 +53,10 @@ Table::~Table()
 RC Table::create(int32_t table_id, const char *path, const char *name, const char *base_dir, int attribute_count,
     const AttrInfoSqlNode attributes[])
 {
+  if (table_id < 0) {
+    LOG_WARN("invalid table id. table_id=%d, table_name=%s", table_id, name);
+    return RC::INVALID_ARGUMENT;
+  }
 
   if (common::is_blank(name)) {
     LOG_WARN("Name cannot be empty");
@@ -126,6 +130,7 @@ RC Table::drop(const char *path)
   for (Index *index : indexes_) {
     // recast to BplusTreeIndex
     BplusTreeIndex *bpt_index = dynamic_cast<BplusTreeIndex *>(index);
+    std::string index_file= table_index_file(base_dir_.c_str(), name(), bpt_index->index_meta().name());
     bpt_index->drop();
   }
   // 删除关联record_handler
@@ -297,6 +302,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value     &value = values[i];
     if (field->type() != value.attr_type()) {
+      // 这里应该不会走到，前面都处理过了
       LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
                 table_meta_.name(), field->name(), field->type(), value.attr_type());
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
@@ -464,6 +470,42 @@ RC Table::delete_record(const Record &record)
         strrc(rc));
   }
   rc = record_handler_->delete_record(&record.rid());
+  return rc;
+}
+
+RC Table::update_record(const Record &record, const char *data)
+{
+  RC rc = RC::SUCCESS;
+  // 这里需要做update
+
+  for (Index *index : indexes_) {
+    rc = index->delete_entry(record.data(), &record.rid());
+    ASSERT(RC::SUCCESS == rc,
+        "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
+        name(),
+        index->index_meta().name(),
+        record.rid().to_string().c_str(),
+        strrc(rc));
+  }
+
+  rc = record_handler_->update_record(record.rid(), data);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
+    return rc;
+  }
+  rc = insert_entry_of_indexes(record.data(), record.rid());
+  if (rc != RC::SUCCESS) {  // 可能出现了键值重复
+    RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false /*error_on_not_exists*/);
+    if (rc2 != RC::SUCCESS) {
+      LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
+                name(), rc2, strrc(rc2));
+    }
+    rc2 = record_handler_->delete_record(&record.rid());
+    if (rc2 != RC::SUCCESS) {
+      LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
+                name(), rc2, strrc(rc2));
+    }
+  }
   return rc;
 }
 

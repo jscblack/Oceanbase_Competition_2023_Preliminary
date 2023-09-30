@@ -812,6 +812,9 @@ RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_
 
   key_comparator_.init(file_header->attr_type, file_header->attr_length);
   key_printer_.init(file_header->attr_type, file_header->attr_length);
+
+  this->sync();
+
   LOG_INFO("Successfully create index %s", file_name);
   return RC::SUCCESS;
 }
@@ -874,9 +877,12 @@ RC BplusTreeHandler::drop()
 {
   RC rc=RC::SUCCESS; 
   if (disk_buffer_pool_ != nullptr) {
-    // disk_buffer_pool_->dr();
     BufferPoolManager &bpm=BufferPoolManager::instance();
     rc=bpm.remove_file(disk_buffer_pool_->get_file_name());
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to remove file. file name=%s, rc=%d:%s", disk_buffer_pool_->get_file_name(), rc, strrc(rc));
+      return rc;
+    }
     // delete mem_pool_item_;
     // mem_pool_item_=nullptr;
     mem_pool_item_.release();
@@ -1409,7 +1415,7 @@ RC BplusTreeHandler::insert_entry(const char *user_key, const RID *rid)
 
   rc = insert_entry_into_leaf_node(latch_memo, frame, key, rid);
   if (rc != RC::SUCCESS) {
-    LOG_TRACE("Failed to insert into leaf of index, rid:%s", rid->to_string().c_str());
+    LOG_TRACE("Failed to insert into leaf of index, rid:%s. rc=%s", rid->to_string().c_str(), strrc(rc));
     return rc;
   }
 

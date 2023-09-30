@@ -83,6 +83,10 @@ public:
    */
   RC insert_record(Record &record);
   RC delete_record(const Record &record);
+  /**
+   * @brief 在当前的表中更新一条记录
+   */
+  RC update_record(const Record &record, const char *data);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);
 

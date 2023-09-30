@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "common/rc.h"
 #include <string>
+
 /**
  * @brief 属性的类型
  *
@@ -28,7 +29,9 @@ enum AttrType
   INTS,      ///< 整数类型(4字节)
   FLOATS,    ///< 浮点数类型(4字节)
   DATES,     ///< 日期类型(字符串)
+  TEXTS,     ///< 超长字段(字符串)
   BOOLEANS,  ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
+  NONE,      ///< 预留空类型
 };
 
 const char *attr_type_to_string(AttrType type);
@@ -52,6 +55,8 @@ public:
 
   Value(const Value &other)            = default;
   Value &operator=(const Value &other) = default;
+  // need a new copy construct function
+  Value clone() const;
 
   void set_type(AttrType type) { this->attr_type_ = type; }
   void set_data(char *data, int length);
@@ -87,7 +92,12 @@ public:
    * typecast
    * 类型转换
    */
-  RC value_str_to_date() const;
+  RC str_to_date() const;
+  RC str_to_number() const;
+  RC number_to_str() const;
+  RC int_to_float() const;
+  RC float_to_int() const;
+  RC auto_cast(AttrType field_type) const;
 
 private:
   AttrType attr_type_ = UNDEFINED;

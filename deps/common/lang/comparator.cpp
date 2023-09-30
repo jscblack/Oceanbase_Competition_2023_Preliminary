@@ -69,12 +69,12 @@ int compare_date(void *arg1, void *arg2)
   sscanf(s1, "%d-%d-%d", &year1, &month1, &day1);
   sscanf(s2, "%d-%d-%d", &year2, &month2, &day2);
   if (year1 != year2) {
-    return year1 < year2;
+    return year1 - year2;
   } else {
     if (month1 != month2) {
-      return month1 < month2;
+      return month1 - month2;
     } else {
-      return day1 < day2;
+      return day1 - day2;
     }
   }
 }
