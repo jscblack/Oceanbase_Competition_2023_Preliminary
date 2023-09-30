@@ -38,7 +38,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
     LOG_WARN("invalid argument. db=%p, table_name=%p", db, table_name);
     return RC::INVALID_ARGUMENT;
   }
-
+  
   if (update_sql.attribute_names.size() != update_sql.values.size()) {
     LOG_WARN("invalid argument. attribute_names.size()=%d, values.size()=%d", update_sql.attribute_names.size(), update_sql.values.size());
     return RC::INVALID_ARGUMENT;

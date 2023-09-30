@@ -38,7 +38,6 @@ RC VacuousTrx::delete_record(Table *table, Record &record) { return table->delet
 
 RC VacuousTrx::update_record(Table *table, Record &record, const char *data)
 {
-  // return RC::UNIMPLENMENT;
   return table->update_record(record, data);
 }
 

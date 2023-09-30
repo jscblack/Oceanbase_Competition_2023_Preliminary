@@ -133,8 +133,8 @@ struct DeleteSqlNode
 struct UpdateSqlNode
 {
   std::string                   relation_name;    ///< Relation to update
-  std::vector<std::string>      attribute_names;  ///< 更新的字段，仅支持一个字段
-  std::vector<Value>            values;           ///< 更新的值，仅支持一个字段
+  std::vector<std::string>      attribute_names;  ///< 更新的字段，支持多个字段
+  std::vector<Value>            values;           ///< 更新的值，支持多个字段
   std::vector<ConditionSqlNode> conditions;
 };
 

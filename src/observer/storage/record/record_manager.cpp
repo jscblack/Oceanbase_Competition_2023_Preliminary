@@ -470,8 +470,6 @@ RC RecordFileHandler::update_record(const RID &rid,const char *data){
   return rc;
 }
 
-
-
 RC RecordFileHandler::get_record(RecordPageHandler &page_handler, const RID *rid, bool readonly, Record *rec)
 {
   if (nullptr == rid || nullptr == rec) {

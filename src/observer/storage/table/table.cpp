@@ -477,7 +477,6 @@ RC Table::update_record(const Record &record, const char *data)
 {
   RC rc = RC::SUCCESS;
   // 这里需要做update
-
   for (Index *index : indexes_) {
     rc = index->delete_entry(record.data(), &record.rid());
     ASSERT(RC::SUCCESS == rc,
