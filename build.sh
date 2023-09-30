@@ -153,6 +153,33 @@ function build
   esac
 }
 
+function style 
+{
+  # Check if .clang-format file exists
+  if [ ! -f .clang-format ]; then
+    echo "Error: .clang-format file not found in the current directory."
+    exit 1
+  fi
+
+  # Find all source files (adjust the file extensions as needed)
+  source_files=$(find . -type f -name "*.cpp" -o -name "*.h")
+
+  # Check if there are any source files
+  if [ -z "$source_files" ]; then
+    echo "No source files found in the current directory."
+    exit 0
+  fi
+
+  # Format each source file using clang-format
+  for file in $source_files; do
+    clang-format -i "$file"
+    echo "Formatted: $file"
+  done
+
+  echo "Formatting complete."
+}
+
+
 function main
 {
   case "$1" in
@@ -164,6 +191,9 @@ function main
       ;;
     clean)
       do_clean
+      ;;
+    style)
+      style
       ;;
     *)
       parse_args

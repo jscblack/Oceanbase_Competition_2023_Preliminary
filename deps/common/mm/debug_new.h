@@ -19,7 +19,7 @@ See the Mulan PSL v2 for more details. */
 namespace common {
 
 /* Prototypes */
-bool check_leaks();
+bool  check_leaks();
 void *operator new(size_t size, const char *file, int line);
 void *operator new[](size_t size, const char *file, int line);
 #ifndef NO_PLACEMENT_DELETE

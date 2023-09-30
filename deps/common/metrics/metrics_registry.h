@@ -24,7 +24,8 @@ See the Mulan PSL v2 for more details. */
 
 namespace common {
 
-class MetricsRegistry {
+class MetricsRegistry
+{
 public:
   MetricsRegistry(){};
   virtual ~MetricsRegistry(){};
@@ -36,14 +37,11 @@ public:
 
   void report();
 
-  void add_reporter(Reporter *reporter)
-  {
-    reporters.push_back(reporter);
-  }
+  void add_reporter(Reporter *reporter) { reporters.push_back(reporter); }
 
 protected:
   std::map<std::string, Metric *> metrics;
-  std::list<Reporter *> reporters;
+  std::list<Reporter *>           reporters;
 };
 
 MetricsRegistry &get_metrics_registry();

@@ -30,12 +30,12 @@ int main()
 
   std::string pidFile = getPidPath();
 
-  char *p = NULL;
+  char  *p    = NULL;
   size_t size = 0;
   readFromFile(pidFile, p, size);
 
   std::string temp(p);
-  long long target = 0;
+  long long   target = 0;
   str_to_val(temp, target);
 
   free(p);

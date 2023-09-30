@@ -41,7 +41,7 @@ class IndexMeta
 public:
   IndexMeta() = default;
 
-  RC init(const char *name, const FieldMeta &field, IndexType type=IndexType::NonUnique);
+  RC init(const char *name, const FieldMeta &field, IndexType type = IndexType::NonUnique);
 
 public:
   const char     *name() const;

@@ -209,14 +209,14 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid)
   return RC::SUCCESS;
 }
 
-RC RecordPageHandler::update_record(const RID &rid,const char *data){
+RC RecordPageHandler::update_record(const RID &rid, const char *data)
+{
   // 这里是真实更新data的位置
   char *record_data = get_record_data(rid.slot_num);
   memcpy(record_data, data, page_header_->record_real_size);
   frame_->mark_dirty();
   return RC::SUCCESS;
 }
-
 
 RC RecordPageHandler::recover_insert_record(const char *data, const RID &rid)
 {
@@ -458,14 +458,15 @@ RC RecordFileHandler::delete_record(const RID *rid)
   }
   return rc;
 }
-RC RecordFileHandler::update_record(const RID &rid,const char *data){
-  RC rc = RC::SUCCESS;
+RC RecordFileHandler::update_record(const RID &rid, const char *data)
+{
+  RC                rc = RC::SUCCESS;
   RecordPageHandler page_handler;
   if ((rc = page_handler.init(*disk_buffer_pool_, rid.page_num, false /*readonly*/)) != RC::SUCCESS) {
     LOG_ERROR("Failed to init record page handler.page number=%d. rc=%s", rid.page_num, strrc(rc));
     return rc;
   }
-  rc = page_handler.update_record(rid,data);
+  rc = page_handler.update_record(rid, data);
   page_handler.cleanup();
   return rc;
 }
