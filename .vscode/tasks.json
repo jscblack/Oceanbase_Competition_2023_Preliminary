@@ -8,6 +8,8 @@
             "command": "cmake",
             "args": [
                 "-DDEBUG=ON",
+                "-DENABLE_ASAN=ON",
+                "--log-level=DEBUG",
                 ".."
             ]
         },
