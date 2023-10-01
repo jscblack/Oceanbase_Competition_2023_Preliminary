@@ -41,6 +41,7 @@ public:
   virtual ~Index() = default;
 
   const IndexMeta &index_meta() const { return index_meta_; }
+  const FieldMeta &field_meta() const { return field_meta_; }
 
   /**
    * @brief 插入一条数据
@@ -57,6 +58,16 @@ public:
    * @param[in] rid   删除的记录的位置
    */
   virtual RC delete_entry(const char *record, const RID *rid) = 0;
+
+    /**
+   * @brief 查找一条数据
+   *
+   * @param record 要查找的记录，当前假设记录是定长的
+   * @param[in] rid   查找到的记录的位置
+   */
+  virtual RC get_entry(const char *record, list<RID> &rids) = 0;
+
+
 
   /**
    * @brief 创建一个索引数据的扫描器

@@ -47,9 +47,11 @@ public:
   const char     *name() const;
   const char     *field() const;
   const IndexType type() const;
+  bool            is_unique() const;
   void            desc(std::ostream &os) const;
 
 public:
+  // 保存索引信息等
   void      to_json(Json::Value &json_value) const;
   static RC from_json(const TableMeta &table, const Json::Value &json_value, IndexMeta &index);
 

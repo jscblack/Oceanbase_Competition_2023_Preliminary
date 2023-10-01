@@ -212,7 +212,26 @@ RC Table::open(const char *meta_file, const char *base_dir)
 RC Table::insert_record(Record &record)
 {
   RC rc = RC::SUCCESS;
-  rc    = record_handler_->insert_record(record.data(), table_meta_.record_size(), &record.rid());
+  // 检查索引中是否有存在的项
+  for (Index *index : indexes_) {
+    if (index->index_meta().is_unique()) {
+      // 需要首先检查插入后的情况是否会有键值重复的情况
+      std::list<RID> rids;
+      rc = index->get_entry(record.data(), rids);
+      if (rc != RC::SUCCESS) {
+        LOG_ERROR("Failed to get entry from index. table name=%s, index name=%s, rc=%s",
+                  name(), index->index_meta().name(), strrc(rc));
+        return rc;
+      }
+      if (rids.size() >= 1) {
+        LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
+                  name(), index->index_meta().name(), strrc(rc));
+        return RC::UNIQUE_INDEX_CONFLICT;
+      }
+    }
+  }
+
+  rc = record_handler_->insert_record(record.data(), table_meta_.record_size(), &record.rid());
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Insert record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
@@ -363,19 +382,57 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name)
+RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, const char *index_name, bool is_unique)
 {
+  // 在当前情况下先做unique index
+  const FieldMeta *field_meta = field_metas[0];  // TODO: support multi-field index
   if (common::is_blank(index_name) || nullptr == field_meta) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
     return RC::INVALID_ARGUMENT;
   }
 
   IndexMeta new_index_meta;
-  RC        rc = new_index_meta.init(index_name, *field_meta);
+  RC        rc = new_index_meta.init(index_name, *field_meta, is_unique ? IndexType::Unique : IndexType::NonUnique);
   if (rc != RC::SUCCESS) {
     LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s, field_name:%s",
              name(), index_name, field_meta->name());
     return rc;
+  }
+  // 检查唯一性
+  if (is_unique) {
+    std::unordered_set<std::string> unique_check_set;
+    // 遍历当前的所有数据，插入这个索引
+    RecordFileScanner scanner_unique;
+    rc = get_record_scanner(scanner_unique, trx, true /*readonly*/);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to create scanner while creating index. table=%s, index=%s, rc=%s",
+              name(), index_name, strrc(rc));
+      return rc;
+    }
+
+    Record record_unique;
+    while (scanner_unique.has_next()) {
+      rc = scanner_unique.next(record_unique);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to scan records while creating index. table=%s, index=%s, rc=%s",
+                name(), index_name, strrc(rc));
+        scanner_unique.close_scan();
+        return rc;
+      }
+
+      char *key_data = new char[field_meta->len()];
+      memcpy(key_data, record_unique.data() + field_meta->offset(), field_meta->len());
+      std::string key(key_data, field_meta->len());
+      delete[] key_data;
+      if (unique_check_set.find(key) != unique_check_set.end()) {
+        LOG_WARN("failed to create unique index. table=%s, index=%s, rc=%s",
+                name(), index_name, strrc(rc));
+        scanner_unique.close_scan();
+        return RC::UNIQUE_INDEX_CONFLICT;
+      }
+      unique_check_set.insert(key);
+    }
+    scanner_unique.close_scan();
   }
 
   // 创建索引相关数据
@@ -476,6 +533,30 @@ RC Table::delete_record(const Record &record)
 RC Table::update_record(const Record &record, const char *data)
 {
   RC rc = RC::SUCCESS;
+  for (Index *index : indexes_) {
+    if (index->index_meta().is_unique()) {
+      // 检查更新前后，该字段是否发生变化
+      int modified = memcmp(
+          record.data() + index->field_meta().offset(), data + index->field_meta().offset(), index->field_meta().len());
+      if (modified == 0) {
+        // 无任何变更，不需要检查
+        continue;
+      }
+      // 需要首先检查插入后的情况是否会有键值重复的情况
+      std::list<RID> rids;
+      rc = index->get_entry(data, rids);
+      if (rc != RC::SUCCESS) {
+        LOG_ERROR("Failed to get entry from index. table name=%s, index name=%s, rc=%s",
+                  name(), index->index_meta().name(), strrc(rc));
+        return rc;
+      }
+      if (rids.size() >= 1) {
+        LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
+                  name(), index->index_meta().name(), strrc(rc));
+        return RC::UNIQUE_INDEX_CONFLICT;
+      }
+    }
+  }
   // 这里需要做update
   for (Index *index : indexes_) {
     rc = index->delete_entry(record.data(), &record.rid());

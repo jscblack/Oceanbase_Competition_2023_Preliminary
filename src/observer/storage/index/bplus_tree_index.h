@@ -14,8 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include "storage/index/index.h"
 #include "storage/index/bplus_tree.h"
+#include "storage/index/index.h"
 
 /**
  * @brief B+树索引
@@ -34,6 +34,7 @@ public:
 
   RC insert_entry(const char *record, const RID *rid) override;
   RC delete_entry(const char *record, const RID *rid) override;
+  RC get_entry(const char *record, list<RID> &rids) override;
 
   /**
    * 扫描指定范围的数据
