@@ -81,6 +81,8 @@ QUOTE            [\'\"]
 [\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
 
 ";"                                     RETURN_TOKEN(SEMICOLON);
+NOT{WHITE_SAPCE}+LIKE                   RETURN_TOKEN(NOT_LIKE); 
+LIKE                                    RETURN_TOKEN(LIKE);
 {DOT}                                   RETURN_TOKEN(DOT);
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
