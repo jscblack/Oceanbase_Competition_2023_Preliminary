@@ -1623,6 +1623,7 @@ RC BplusTreeScanner::open(const char *left_user_key, int left_len, bool left_inc
     int right_len, bool right_inclusive)
 {
   // multi的情况下基本只做完全匹配
+  // multi_index 不做范围查询，只做精确查询
   // 暂时不考虑最左匹配
   RC rc = RC::SUCCESS;
   if (inited_) {
@@ -1836,7 +1837,7 @@ RC BplusTreeScanner::fix_user_key(
 {
   return RC::UNIMPLENMENT;
   /*
-  
+
   if (nullptr == fixed_key || nullptr == should_inclusive) {
     return RC::INVALID_ARGUMENT;
   }
