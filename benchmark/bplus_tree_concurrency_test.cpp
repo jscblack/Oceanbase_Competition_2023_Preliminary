@@ -11,14 +11,14 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by Wangyunlai on 2023/03/14
 //
+#include <benchmark/benchmark.h>
 #include <inttypes.h>
 #include <stdexcept>
-#include <benchmark/benchmark.h>
 
-#include "storage/index/bplus_tree.h"
-#include "storage/buffer/disk_buffer_pool.h"
 #include "common/log/log.h"
 #include "integer_generator.h"
+#include "storage/buffer/disk_buffer_pool.h"
+#include "storage/index/bplus_tree.h"
 
 using namespace std;
 using namespace common;
@@ -71,7 +71,11 @@ public:
 
     const char *filename = btree_filename.c_str();
 
-    RC rc = handler_.create(filename, INTS, sizeof(int32_t) /*attr_len*/, internal_max_size, leaf_max_size);
+    AttrType *attr_type = new AttrType[1];
+    attr_type[0]        = INTS;
+    int *attr_length    = new int[1];
+    attr_length[0]      = sizeof(int32_t);
+    RC rc = handler_.create(filename, 1, attr_type, attr_length /*attr_len*/, internal_max_size, leaf_max_size);
     if (rc != RC::SUCCESS) {
       throw runtime_error("failed to create btree handler");
     }

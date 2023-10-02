@@ -58,10 +58,6 @@ RC CreateIndexStmt::create(Db *db, const CreateIndexSqlNode &create_index, Stmt 
     field_metas.push_back(field_meta);
   }
 
-  if (create_index.attribute_names.size() > 1) {
-    return RC::UNIMPLENMENT;  // TODO: support multi-field index
-  }
-
   Index *index = table->find_index(create_index.index_name.c_str());
   if (nullptr != index) {
     LOG_WARN("index with name(%s) already exists. table name=%s", create_index.index_name.c_str(), table_name);

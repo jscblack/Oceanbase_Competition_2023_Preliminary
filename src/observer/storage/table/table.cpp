@@ -180,21 +180,25 @@ RC Table::open(const char *meta_file, const char *base_dir)
 
   base_dir_ = base_dir;
 
-  const int index_num = table_meta_.index_num();
+  const int              index_num = table_meta_.index_num();
+  std::vector<FieldMeta> field_metas;
+
   for (int i = 0; i < index_num; i++) {
     const IndexMeta *index_meta = table_meta_.index(i);
-    const FieldMeta *field_meta = table_meta_.field(index_meta->field());
-    if (field_meta == nullptr) {
-      LOG_ERROR("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
-                name(), index_meta->name(), index_meta->field());
-      // skip cleanup
-      //  do all cleanup action in destructive Table function
-      return RC::INTERNAL;
+    for (int j = 0; j < index_meta->fields().size(); j++) {
+      const FieldMeta *field_meta = table_meta_.field(index_meta->fields()[j].c_str());
+      if (field_meta == nullptr) {
+        LOG_ERROR("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
+                name(), index_meta->name(), index_meta->fields()[j].c_str());
+        // skip cleanup
+        //  do all cleanup action in destructive Table function
+        return RC::INTERNAL;
+      }
+      field_metas.push_back(*field_meta);
     }
-
     BplusTreeIndex *index      = new BplusTreeIndex();
     std::string     index_file = table_index_file(base_dir, name(), index_meta->name());
-    rc                         = index->open(index_file.c_str(), *index_meta, *field_meta);
+    rc                         = index->open(index_file.c_str(), *index_meta, field_metas);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to open index. table=%s, index=%s, file=%s, rc=%s",
@@ -382,20 +386,20 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, const char *index_name, bool is_unique)
+RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, const char *index_name, bool is_unique)
 {
   // 在当前情况下先做unique index
-  const FieldMeta *field_meta = field_metas[0];  // TODO: support multi-field index
-  if (common::is_blank(index_name) || nullptr == field_meta) {
+  // const FieldMeta *field_meta = field_metas[0];  // TODO: support multi-field index
+  if (common::is_blank(index_name) || fields_meta.empty()) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
     return RC::INVALID_ARGUMENT;
   }
 
   IndexMeta new_index_meta;
-  RC        rc = new_index_meta.init(index_name, *field_meta, is_unique ? IndexType::Unique : IndexType::NonUnique);
+  RC        rc = new_index_meta.init(index_name, fields_meta, is_unique ? IndexType::Unique : IndexType::NonUnique);
   if (rc != RC::SUCCESS) {
     LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s, field_name:%s",
-             name(), index_name, field_meta->name());
+             name(), index_name, fields_meta[0]->name());
     return rc;
   }
   // 检查唯一性
@@ -411,6 +415,10 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, con
     }
 
     Record record_unique;
+    int    attr_length_sum = 0;
+    for (int i = 0; i < fields_meta.size(); i++) {
+      attr_length_sum += fields_meta[i]->len();
+    }
     while (scanner_unique.has_next()) {
       rc = scanner_unique.next(record_unique);
       if (rc != RC::SUCCESS) {
@@ -420,9 +428,13 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, con
         return rc;
       }
 
-      char *key_data = new char[field_meta->len()];
-      memcpy(key_data, record_unique.data() + field_meta->offset(), field_meta->len());
-      std::string key(key_data, field_meta->len());
+      char *key_data = new char[attr_length_sum];
+      int   offset   = 0;
+      for (int i = 0; i < fields_meta.size(); i++) {
+        memcpy(key_data + offset, record_unique.data() + fields_meta[i]->offset(), fields_meta[i]->len());
+        offset += fields_meta[i]->len();
+      }
+      std::string key(key_data, attr_length_sum);
       delete[] key_data;
       if (unique_check_set.find(key) != unique_check_set.end()) {
         LOG_WARN("failed to create unique index. table=%s, index=%s, rc=%s",
@@ -436,9 +448,13 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, con
   }
 
   // 创建索引相关数据
-  BplusTreeIndex *index      = new BplusTreeIndex();
-  std::string     index_file = table_index_file(base_dir_.c_str(), name(), index_name);
-  rc                         = index->create(index_file.c_str(), new_index_meta, *field_meta);
+  BplusTreeIndex        *index      = new BplusTreeIndex();
+  std::string            index_file = table_index_file(base_dir_.c_str(), name(), index_name);
+  std::vector<FieldMeta> ref_fields_meta(fields_meta.size());
+  for (int i = 0; i < fields_meta.size(); i++) {
+    ref_fields_meta[i] = *fields_meta[i];
+  }
+  rc = index->create(index_file.c_str(), new_index_meta, ref_fields_meta);
   if (rc != RC::SUCCESS) {
     delete index;
     LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
@@ -535,9 +551,14 @@ RC Table::update_record(const Record &record, const char *data)
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     if (index->index_meta().is_unique()) {
-      // 检查更新前后，该字段是否发生变化
-      int modified = memcmp(
-          record.data() + index->field_meta().offset(), data + index->field_meta().offset(), index->field_meta().len());
+      // 检查更新前后，索引对应的字段是否发生变化
+      char *user_key        = nullptr;
+      char *user_key_before = nullptr;
+      int   attr_length_sum = index->get_user_key(record.data(), user_key_before);
+      attr_length_sum       = index->get_user_key(data, user_key);
+
+      int modified = memcmp(user_key, user_key_before, attr_length_sum);
+
       if (modified == 0) {
         // 无任何变更，不需要检查
         continue;

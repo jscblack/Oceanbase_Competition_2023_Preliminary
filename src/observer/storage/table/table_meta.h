@@ -17,10 +17,10 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <vector>
 
+#include "common/lang/serializable.h"
 #include "common/rc.h"
 #include "storage/field/field_meta.h"
 #include "storage/index/index_meta.h"
-#include "common/lang/serializable.h"
 
 /**
  * @brief 表元数据

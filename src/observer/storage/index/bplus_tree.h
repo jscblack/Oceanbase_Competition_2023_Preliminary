@@ -17,17 +17,17 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <string.h>
-#include <sstream>
 #include <functional>
 #include <memory>
+#include <sstream>
+#include <string.h>
 
-#include "storage/record/record_manager.h"
-#include "storage/buffer/disk_buffer_pool.h"
-#include "storage/trx/latch_memo.h"
-#include "sql/parser/parse_defs.h"
 #include "common/lang/comparator.h"
 #include "common/log/log.h"
+#include "sql/parser/parse_defs.h"
+#include "storage/buffer/disk_buffer_pool.h"
+#include "storage/record/record_manager.h"
+#include "storage/trx/latch_memo.h"
 
 /**
  * @brief B+树的实现
@@ -90,29 +90,42 @@ private:
 /**
  * @brief 键值比较(BplusTree)
  * @details BplusTree的键值除了字段属性，还有RID，是为了避免属性值重复而增加的。
+ * @details 在这里的字段属性会很多，key中实际上会包含attr,attr,attr...rid
  * @ingroup BPlusTree
  */
 class KeyComparator
 {
 public:
-  void init(AttrType type, int length) { attr_comparator_.init(type, length); }
-
-  const AttrComparator &attr_comparator() const { return attr_comparator_; }
-
-  int operator()(const char *v1, const char *v2) const
+  void init(int attr_count, AttrType *type, int *attr_length)
   {
-    int result = attr_comparator_(v1, v2);
-    if (result != 0) {
-      return result;
+    attr_comparators_.resize(attr_count);
+    for (int i = 0; i < attr_count; i++) {
+      attr_comparators_[i].init(type[i], attr_length[i]);
     }
+  }
 
-    const RID *rid1 = (const RID *)(v1 + attr_comparator_.attr_length());
-    const RID *rid2 = (const RID *)(v2 + attr_comparator_.attr_length());
+  const std::vector<AttrComparator> &attr_comparators() const { return attr_comparators_; }
+
+  int operator()(const char *v1, const char *v2, bool include_rid = true) const
+  {
+    int offset = 0;
+    for (int i = 0; i < attr_comparators_.size(); i++) {
+      int result = attr_comparators_[i](v1 + offset, v2 + offset);
+      if (result != 0) {
+        return result;
+      }
+      offset += attr_comparators_[i].attr_length();
+    }
+    if (!include_rid) {
+      return 0;
+    }
+    const RID *rid1 = (const RID *)(v1 + offset);
+    const RID *rid2 = (const RID *)(v2 + offset);
     return RID::compare(rid1, rid2);
   }
 
 private:
-  AttrComparator attr_comparator_;
+  std::vector<AttrComparator> attr_comparators_;
 };
 
 /**
@@ -171,22 +184,33 @@ private:
 class KeyPrinter
 {
 public:
-  void init(AttrType type, int length) { attr_printer_.init(type, length); }
+  void init(int attr_count, AttrType *type, int *attr_length)
+  {
+    attr_printers_.resize(attr_count);
+    for (int i = 0; i < attr_count; i++) {
+      attr_printers_[i].init(type[i], attr_length[i]);
+    }
+  }
 
-  const AttrPrinter &attr_printer() const { return attr_printer_; }
+  const std::vector<AttrPrinter> &attr_printer() const { return attr_printers_; }
 
   std::string operator()(const char *v) const
   {
     std::stringstream ss;
-    ss << "{key:" << attr_printer_(v) << ",";
+    int               offset = 0;
+    ss << "{keys: ";
+    for (int i = 0; i < attr_printers_.size(); i++) {
+      ss << "attr" << i << ":" << attr_printers_[i](v + offset) << ", ";
+      offset += attr_printers_[i].attr_length();
+    }
 
-    const RID *rid = (const RID *)(v + attr_printer_.attr_length());
+    const RID *rid = (const RID *)(v + offset);
     ss << "rid:{" << rid->to_string() << "}}";
     return ss.str();
   }
 
 private:
-  AttrPrinter attr_printer_;
+  std::vector<AttrPrinter> attr_printers_;
 };
 
 /**
@@ -195,6 +219,7 @@ private:
  * @details this is the first page of bplus tree.
  * only one field can be supported, can you extend it to multi-fields?
  */
+#define MAX_INDEX_ATTR_NUM 10
 struct IndexFileHeader
 {
   IndexFileHeader()
@@ -202,20 +227,21 @@ struct IndexFileHeader
     memset(this, 0, sizeof(IndexFileHeader));
     root_page = BP_INVALID_PAGE_NUM;
   }
-  PageNum  root_page;          ///< 根节点在磁盘中的页号
-  int32_t  internal_max_size;  ///< 内部节点最大的键值对数
-  int32_t  leaf_max_size;      ///< 叶子节点最大的键值对数
-  int32_t  attr_length;        ///< 键值的长度
-  int32_t  key_length;         ///< attr length + sizeof(RID)
-  AttrType attr_type;          ///< 键值的类型
+  PageNum  root_page;                        ///< 根节点在磁盘中的页号
+  int32_t  internal_max_size;                ///< 内部节点最大的键值对数
+  int32_t  leaf_max_size;                    ///< 叶子节点最大的键值对数
+  int32_t  attr_count;                       ///< 键值的个数
+  int32_t  attr_length[MAX_INDEX_ATTR_NUM];  ///< 键值的长度
+  int32_t  key_length;                       ///< sum (attr length) + sizeof(RID)
+  AttrType attr_type[MAX_INDEX_ATTR_NUM];    ///< 键值的类型
 
   const std::string to_string()
   {
     std::stringstream ss;
 
-    ss << "attr_length:" << attr_length << ","
+    ss << "attr_length:" << *attr_length << ","
        << "key_length:" << key_length << ","
-       << "attr_type:" << attr_type << ","
+       << "attr_type:" << *attr_type << ","
        << "root_page:" << root_page << ","
        << "internal_max_size:" << internal_max_size << ","
        << "leaf_max_size:" << leaf_max_size << ";";
@@ -446,10 +472,10 @@ class BplusTreeHandler
 public:
   /**
    * 此函数创建一个名为fileName的索引。
-   * attrType描述被索引属性的类型，attrLength描述被索引属性的长度
+   * attr_count 是索引的属性个数，attr_type是属性类型数组，attr_length是属性长度数组。
    */
-  RC create(
-      const char *file_name, AttrType attr_type, int attr_length, int internal_max_size = -1, int leaf_max_size = -1);
+  RC create(const char *file_name, int attr_count, AttrType *attr_type, int *attr_length, int internal_max_size = -1,
+      int leaf_max_size = -1);
 
   /**
    * 打开名为fileName的索引文件。

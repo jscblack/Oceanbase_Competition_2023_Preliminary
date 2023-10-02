@@ -14,8 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <functional>
 #include "storage/table/table_meta.h"
+#include <functional>
 
 struct RID;
 class Record;

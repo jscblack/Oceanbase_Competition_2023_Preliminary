@@ -12,13 +12,13 @@ See the Mulan PSL v2 for more details. */
 // Created by longda on 2022
 //
 
-#include <list>
 #include <iostream>
+#include <list>
 
-#include "storage/index/bplus_tree.h"
-#include "storage/buffer/disk_buffer_pool.h"
 #include "common/log/log.h"
 #include "sql/parser/parse_defs.h"
+#include "storage/buffer/disk_buffer_pool.h"
+#include "storage/index/bplus_tree.h"
 #include "gtest/gtest.h"
 
 using namespace common;
@@ -315,14 +315,19 @@ TEST(test_bplus_tree, test_leaf_index_node_handle)
   index_file_header.root_page         = BP_INVALID_PAGE_NUM;
   index_file_header.internal_max_size = 5;
   index_file_header.leaf_max_size     = 5;
-  index_file_header.attr_length       = 4;
+  index_file_header.attr_length[0]    = 4;
   index_file_header.key_length        = 4 + sizeof(RID);
-  index_file_header.attr_type         = INTS;
+  index_file_header.attr_type[0]      = INTS;
 
   Frame frame;
 
   KeyComparator key_comparator;
-  key_comparator.init(INTS, 4);
+
+  AttrType *attr_type = new AttrType[1];
+  attr_type[0]        = INTS;
+  int *attr_length    = new int[1];
+  attr_length[0]      = 4;
+  key_comparator.init(1, attr_type, attr_length);
 
   LeafIndexNodeHandler leaf_node(index_file_header, &frame);
   leaf_node.init_empty();
@@ -372,14 +377,19 @@ TEST(test_bplus_tree, test_internal_index_node_handle)
   index_file_header.root_page         = BP_INVALID_PAGE_NUM;
   index_file_header.internal_max_size = 5;
   index_file_header.leaf_max_size     = 5;
-  index_file_header.attr_length       = 4;
+  index_file_header.attr_length[0]    = 4;
   index_file_header.key_length        = 4 + sizeof(RID);
-  index_file_header.attr_type         = INTS;
+  index_file_header.attr_type[0]      = INTS;
 
   Frame frame;
 
   KeyComparator key_comparator;
-  key_comparator.init(INTS, 4);
+
+  AttrType *attr_type = new AttrType[1];
+  attr_type[0]        = INTS;
+  int *attr_length    = new int[1];
+  attr_length[0]      = 4;
+  key_comparator.init(1, attr_type, attr_length);
 
   InternalIndexNodeHandler internal_node(index_file_header, &frame);
   internal_node.init_empty();
@@ -469,7 +479,13 @@ TEST(test_bplus_tree, test_chars)
   const char *index_name = "chars.btree";
   ::remove(index_name);
   handler = new BplusTreeHandler();
-  handler->create(index_name, CHARS, 8, ORDER, ORDER);
+
+  AttrType *attr_type = new AttrType[1];
+  attr_type[0]        = CHARS;
+  int *attr_length    = new int[1];
+  attr_length[0]      = 8;
+
+  handler->create(index_name, 1, attr_type, attr_length, ORDER, ORDER);
 
   char keys[][9] = {"abcdefg", "12345678", "12345678", "abcdefg", "abcdefga"};
 
@@ -506,7 +522,13 @@ TEST(test_bplus_tree, test_scanner)
   const char *index_name = "scanner.btree";
   ::remove(index_name);
   handler = new BplusTreeHandler();
-  handler->create(index_name, INTS, sizeof(int), ORDER, ORDER);
+
+  AttrType *attr_type = new AttrType[1];
+  attr_type[0]        = INTS;
+  int *attr_length    = new int[1];
+  attr_length[0]      = sizeof(int);
+
+  handler->create(index_name, 1, attr_type, attr_length, ORDER, ORDER);
 
   int count = 0;
   RC  rc    = RC::SUCCESS;
@@ -714,8 +736,12 @@ TEST(test_bplus_tree, test_bplus_tree_insert)
   LoggerFactory::init_default("test.log");
 
   ::remove(index_name);
-  handler = new BplusTreeHandler();
-  handler->create(index_name, INTS, sizeof(int), ORDER, ORDER);
+  handler             = new BplusTreeHandler();
+  AttrType *attr_type = new AttrType[1];
+  attr_type[0]        = INTS;
+  int *attr_length    = new int[1];
+  attr_length[0]      = sizeof(int);
+  handler->create(index_name, 1, attr_type, attr_length, ORDER, ORDER);
 
   test_insert();
 
