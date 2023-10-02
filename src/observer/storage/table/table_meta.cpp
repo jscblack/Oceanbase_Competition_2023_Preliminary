@@ -15,10 +15,10 @@ See the Mulan PSL v2 for more details. */
 #include <algorithm>
 #include <common/lang/string.h>
 
-#include "storage/table/table_meta.h"
-#include "json/json.h"
 #include "common/log/log.h"
+#include "storage/table/table_meta.h"
 #include "storage/trx/trx.h"
+#include "json/json.h"
 
 using namespace std;
 
@@ -156,7 +156,7 @@ const IndexMeta *TableMeta::index(const char *name) const
 const IndexMeta *TableMeta::find_index_by_field(const char *field) const
 {
   for (const IndexMeta &index : indexes_) {
-    if (0 == strcmp(index.field(), field)) {
+    if (1 == index.fields().size() && 0 == strcmp(index.fields()[0].c_str(), field)) {
       return &index;
     }
   }
