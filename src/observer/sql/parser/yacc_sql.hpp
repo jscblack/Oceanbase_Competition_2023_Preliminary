@@ -66,6 +66,7 @@ extern int yydebug;
     SHOW = 267,                    /* SHOW  */
     SYNC = 268,                    /* SYNC  */
     INSERT = 269,                  /* INSERT  */
+<<<<<<< HEAD
     DELETE = 270,                  /* DELETE  */
     UPDATE = 271,                  /* UPDATE  */
     LBRACE = 272,                  /* LBRACE  */
@@ -101,6 +102,43 @@ extern int yydebug;
     LIKE = 302,                    /* LIKE  */
     NOT_LIKE = 303,                /* NOT_LIKE  */
     INNER_JOIN = 304,              /* INNER_JOIN  */
+=======
+    UNIQUE = 270,                  /* UNIQUE  */
+    DELETE = 271,                  /* DELETE  */
+    UPDATE = 272,                  /* UPDATE  */
+    LBRACE = 273,                  /* LBRACE  */
+    RBRACE = 274,                  /* RBRACE  */
+    COMMA = 275,                   /* COMMA  */
+    TRX_BEGIN = 276,               /* TRX_BEGIN  */
+    TRX_COMMIT = 277,              /* TRX_COMMIT  */
+    TRX_ROLLBACK = 278,            /* TRX_ROLLBACK  */
+    INT_T = 279,                   /* INT_T  */
+    STRING_T = 280,                /* STRING_T  */
+    FLOAT_T = 281,                 /* FLOAT_T  */
+    DATE_T = 282,                  /* DATE_T  */
+    HELP = 283,                    /* HELP  */
+    EXIT = 284,                    /* EXIT  */
+    DOT = 285,                     /* DOT  */
+    INTO = 286,                    /* INTO  */
+    VALUES = 287,                  /* VALUES  */
+    FROM = 288,                    /* FROM  */
+    WHERE = 289,                   /* WHERE  */
+    AND = 290,                     /* AND  */
+    SET = 291,                     /* SET  */
+    ON = 292,                      /* ON  */
+    LOAD = 293,                    /* LOAD  */
+    DATA = 294,                    /* DATA  */
+    INFILE = 295,                  /* INFILE  */
+    EXPLAIN = 296,                 /* EXPLAIN  */
+    EQ = 297,                      /* EQ  */
+    LT = 298,                      /* LT  */
+    GT = 299,                      /* GT  */
+    LE = 300,                      /* LE  */
+    GE = 301,                      /* GE  */
+    NE = 302,                      /* NE  */
+    LIKE = 303,                    /* LIKE  */
+    NOT_LIKE = 304,                /* NOT_LIKE  */
+>>>>>>> main
     NUMBER = 305,                  /* NUMBER  */
     FLOAT = 306,                   /* FLOAT  */
     DATE = 307,                    /* DATE  */
@@ -137,6 +175,7 @@ union YYSTYPE
   int                               number;
   float                             floats;
   char *                             dates;
+  bool                             boolean;
 
 #line 142 "yacc_sql.hpp"
 

@@ -61,11 +61,13 @@ RC ShowIndexExecutor::execute(SQLStageEvent *sql_event)
 
     for (int i = 0; i < table_meta.index_num(); i++) {
       const IndexMeta *index_meta = table_meta.index(i);
-      oper->append({table_meta.name(),
-          index_meta->type() == IndexType::NonUnique ? "1" : "0",  // non_unique
-          index_meta->name(),
-          "1",  // 此处还未实现多列索引，以1置空
-          index_meta->field()});
+      for (int j = 0; j < index_meta->fields().size(); j++) {
+        oper->append({table_meta.name(),
+            index_meta->type() == IndexType::NonUnique ? "1" : "0",  // non_unique
+            index_meta->name(),
+            to_string(j + 1).c_str(),
+            index_meta->fields()[j]});
+      }
     }
     sql_result->set_operator(unique_ptr<PhysicalOperator>(oper));
   } else {

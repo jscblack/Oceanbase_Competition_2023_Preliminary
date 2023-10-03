@@ -66,6 +66,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         SHOW
         SYNC
         INSERT
+        UNIQUE
         DELETE
         UPDATE
         LBRACE
@@ -124,6 +125,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   int                               number;
   float                             floats;
   char *                             dates;
+  bool                             boolean;
 }
 
 %token <number> NUMBER
@@ -144,6 +146,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <attr_info>           attr_def
 %type <insert_list>         insert_list
 %type <value_list>          value_list
+%type <boolean>             unique_marker
 %type <condition_list>      where
 %type <condition_list>      condition_list
 %type <rel_attr_list>       select_attr
@@ -281,18 +284,33 @@ desc_table_stmt:
       free($2);
     }
     ;
-
+unique_marker:
+    /* empty */
+    {
+      $$ = false;
+    }
+    | UNIQUE
+    {
+      $$ = true;
+    }
+    ;
 create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE
+    CREATE unique_marker INDEX ID ON ID LBRACE ID rel_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
-      create_index.index_name = $3;
-      create_index.relation_name = $5;
-      create_index.attribute_name = $7;
-      free($3);
-      free($5);
-      free($7);
+      create_index.index_name = $4;
+      create_index.is_unique=$2;
+      create_index.relation_name = $6;
+      if ($9 != nullptr) {
+        create_index.attribute_names.swap(*$9);
+        delete $9;
+      }
+      create_index.attribute_names.emplace_back($8);
+      std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
+      free($4);
+      free($6);
+      free($8);
     }
     ;
 

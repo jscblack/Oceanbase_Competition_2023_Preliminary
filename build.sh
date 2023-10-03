@@ -136,8 +136,19 @@ function do_clean
   find . -maxdepth 1 -type d -name 'build_*' | xargs rm -rf
 }
 
+function gen_parser
+{
+  echo "generate parser..."
+  cd ${TOPDIR}/src/observer/sql/parser
+  ./gen_parser.sh
+  echo "generate parser done"
+  cd ${TOPDIR}
+
+}
+
 function build
 {
+  gen_parser
   set -- "${BUILD_ARGS[@]}"
   case "x$1" in
     xrelease)
