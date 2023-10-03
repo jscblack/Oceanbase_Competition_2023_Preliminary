@@ -207,10 +207,11 @@ function main
     style)
       style
       ;;
+    gen_parser)
+      gen_parser
+      ;;
     *)
       parse_args
-      style
-      gen_parser
       build
       try_make
       ;;
