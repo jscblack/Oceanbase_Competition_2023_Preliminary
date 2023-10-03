@@ -87,32 +87,31 @@ ComparisonExpr::~ComparisonExpr() {}
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
   // 对于like比较的补丁, 左右两边都为string假设
-  if(LIKE_ENUM == comp_ || NOT_LIKE_ENUM == comp_) {
+  if (LIKE_ENUM == comp_ || NOT_LIKE_ENUM == comp_) {
     string pattern_str(right.get_string());
-    regex reg1("%");
+    regex  reg1("%");
     pattern_str = regex_replace(pattern_str, reg1, "[^']*");
     regex reg2("_");
-    pattern_str = regex_replace(pattern_str, reg2, "[^']"); 
+    pattern_str = regex_replace(pattern_str, reg2, "[^']");
     pattern_str = "^" + pattern_str + "$";
     regex pattern(pattern_str);
-    if(regex_match(left.get_string(), pattern)) {
-      if(LIKE_ENUM == comp_) {
+    if (regex_match(left.get_string(), pattern)) {
+      if (LIKE_ENUM == comp_) {
         result = true;
-      } 
-      if(NOT_LIKE_ENUM == comp_) {
+      }
+      if (NOT_LIKE_ENUM == comp_) {
         result = false;
       }
-    } else { // NOT MATCH, NOT LIKE
-      if(LIKE_ENUM == comp_) {
+    } else {  // NOT MATCH, NOT LIKE
+      if (LIKE_ENUM == comp_) {
         result = false;
-      } 
-      if(NOT_LIKE_ENUM == comp_) {
+      }
+      if (NOT_LIKE_ENUM == comp_) {
         result = true;
       }
     }
     return RC::SUCCESS;
   }
-
 
   RC  rc         = RC::SUCCESS;
   int cmp_result = left.compare(right);
