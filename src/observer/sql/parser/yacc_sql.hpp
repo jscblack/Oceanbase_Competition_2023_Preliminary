@@ -66,43 +66,6 @@ extern int yydebug;
     SHOW = 267,                    /* SHOW  */
     SYNC = 268,                    /* SYNC  */
     INSERT = 269,                  /* INSERT  */
-<<<<<<< HEAD
-    DELETE = 270,                  /* DELETE  */
-    UPDATE = 271,                  /* UPDATE  */
-    LBRACE = 272,                  /* LBRACE  */
-    RBRACE = 273,                  /* RBRACE  */
-    COMMA = 274,                   /* COMMA  */
-    TRX_BEGIN = 275,               /* TRX_BEGIN  */
-    TRX_COMMIT = 276,              /* TRX_COMMIT  */
-    TRX_ROLLBACK = 277,            /* TRX_ROLLBACK  */
-    INT_T = 278,                   /* INT_T  */
-    STRING_T = 279,                /* STRING_T  */
-    FLOAT_T = 280,                 /* FLOAT_T  */
-    DATE_T = 281,                  /* DATE_T  */
-    HELP = 282,                    /* HELP  */
-    EXIT = 283,                    /* EXIT  */
-    DOT = 284,                     /* DOT  */
-    INTO = 285,                    /* INTO  */
-    VALUES = 286,                  /* VALUES  */
-    FROM = 287,                    /* FROM  */
-    WHERE = 288,                   /* WHERE  */
-    AND = 289,                     /* AND  */
-    SET = 290,                     /* SET  */
-    ON = 291,                      /* ON  */
-    LOAD = 292,                    /* LOAD  */
-    DATA = 293,                    /* DATA  */
-    INFILE = 294,                  /* INFILE  */
-    EXPLAIN = 295,                 /* EXPLAIN  */
-    EQ = 296,                      /* EQ  */
-    LT = 297,                      /* LT  */
-    GT = 298,                      /* GT  */
-    LE = 299,                      /* LE  */
-    GE = 300,                      /* GE  */
-    NE = 301,                      /* NE  */
-    LIKE = 302,                    /* LIKE  */
-    NOT_LIKE = 303,                /* NOT_LIKE  */
-    INNER_JOIN = 304,              /* INNER_JOIN  */
-=======
     UNIQUE = 270,                  /* UNIQUE  */
     DELETE = 271,                  /* DELETE  */
     UPDATE = 272,                  /* UPDATE  */
@@ -138,13 +101,13 @@ extern int yydebug;
     NE = 302,                      /* NE  */
     LIKE = 303,                    /* LIKE  */
     NOT_LIKE = 304,                /* NOT_LIKE  */
->>>>>>> main
-    NUMBER = 305,                  /* NUMBER  */
-    FLOAT = 306,                   /* FLOAT  */
-    DATE = 307,                    /* DATE  */
-    ID = 308,                      /* ID  */
-    SSS = 309,                     /* SSS  */
-    UMINUS = 310                   /* UMINUS  */
+    INNER_JOIN = 305,              /* INNER_JOIN  */
+    NUMBER = 306,                  /* NUMBER  */
+    FLOAT = 307,                   /* FLOAT  */
+    DATE = 308,                    /* DATE  */
+    ID = 309,                      /* ID  */
+    SSS = 310,                     /* SSS  */
+    UMINUS = 311                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -153,7 +116,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 106 "yacc_sql.y"
+#line 107 "yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -177,7 +140,7 @@ union YYSTYPE
   char *                             dates;
   bool                             boolean;
 
-#line 142 "yacc_sql.hpp"
+#line 144 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
