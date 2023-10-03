@@ -101,12 +101,13 @@ extern int yydebug;
     NE = 302,                      /* NE  */
     LIKE = 303,                    /* LIKE  */
     NOT_LIKE = 304,                /* NOT_LIKE  */
-    NUMBER = 305,                  /* NUMBER  */
-    FLOAT = 306,                   /* FLOAT  */
-    DATE = 307,                    /* DATE  */
-    ID = 308,                      /* ID  */
-    SSS = 309,                     /* SSS  */
-    UMINUS = 310                   /* UMINUS  */
+    INNER_JOIN = 305,              /* INNER_JOIN  */
+    NUMBER = 306,                  /* NUMBER  */
+    FLOAT = 307,                   /* FLOAT  */
+    DATE = 308,                    /* DATE  */
+    ID = 309,                      /* ID  */
+    SSS = 310,                     /* SSS  */
+    UMINUS = 311                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -115,7 +116,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 106 "yacc_sql.y"
+#line 107 "yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -131,6 +132,7 @@ union YYSTYPE
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * join_list; // relateion_list + condition_list
   std::pair<std::vector<std::string>,std::vector<Value>> * update_expr;
   char *                            string;
   int                               number;
@@ -138,7 +140,7 @@ union YYSTYPE
   char *                             dates;
   bool                             boolean;
 
-#line 142 "yacc_sql.hpp"
+#line 144 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
