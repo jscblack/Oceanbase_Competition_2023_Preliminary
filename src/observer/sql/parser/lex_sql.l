@@ -83,6 +83,7 @@ QUOTE            [\'\"]
 ";"                                     RETURN_TOKEN(SEMICOLON);
 NOT{WHITE_SAPCE}+LIKE                   RETURN_TOKEN(NOT_LIKE); 
 LIKE                                    RETURN_TOKEN(LIKE);
+INNER{WHITE_SAPCE}+JOIN                 RETURN_TOKEN(INNER_JOIN);         
 {DOT}                                   RETURN_TOKEN(DOT);
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
