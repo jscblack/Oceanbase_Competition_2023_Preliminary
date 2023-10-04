@@ -18,8 +18,8 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "common/rc.h"
-#include "storage/index/index_meta.h"
 #include "storage/field/field_meta.h"
+#include "storage/index/index_meta.h"
 #include "storage/record/record_manager.h"
 
 class IndexScanner;
@@ -40,7 +40,17 @@ public:
   Index()          = default;
   virtual ~Index() = default;
 
-  const IndexMeta &index_meta() const { return index_meta_; }
+  const IndexMeta              &index_meta() const { return index_meta_; }
+  const std::vector<FieldMeta> &fields_meta() const { return fields_meta_; }
+
+  /**
+   * @brief 得到要插入索引的实际的key
+   *
+   * @param record 记录，当前假设记录是定长的
+   * @param[out] char * user_key    要插入索引的user_key （此处还不包含rid）
+   * @return int key的长度
+   */
+  virtual int get_user_key(const char *record, char *&user_key) = 0;
 
   /**
    * @brief 插入一条数据
@@ -57,6 +67,14 @@ public:
    * @param[in] rid   删除的记录的位置
    */
   virtual RC delete_entry(const char *record, const RID *rid) = 0;
+
+  /**
+   * @brief 查找一条数据
+   *
+   * @param record 要查找的记录，当前假设记录是定长的
+   * @param[in] rid   查找到的记录的位置
+   */
+  virtual RC get_entry(const char *record, list<RID> &rids) = 0;
 
   /**
    * @brief 创建一个索引数据的扫描器
@@ -78,11 +96,12 @@ public:
   virtual RC sync() = 0;
 
 protected:
-  RC init(const IndexMeta &index_meta, const FieldMeta &field_meta);
+  RC init(const IndexMeta &index_meta, const std::vector<FieldMeta> &fields_meta);
 
 protected:
-  IndexMeta index_meta_;  ///< 索引的元数据
-  FieldMeta field_meta_;  ///< 当前实现仅考虑一个字段的索引
+  IndexMeta              index_meta_;   ///< 索引的元数据
+  std::vector<FieldMeta> fields_meta_;  ///< 尝试支持多个字段的索引
+  // FieldMeta field_meta_;  ///< 当前实现仅考虑一个字段的索引
 };
 
 /**

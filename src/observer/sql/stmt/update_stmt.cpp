@@ -69,6 +69,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
     }
     const AttrType field_type = field_meta->type();
     const AttrType value_type = values[i].attr_type();
+    fields->push_back(field_meta->name());
     if (field_type != value_type) {  // TODO try to convert the value type to field type
       rc = values[i].auto_cast(field_type);
       if (rc == RC::SUCCESS) {
@@ -78,7 +79,6 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
           table_name, field_meta->name(), field_type, value_type);
       return rc;
     }
-    fields->push_back(field_meta->name());
   }
 
   std::unordered_map<std::string, Table *> table_map;

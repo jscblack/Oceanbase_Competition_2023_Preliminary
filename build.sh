@@ -136,6 +136,16 @@ function do_clean
   find . -maxdepth 1 -type d -name 'build_*' | xargs rm -rf
 }
 
+function gen_parser
+{
+  echo "generate parser..."
+  cd ${TOPDIR}/src/observer/sql/parser
+  ./gen_parser.sh
+  echo "generate parser done"
+  cd ${TOPDIR}
+
+}
+
 function build
 {
   set -- "${BUILD_ARGS[@]}"
@@ -162,8 +172,10 @@ function style
   fi
 
   # Find all source files (adjust the file extensions as needed)
-  source_files=$(find . -type f -name "*.cpp" -o -name "*.h")
+  # only format .cpp and .h files in the /src directory
 
+  source_files=$(find ./src -type f -name "*.cpp" -o -name "*.h")
+  
   # Check if there are any source files
   if [ -z "$source_files" ]; then
     echo "No source files found in the current directory."
@@ -194,6 +206,9 @@ function main
       ;;
     style)
       style
+      ;;
+    gen_parser)
+      gen_parser
       ;;
     *)
       parse_args

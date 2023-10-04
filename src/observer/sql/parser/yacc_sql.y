@@ -71,6 +71,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         SHOW
         SYNC
         INSERT
+        UNIQUE
         DELETE
         UPDATE
         LBRACE
@@ -103,6 +104,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LE
         GE
         NE
+        LIKE
+        NOT_LIKE
+        INNER_JOIN
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -120,11 +124,13 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * join_list; // relateion_list + condition_list
   std::pair<std::vector<std::string>,std::vector<Value>> * update_expr;
   char *                            string;
   int                               number;
   float                             floats;
   char *                             dates;
+  bool                             boolean;
 }
 
 %token <number> NUMBER
@@ -145,12 +151,16 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <attr_info>           attr_def
 %type <insert_list>         insert_list
 %type <value_list>          value_list
+%type <boolean>             unique_marker
 %type <condition_list>      where
 %type <condition_list>      condition_list
 %type <rel_attr_list>       select_attr
 %type <update_expr>         update_expr
 %type <update_expr>         update_expr_list
 %type <relation_list>       rel_list
+%type <condition_list>      join_equal
+%type <join_list>           join_list
+%type <join_list>           join
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
 %type <expression_list>     expression_list
@@ -182,6 +192,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %left '+' '-'
 %left '*' '/'
 %nonassoc UMINUS
+%left INNER_JOIN
 %%
 
 commands: command_wrapper opt_semicolon  //commands or sqls. parser starts here.
@@ -278,18 +289,33 @@ desc_table_stmt:
       free($2);
     }
     ;
-
+unique_marker:
+    /* empty */
+    {
+      $$ = false;
+    }
+    | UNIQUE
+    {
+      $$ = true;
+    }
+    ;
 create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE
+    CREATE unique_marker INDEX ID ON ID LBRACE ID rel_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
-      create_index.index_name = $3;
-      create_index.relation_name = $5;
-      create_index.attribute_name = $7;
-      free($3);
-      free($5);
-      free($7);
+      create_index.index_name = $4;
+      create_index.is_unique=$2;
+      create_index.relation_name = $6;
+      if ($9 != nullptr) {
+        create_index.attribute_names.swap(*$9);
+        delete $9;
+      }
+      create_index.attribute_names.emplace_back($8);
+      std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
+      free($4);
+      free($6);
+      free($8);
     }
     ;
 
@@ -443,6 +469,8 @@ value:
     NUMBER {
       $$ = new Value((int)$1);
       @$ = @1;
+      LOG_INFO("===============================LOG BY LOSK===============================\n"
+      "===============================看看位置信息输出了什么：%d===============================\n", @1);
     }
     |FLOAT {
       $$ = new Value((float)$1);
@@ -542,6 +570,77 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($4);
     }
+    | SELECT select_attr FROM join where
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+
+      $$->selection.relations.swap($4->first);
+      $$->selection.conditions.swap($4->second);
+      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+      delete $4;
+
+      if($5 != nullptr) {
+        $$->selection.conditions.insert($$->selection.conditions.end(),$5->begin(),$5->end());
+        // for(auto &ele : *$5) {
+        //   $$->selection.conditions.emplace_back(ele);
+        // }
+        delete $5;
+      }
+    }
+    ;
+join: // 类型是 std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * 
+    ID INNER_JOIN ID join_equal join_list
+    {
+      if($5 != nullptr) {
+        $$ = $5;
+      } else {
+        $$ = new std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>>;
+      }
+      $$->first.emplace_back($3);
+      $$->first.emplace_back($1);
+      free($1);
+      free($3);
+
+      if($4 != nullptr) {
+        $$->second.insert($$->second.end(),$4->begin(),$4->end());
+      }
+      delete $4;
+    }
+    ;
+join_list: // 类型是 std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * 
+    INNER_JOIN ID join_equal join_list
+    {
+      if($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>>;
+      }
+      $$->first.emplace_back($2);
+      free($2);
+
+      if($3 != nullptr) {
+        $$->second.insert($$->second.end(),$3->begin(),$3->end());
+      } 
+      delete $3;
+    }
+    | /* empty */
+    {
+      $$ = nullptr;
+    }
+    ;
+join_equal: // 返回的condition_list是一个 std::vector<ConditionSqlNode> * 
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ON condition_list
+    {
+      $$ = $2;
+    }
     ;
 calc_stmt:
     CALC expression_list
@@ -593,6 +692,8 @@ expression:
       $$ = new ValueExpr(*$1);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
+      LOG_INFO("===============================LOG BY LOSK===============================\n"
+      "===============================看看位置信息输出了什么：%d===============================\n", @1);
     }
     ;
 
@@ -822,7 +923,7 @@ condition:
 
       delete $1;
       delete $3;
-    }
+    } 
     ;
 
 comp_op:
@@ -832,6 +933,8 @@ comp_op:
     | LE { $$ = LESS_EQUAL; }
     | GE { $$ = GREAT_EQUAL; }
     | NE { $$ = NOT_EQUAL; }
+    | LIKE { $$ = LIKE_ENUM; }
+    | NOT_LIKE { $$ = NOT_LIKE_ENUM; }
     ;
 
 load_data_stmt:

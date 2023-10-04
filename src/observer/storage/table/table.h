@@ -14,8 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <functional>
 #include "storage/table/table_meta.h"
+#include <functional>
 
 struct RID;
 class Record;
@@ -89,7 +89,8 @@ public:
   RC recover_insert_record(Record &record);
 
   // TODO refactor
-  RC create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name);
+  // RC create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name);
+  RC create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, const char *index_name, bool is_unique);
 
   RC get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly);
 
