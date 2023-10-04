@@ -21,12 +21,13 @@ RC PredicateRewriteRule::rewrite(std::unique_ptr<LogicalOperator> &oper, bool &c
   if (child_opers.size() != 1) {
     return RC::SUCCESS;
   }
-
+  // 为什么这里需要先判断childer().size(), 但predicate_pushdown_rewriter是先判断是否为predicate?
+  // 这里是处理作为儿子结点的predicate,predicate_pushdown是处理自己. (有差别吗?)
   auto &child_oper = child_opers.front();
   if (child_oper->type() != LogicalOperatorType::PREDICATE) {
     return RC::SUCCESS;
   }
-
+  // 只负责重写一个表达式的场景
   std::vector<std::unique_ptr<Expression>> &expressions = child_oper->expressions();
   if (expressions.size() != 1) {
     return RC::SUCCESS;
