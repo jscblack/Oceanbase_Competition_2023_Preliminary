@@ -36,9 +36,9 @@ class Expression;
  */
 struct RelAttrSqlNode
 {
-  std::string relation_name;   ///< relation name (may be NULL) 表名
-  std::string attribute_name;  ///< attribute name              属性名
-  std::string aggregation_func=""; ///< aggregation function       聚合函数类型 max/min/count/avg/sum
+  std::string relation_name;          ///< relation name (may be NULL) 表名
+  std::string attribute_name;         ///< attribute name              属性名
+  std::string aggregation_func = "";  ///< aggregation function       聚合函数类型 max/min/count/avg/sum
 };
 
 /**
@@ -130,6 +130,22 @@ struct DeleteSqlNode
 };
 
 /**
+ * @brief 描述一个update的value，用来支持复杂的update语句
+ * @ingroup SQLParser
+ */
+struct ComplexValue
+{
+  bool          value_from_select;  ///< 是否是子查询，默认false
+  Value         literal_value;      ///< value
+  SelectSqlNode select_sql;         ///< select clause
+
+  ComplexValue() = default;
+  ComplexValue(bool from_select, const Value &value) : value_from_select(from_select), literal_value(value){};
+  ComplexValue(bool from_select, const SelectSqlNode &select_sql)
+      : value_from_select(from_select), select_sql(select_sql){};
+};
+
+/**
  * @brief 描述一个update语句
  * @ingroup SQLParser
  */
@@ -137,7 +153,7 @@ struct UpdateSqlNode
 {
   std::string                   relation_name;    ///< Relation to update
   std::vector<std::string>      attribute_names;  ///< 更新的字段，支持多个字段
-  std::vector<Value>            values;           ///< 更新的值，支持多个字段
+  std::vector<ComplexValue>     values;  ///< 更新的值，支持多个字段，并且支持简单的子查询
   std::vector<ConditionSqlNode> conditions;
 };
 

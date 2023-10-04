@@ -23,12 +23,14 @@ See the Mulan PSL v2 for more details. */
 class AggregatePhysicalOperator : public PhysicalOperator
 {
 public:
-  AggregatePhysicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations, const std::vector<Field> &fields)
-    : aggregations_(aggregations), fields_(fields) {}
+  AggregatePhysicalOperator(
+      const std::vector<std::pair<std::string, Field>> &aggregations, const std::vector<Field> &fields)
+      : aggregations_(aggregations), fields_(fields)
+  {}
 
   virtual ~AggregatePhysicalOperator() = default;
 
-//   void add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions) {}
+  //   void add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions) {}
 
   PhysicalOperatorType type() const override { return PhysicalOperatorType::AGGREGATE; }
 
@@ -40,16 +42,16 @@ public:
 
 private:
   std::vector<std::pair<std::string, Field>> aggregations_;
-  std::vector<Field> fields_;
+  std::vector<Field>                         fields_;
 
-  std::vector<std::vector<Value>> tuples_values_;   // 保存所有可能需要聚合的tuple，每行为tuple的field value
-  std::vector<Value> aggregate_results_;            // 保存所有聚合之后的结果，tuple类型统一为ValueListTuple
+  std::vector<std::vector<Value>> tuples_values_;  // 保存所有可能需要聚合的tuple，每行为tuple的field value
+  std::vector<Value> aggregate_results_;  // 保存所有聚合之后的结果，tuple类型统一为ValueListTuple
   std::vector<ValueListTuple> return_results_;
-  int return_results_idx = -1;
+  int                         return_results_idx = -1;
 
-  void do_max_aggregate(Field& field);
-  void do_min_aggregate(Field& field);
-  void do_count_aggregate(Field& field);
-  void do_avg_aggregate(Field& field);
-  void do_sum_aggregate(Field& field);
+  void do_max_aggregate(Field &field);
+  void do_min_aggregate(Field &field);
+  void do_count_aggregate(Field &field);
+  void do_avg_aggregate(Field &field);
+  void do_sum_aggregate(Field &field);
 };

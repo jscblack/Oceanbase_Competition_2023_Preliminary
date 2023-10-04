@@ -29,14 +29,15 @@ See the Mulan PSL v2 for more details. */
 class AggregateLogicalOperator : public LogicalOperator
 {
 public:
-  AggregateLogicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations, const std::vector<Field> &fields);
+  AggregateLogicalOperator(
+      const std::vector<std::pair<std::string, Field>> &aggregations, const std::vector<Field> &fields);
   virtual ~AggregateLogicalOperator() = default;
 
-  LogicalOperatorType type() const override { return LogicalOperatorType::AGGREGATE; }
-  const std::vector<std::pair<std::string, Field>>   &aggregations() const { return aggregations_; }
-  const std::vector<Field> &fields() const { return fields_; }
+  LogicalOperatorType                               type() const override { return LogicalOperatorType::AGGREGATE; }
+  const std::vector<std::pair<std::string, Field>> &aggregations() const { return aggregations_; }
+  const std::vector<Field>                         &fields() const { return fields_; }
 
 private:
-  std::vector<std::pair<std::string, Field>> aggregations_; //! 聚合的字段 - 聚合类型
-  std::vector<Field> fields_;                               //! 投影映射的字段名称
+  std::vector<std::pair<std::string, Field>> aggregations_;  //! 聚合的字段 - 聚合类型
+  std::vector<Field>                         fields_;        //! 投影映射的字段名称
 };

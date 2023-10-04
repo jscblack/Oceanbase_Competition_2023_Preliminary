@@ -230,7 +230,8 @@ RC PhysicalPlanGenerator::create_plan(AggregateLogicalOperator &aggregate_oper, 
     }
   }
 
-  AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(aggregate_oper.aggregations(), aggregate_oper.fields());
+  AggregatePhysicalOperator *aggregate_operator =
+      new AggregatePhysicalOperator(aggregate_oper.aggregations(), aggregate_oper.fields());
 
   if (child_phy_oper) {
     aggregate_operator->add_child(std::move(child_phy_oper));

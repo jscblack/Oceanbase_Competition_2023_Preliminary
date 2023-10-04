@@ -9,6 +9,7 @@
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
 #include "sql/parser/yacc_sql.hpp"
 #include "sql/parser/lex_sql.h"
 #include "sql/expr/expression.h"
@@ -125,7 +126,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * join_list; // relateion_list + condition_list
-  std::pair<std::vector<std::string>,std::vector<Value>> * update_expr;
+  std::pair<std::vector<std::string>,std::vector<ComplexValue>> * update_expr;
   char *                            string;
   int                               number;
   float                             floats;
@@ -518,14 +519,27 @@ update_stmt:      /*  update 语句的语法解析树*/
     ;
 
 update_expr:
-    ID EQ value update_expr_list {
+    ID EQ LBRACE select_stmt RBRACE update_expr_list
+    {
+      // TODO: 
+      if($6 != nullptr){
+        $$ = $6;
+      }else{
+        $$ = new std::pair<std::vector<std::string>,std::vector<ComplexValue>>;
+      }
+      $$->first.emplace_back($1);
+      $$->second.emplace_back(true,$4->selection);
+      free($1);
+      delete $4;
+    }
+    | ID EQ value update_expr_list {
       if($4 != nullptr){
         $$ = $4;
       }else{
-        $$ = new std::pair<std::vector<std::string>,std::vector<Value>>;
+        $$ = new std::pair<std::vector<std::string>,std::vector<ComplexValue>>;
       }
       $$->first.emplace_back($1);
-      $$->second.emplace_back(*$3);
+      $$->second.emplace_back(false,*$3);
       free($1);
       delete $3;
     }
@@ -536,14 +550,26 @@ update_expr_list:
     {
       $$ = nullptr;
     }
+    | COMMA ID EQ LBRACE select_stmt RBRACE update_expr_list {
+       // TODO
+        if($7 != nullptr){
+          $$ = $7;
+        }else{
+          $$ = new std::pair<std::vector<std::string>,std::vector<ComplexValue>>;
+        }
+        $$->first.emplace_back($2);
+        $$->second.emplace_back(true,$5->selection);
+        free($2);
+        delete $5;
+    }
     | COMMA ID EQ value update_expr_list {
         if($5 != nullptr){
           $$ = $5;
         }else{
-          $$ = new std::pair<std::vector<std::string>,std::vector<Value>>;
+          $$ = new std::pair<std::vector<std::string>,std::vector<ComplexValue>>;
         }
         $$->first.emplace_back($2);
-        $$->second.emplace_back(*$4);
+        $$->second.emplace_back(false,*$4);
         free($2);
         delete $4;
     }
