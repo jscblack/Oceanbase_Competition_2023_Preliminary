@@ -15,6 +15,20 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "sql/operator/logical_operator.h"
+#include "sql/stmt/update_stmt.h"
+struct ValueOrLogiOper  // update 的 value其中包含value或select_logical_operator
+{
+  bool                             value_from_select;        ///< 是否是子查询，默认false
+  Value                            literal_value;            ///< value
+  std::unique_ptr<LogicalOperator> select_logical_operator;  ///< select clause
+
+  ValueOrLogiOper() = default;
+  ValueOrLogiOper(bool from_select, const Value &value) : value_from_select(from_select), literal_value(value){};
+  ValueOrLogiOper(bool from_select, std::unique_ptr<LogicalOperator> &logical_operator) : value_from_select(from_select)
+  {
+    select_logical_operator = std::move(logical_operator);
+  };
+};
 
 /**
  * @brief 逻辑算子，用于执行update语句
@@ -23,16 +37,16 @@ See the Mulan PSL v2 for more details. */
 class UpdateLogicalOperator : public LogicalOperator
 {
 public:
-  UpdateLogicalOperator(Table *table, std::vector<std::string> attr_names, std::vector<Value> values);
+  UpdateLogicalOperator(Table *table, std::vector<std::string> attr_names, std::vector<ValueOrStmt> values);
   virtual ~UpdateLogicalOperator() = default;
 
-  LogicalOperatorType      type() const override { return LogicalOperatorType::UPDATE; }
-  Table                   *table() const { return table_; }
-  std::vector<std::string> attr_name() const { return attr_names_; }
-  std::vector<Value>       values() const { return values_; }
+  LogicalOperatorType                 type() const override { return LogicalOperatorType::UPDATE; }
+  Table                              *table() const { return table_; }
+  std::vector<std::string>            attr_name() const { return attr_names_; }
+  const std::vector<ValueOrLogiOper> &values() const { return values_; }
 
 private:
-  Table                   *table_ = nullptr;
-  std::vector<std::string> attr_names_;
-  std::vector<Value>       values_;
+  Table                       *table_ = nullptr;
+  std::vector<std::string>     attr_names_;
+  std::vector<ValueOrLogiOper> values_;
 };

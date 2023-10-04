@@ -17,9 +17,9 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
-UpdateStmt::UpdateStmt(
-    Table *table, const char **field_names, const Value *values, int value_amount, FilterStmt *filter_stmt)
-    : table_(table), field_names_(field_names), values_(values), value_amount_(value_amount), filter_stmt_(filter_stmt)
+UpdateStmt::UpdateStmt(Table *table, const std::vector<std::string> &field_names,
+    const std::vector<ValueOrStmt> &values, FilterStmt *filter_stmt)
+    : table_(table), field_names_(field_names), values_(values), filter_stmt_(filter_stmt)
 {}
 
 UpdateStmt::~UpdateStmt()
@@ -52,13 +52,17 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
   // 检查属性名是否合法，value类型是否与attribute类型匹配
 
   // // check the fields number
-  const std::string *attribute_names = update_sql.attribute_names.data();
-  const Value       *values          = update_sql.values.data();
-  const int          value_num       = static_cast<int>(update_sql.values.size());
-  const TableMeta   &table_meta      = table->table_meta();
+  const std::string  *attribute_names = update_sql.attribute_names.data();
+  const ComplexValue *complex_values  = update_sql.values.data();
+  const int           value_num       = static_cast<int>(update_sql.values.size());
+  const TableMeta    &table_meta      = table->table_meta();
 
-  RC                         rc     = RC::SUCCESS;
-  std::vector<const char *> *fields = new std::vector<const char *>();
+  RC                       rc = RC::SUCCESS;
+  std::vector<std::string> fields;
+  std::vector<ValueOrStmt> update_values;
+  fields.reserve(value_num);
+  update_values.reserve(value_num);
+
   // check fields type
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field_meta = table_meta.field(attribute_names[i].c_str());
@@ -68,16 +72,37 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
       return RC::SCHEMA_FIELD_NOT_EXIST;
     }
     const AttrType field_type = field_meta->type();
-    const AttrType value_type = values[i].attr_type();
-    fields->push_back(field_meta->name());
-    if (field_type != value_type) {  // TODO try to convert the value type to field type
-      rc = values[i].auto_cast(field_type);
-      if (rc == RC::SUCCESS) {
-        continue;
+
+    if (complex_values[i].value_from_select) {
+      // from select
+      // 首先得去解析select 语句是否合法
+      fields.emplace_back(field_meta->name());
+      Stmt *select_stmt = nullptr;
+      rc                = SelectStmt::create(db, complex_values[i].select_sql, select_stmt);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
+        return rc;
       }
-      LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
-          table_name, field_meta->name(), field_type, value_type);
-      return rc;
+      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
+        LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
+        return RC::INVALID_ARGUMENT;
+      }
+      update_values.emplace_back(true, select_stmt);
+
+    } else {
+      // from value
+      const AttrType value_type = complex_values[i].literal_value.attr_type();
+      fields.emplace_back(field_meta->name());
+      if (field_type != value_type) {  // TODO try to convert the value type to field type
+        rc = complex_values[i].literal_value.auto_cast(field_type);
+        if (rc == RC::SUCCESS) {
+          continue;
+        }
+        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+            table_name, field_meta->name(), field_type, value_type);
+        return rc;
+      }
+      update_values.emplace_back(false, complex_values[i].literal_value);
     }
   }
 
@@ -92,6 +117,6 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
     return rc;
   }
 
-  stmt = new UpdateStmt(table, fields->data(), values, value_num, filter_stmt);
+  stmt = new UpdateStmt(table, fields, update_values, filter_stmt);
   return rc;
 }
