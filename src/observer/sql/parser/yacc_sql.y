@@ -580,9 +580,6 @@ select_stmt:        /*  select 语句的语法解析树*/
 
       if($5 != nullptr) {
         $$->selection.conditions.insert($$->selection.conditions.end(),$5->begin(),$5->end());
-        // for(auto &ele : *$5) {
-        //   $$->selection.conditions.emplace_back(ele);
-        // }
         delete $5;
       }
     }

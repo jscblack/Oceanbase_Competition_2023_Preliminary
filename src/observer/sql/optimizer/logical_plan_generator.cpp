@@ -99,7 +99,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true /*readonly*/));
     if (table_oper == nullptr) {
       table_oper = std::move(table_get_oper);
-    } else {
+    } else { // 注意，JoinLogicalOperator的add_child并未重载，仍然是LogicalOperator的将它们放到children_数组中，此时还没有join-tree的结构
       JoinLogicalOperator *join_oper = new JoinLogicalOperator;
       join_oper->add_child(std::move(table_oper));
       join_oper->add_child(std::move(table_get_oper));
@@ -125,6 +125,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
       project_oper->add_child(std::move(table_oper));
     }
   }
+  // 注意此时的逻辑树是， (project) -> (predicate) -> (table_oper|table_get / join)
 
   logical_operator.swap(project_oper);
   return RC::SUCCESS;
@@ -133,9 +134,12 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
   std::vector<unique_ptr<Expression>> cmp_exprs;
+
+  // 当前默认都是AND连接，所以filter_units存在vector中
   const std::vector<FilterUnit *>    &filter_units = filter_stmt->filter_units();
   for (const FilterUnit *filter_unit : filter_units) {
-    const FilterObj &filter_obj_left  = filter_unit->left();
+    // 当前的FilterObj只支持属性/值
+    const FilterObj &filter_obj_left  = filter_unit->left(); 
     const FilterObj &filter_obj_right = filter_unit->right();
 
     unique_ptr<Expression> left(filter_obj_left.is_attr
