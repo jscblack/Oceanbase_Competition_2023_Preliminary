@@ -85,6 +85,11 @@ QUOTE            [\'\"]
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
 DESC                                    RETURN_TOKEN(DESC);
+MAX                                     RETURN_TOKEN(AGG_MAX);
+MIN                                     RETURN_TOKEN(AGG_MIN);
+COUNT                                   RETURN_TOKEN(AGG_COUNT);
+AVG                                     RETURN_TOKEN(AGG_AVG);
+SUM                                     RETURN_TOKEN(AGG_SUM);
 CREATE                                  RETURN_TOKEN(CREATE);
 DROP                                    RETURN_TOKEN(DROP);
 TABLE                                   RETURN_TOKEN(TABLE);

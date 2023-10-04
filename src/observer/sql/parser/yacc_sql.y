@@ -63,6 +63,11 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         CALC
         SELECT
         DESC
+        AGG_MAX
+        AGG_MIN
+        AGG_COUNT
+        AGG_AVG
+        AGG_SUM
         SHOW
         SYNC
         INSERT
@@ -611,6 +616,53 @@ select_attr:
       }
       $$->emplace_back(*$1);
       delete $1;
+    }
+    /* 简单处理聚合函数 max min count avg sum */
+    | AGG_MAX LBRACE rel_attr RBRACE {
+      $3->aggregation_func = "MAX";
+      $$ = new std::vector<RelAttrSqlNode>;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    | AGG_MIN LBRACE rel_attr RBRACE {
+      $3->aggregation_func = "MIN";
+      $$ = new std::vector<RelAttrSqlNode>;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    | AGG_COUNT LBRACE rel_attr RBRACE {
+      $3->aggregation_func = "COUNT";
+      $$ = new std::vector<RelAttrSqlNode>;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    | AGG_COUNT LBRACE '*' RBRACE {
+      RelAttrSqlNode attr;
+      attr.relation_name  = "";
+      attr.attribute_name = "*";
+      attr.aggregation_func = "COUNT";
+      $$ = new std::vector<RelAttrSqlNode>;
+      $$->emplace_back(attr);
+    }
+    | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*)的区别
+      RelAttrSqlNode attr;
+      attr.relation_name  = "";
+      attr.attribute_name = "*";
+      attr.aggregation_func = "COUNT";
+      $$ = new std::vector<RelAttrSqlNode>;
+      $$->emplace_back(attr);
+    }
+    | AGG_AVG LBRACE rel_attr RBRACE {
+      $3->aggregation_func = "AVG";
+      $$ = new std::vector<RelAttrSqlNode>;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    | AGG_SUM LBRACE rel_attr RBRACE {
+      $3->aggregation_func = "SUM";
+      $$ = new std::vector<RelAttrSqlNode>;
+      $$->emplace_back(*$3);
+      delete $3;
     }
     ;
 

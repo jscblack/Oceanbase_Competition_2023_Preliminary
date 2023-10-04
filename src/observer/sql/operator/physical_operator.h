@@ -43,6 +43,7 @@ enum class PhysicalOperatorType
   EXPLAIN,
   PREDICATE,
   PROJECT,
+  AGGREGATE,
   CALC,
   STRING_LIST,
   DELETE,

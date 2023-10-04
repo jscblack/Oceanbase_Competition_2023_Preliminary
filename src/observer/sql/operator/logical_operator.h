@@ -36,6 +36,7 @@ enum class LogicalOperatorType
   TABLE_GET,   ///< 从表中获取数据
   PREDICATE,   ///< 过滤，就是谓词
   PROJECTION,  ///< 投影，就是select
+  AGGREGATE,   ///< 聚合
   JOIN,        ///< 连接
   INSERT,      ///< 插入
   UPDATE,      ///< 更新，删除可能会有子查询
