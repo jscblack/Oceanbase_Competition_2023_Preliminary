@@ -45,9 +45,11 @@ public:
   const std::vector<Table *> &tables() const { return tables_; }
   const std::vector<Field>   &query_fields() const { return query_fields_; }
   FilterStmt                 *filter_stmt() const { return filter_stmt_; }
+  const std::vector<std::pair<std::string, Field>> &aggregation_func() const { return aggregation_func_; }
 
 private:
   std::vector<Field>   query_fields_;
   std::vector<Table *> tables_;
   FilterStmt          *filter_stmt_ = nullptr;
+  std::vector<std::pair<std::string, Field>>  aggregation_func_;  // (aggregation_function_type, Field)
 };

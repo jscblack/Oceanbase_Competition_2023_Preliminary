@@ -65,20 +65,27 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   std::vector<Field> query_fields;
+  std::vector<std::pair<std::string, Field>>  aggregation_func;
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
 
     if (common::is_blank(relation_attr.relation_name.c_str()) &&
-        0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
+        0 == strcmp(relation_attr.attribute_name.c_str(), "*")) { // 表名为空且查询所有属性(*)
       for (Table *table : tables) {
         wildcard_fields(table, query_fields);
       }
 
-    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
+      // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
+      if (0 == strcmp(relation_attr.aggregation_func.c_str(), "COUNT")) {
+        aggregation_func.emplace_back("COUNT", Field(tables[0], nullptr));
+      }
+
+    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {  // 表名非空
       const char *table_name = relation_attr.relation_name.c_str();
       const char *field_name = relation_attr.attribute_name.c_str();
+      const char *aggregation_function = relation_attr.aggregation_func.c_str();
 
-      if (0 == strcmp(table_name, "*")) {
+      if (0 == strcmp(table_name, "*")) { // table_name == "*"
         if (0 != strcmp(field_name, "*")) {
           LOG_WARN("invalid field name while table is *. attr=%s", field_name);
           return RC::SCHEMA_FIELD_MISSING;
@@ -86,7 +93,13 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         for (Table *table : tables) {
           wildcard_fields(table, query_fields);
         }
-      } else {
+
+        // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
+        if (0 == strcmp(aggregation_function, "COUNT")) {
+          aggregation_func.emplace_back("COUNT", Field(tables[0], nullptr));
+        }
+
+      } else { // table_name != "*"
         auto iter = table_map.find(table_name);
         if (iter == table_map.end()) {
           LOG_WARN("no such table in from list: %s", table_name);
@@ -96,6 +109,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         Table *table = iter->second;
         if (0 == strcmp(field_name, "*")) {
           wildcard_fields(table, query_fields);
+          // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
+          if (0 == strcmp(aggregation_function, "COUNT")) {
+            aggregation_func.emplace_back("COUNT", Field(table, nullptr));
+          }
         } else {
           const FieldMeta *field_meta = table->table_meta().field(field_name);
           if (nullptr == field_meta) {
@@ -104,10 +121,15 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           }
 
           query_fields.push_back(Field(table, field_meta));
+
+          // 记录field的聚合信息：这里可能存在5种类型的聚合
+          if (0 != strcmp(aggregation_function, "")) {
+            aggregation_func.emplace_back(std::string(aggregation_function), Field(table, field_meta));
+          }
         }
       }
-    } else {
-      if (tables.size() != 1) {
+    } else { // 表名为空，但不是查询所有属性
+      if (tables.size() != 1) { // table_name从from中获取，from的table必须唯一
         LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
         return RC::SCHEMA_FIELD_MISSING;
       }
@@ -120,6 +142,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       }
 
       query_fields.push_back(Field(table, field_meta));
+
+      // 记录field的聚合信息：这里可能存在5种类型的聚合
+      if (0 != strcmp(relation_attr.aggregation_func.c_str(), "")) {
+        aggregation_func.emplace_back(std::string(relation_attr.aggregation_func.c_str()), Field(table, field_meta));
+      }
     }
   }
 
@@ -143,12 +170,22 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return rc;
   }
 
+  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
+  if (!aggregation_func.empty()) {
+    for (auto attr : select_sql.attributes) {
+      if (attr.aggregation_func == "") {
+        return RC::SQL_SYNTAX;
+      }
+    }
+  }
+
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
+  select_stmt->aggregation_func_.swap(aggregation_func);
   stmt                      = select_stmt;
   return RC::SUCCESS;
 }
