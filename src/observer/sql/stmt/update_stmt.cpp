@@ -72,11 +72,10 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
       return RC::SCHEMA_FIELD_NOT_EXIST;
     }
     const AttrType field_type = field_meta->type();
-
+    fields.emplace_back(field_meta->name());
     if (complex_values[i].value_from_select) {
       // from select
       // 首先得去解析select 语句是否合法
-      fields.emplace_back(field_meta->name());
       Stmt *select_stmt = nullptr;
       rc                = SelectStmt::create(db, complex_values[i].select_sql, select_stmt);
       if (rc != RC::SUCCESS) {
@@ -92,15 +91,13 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
     } else {
       // from value
       const AttrType value_type = complex_values[i].literal_value.attr_type();
-      fields.emplace_back(field_meta->name());
       if (field_type != value_type) {  // TODO try to convert the value type to field type
         rc = complex_values[i].literal_value.auto_cast(field_type);
-        if (rc == RC::SUCCESS) {
-          continue;
-        }
-        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
             table_name, field_meta->name(), field_type, value_type);
-        return rc;
+          return rc;
+        }
       }
       update_values.emplace_back(false, complex_values[i].literal_value);
     }
