@@ -170,6 +170,15 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return rc;
   }
 
+  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
+  if (!aggregation_func.empty()) {
+    for (auto attr : select_sql.attributes) {
+      if (attr.aggregation_func == "") {
+        return RC::SQL_SYNTAX;
+      }
+    }
+  }
+
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
