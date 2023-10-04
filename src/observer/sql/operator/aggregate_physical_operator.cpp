@@ -123,7 +123,7 @@ void AggregatePhysicalOperator::do_max_aggregate(Field& field)
 
   LOG_DEBUG("========== idx = %d ==========",idx);
 
-  Value& max_value = tuples_values_[0][idx];
+  Value max_value = tuples_values_[0][idx];
 
   for (auto t : tuples_values_) {
     Value& cur_value = t[idx];
@@ -155,7 +155,7 @@ void AggregatePhysicalOperator::do_min_aggregate(Field& field)
 
   LOG_DEBUG("========== idx = %d ==========",idx);
 
-  Value& min_value = tuples_values_[0][idx];
+  Value min_value = tuples_values_[0][idx];
 
   for (auto t : tuples_values_) {
     Value& cur_value = t[idx];
