@@ -65,17 +65,26 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     }
   }
 
+  // 构造返回的value list tuple
+  std::vector<Value> result_value;
+  for(int i = 0; i < aggregate_results_.size(); i++) {
+    result_value.emplace_back(aggregate_results_[i]);
+  }
+  ValueListTuple vlt;
+  vlt.set_cells(result_value);
+  return_results_.emplace_back(vlt);
+
   return RC::SUCCESS;
 }
 
 RC AggregatePhysicalOperator::next()
 {
   // 判断聚合后的结果是否都已经返回
-  aggregate_results_idx ++;
+  return_results_idx ++;
 
-  // LOG_DEBUG("========== aggregate_results_idx = %d ==========", aggregate_results_idx);
+  // LOG_DEBUG("========== return_results_idx = %d ==========", return_results_idx);
 
-  if(0 <= aggregate_results_idx && aggregate_results_idx < aggregate_results_.size()) {
+  if(0 <= return_results_idx && return_results_idx < return_results_.size()) {
     return RC::SUCCESS;
   }
   else {
@@ -93,7 +102,7 @@ RC AggregatePhysicalOperator::close()
 
 Tuple *AggregatePhysicalOperator::current_tuple()
 {
-  return &aggregate_results_[aggregate_results_idx];
+  return &return_results_[return_results_idx];
 }
 
 void AggregatePhysicalOperator::do_max_aggregate(Field& field)
@@ -123,11 +132,7 @@ void AggregatePhysicalOperator::do_max_aggregate(Field& field)
     }
   }
 
-  std::vector<Value> vec_value;
-  vec_value.emplace_back(max_value);
-  ValueListTuple vlt;
-  vlt.set_cells(vec_value);
-  aggregate_results_.emplace_back(vlt);
+  aggregate_results_.emplace_back(max_value);
 
   LOG_DEBUG("========== aggregate_results_.size() = %d ==========", aggregate_results_.size());
 }
@@ -159,11 +164,7 @@ void AggregatePhysicalOperator::do_min_aggregate(Field& field)
     }
   }
 
-  std::vector<Value> vec_value;
-  vec_value.emplace_back(min_value);
-  ValueListTuple vlt;
-  vlt.set_cells(vec_value);
-  aggregate_results_.emplace_back(vlt);
+  aggregate_results_.emplace_back(min_value);
 
   LOG_DEBUG("========== aggregate_results_.size() = %d ==========", aggregate_results_.size());
 }
@@ -205,11 +206,7 @@ void AggregatePhysicalOperator::do_count_aggregate(Field& field)
 
   Value count_value;
   count_value.set_int(count);
-  std::vector<Value> vec_value;
-  vec_value.emplace_back(count_value);
-  ValueListTuple vlt;
-  vlt.set_cells(vec_value);
-  aggregate_results_.emplace_back(vlt);
+  aggregate_results_.emplace_back(count_value);
 
   LOG_DEBUG("========== aggregate_results_.size() = %d ==========", aggregate_results_.size());
 }
@@ -297,11 +294,7 @@ void AggregatePhysicalOperator::do_avg_aggregate(Field& field)
     return ;
   }
 
-  std::vector<Value> vec_value;
-  vec_value.emplace_back(avg_value);
-  ValueListTuple vlt;
-  vlt.set_cells(vec_value);
-  aggregate_results_.emplace_back(vlt);
+  aggregate_results_.emplace_back(avg_value);
 
   LOG_DEBUG("========== aggregate_results_.size() = %d ==========", aggregate_results_.size());
 }
@@ -384,11 +377,7 @@ void AggregatePhysicalOperator::do_sum_aggregate(Field& field)
     return ;
   }
 
-  std::vector<Value> vec_value;
-  vec_value.emplace_back(sum_value);
-  ValueListTuple vlt;
-  vlt.set_cells(vec_value);
-  aggregate_results_.emplace_back(vlt);
+  aggregate_results_.emplace_back(sum_value);
 
   LOG_DEBUG("========== aggregate_results_.size() = %d ==========", aggregate_results_.size());
 }

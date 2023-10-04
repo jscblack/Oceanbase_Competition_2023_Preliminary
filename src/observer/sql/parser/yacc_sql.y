@@ -617,53 +617,6 @@ select_attr:
       $$->emplace_back(*$1);
       delete $1;
     }
-    /* 简单处理聚合函数 max min count avg sum */
-    | AGG_MAX LBRACE rel_attr RBRACE {
-      $3->aggregation_func = "MAX";
-      $$ = new std::vector<RelAttrSqlNode>;
-      $$->emplace_back(*$3);
-      delete $3;
-    }
-    | AGG_MIN LBRACE rel_attr RBRACE {
-      $3->aggregation_func = "MIN";
-      $$ = new std::vector<RelAttrSqlNode>;
-      $$->emplace_back(*$3);
-      delete $3;
-    }
-    | AGG_COUNT LBRACE rel_attr RBRACE {
-      $3->aggregation_func = "COUNT";
-      $$ = new std::vector<RelAttrSqlNode>;
-      $$->emplace_back(*$3);
-      delete $3;
-    }
-    | AGG_COUNT LBRACE '*' RBRACE {
-      RelAttrSqlNode attr;
-      attr.relation_name  = "";
-      attr.attribute_name = "*";
-      attr.aggregation_func = "COUNT";
-      $$ = new std::vector<RelAttrSqlNode>;
-      $$->emplace_back(attr);
-    }
-    | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*)的区别
-      RelAttrSqlNode attr;
-      attr.relation_name  = "";
-      attr.attribute_name = "*";
-      attr.aggregation_func = "COUNT";
-      $$ = new std::vector<RelAttrSqlNode>;
-      $$->emplace_back(attr);
-    }
-    | AGG_AVG LBRACE rel_attr RBRACE {
-      $3->aggregation_func = "AVG";
-      $$ = new std::vector<RelAttrSqlNode>;
-      $$->emplace_back(*$3);
-      delete $3;
-    }
-    | AGG_SUM LBRACE rel_attr RBRACE {
-      $3->aggregation_func = "SUM";
-      $$ = new std::vector<RelAttrSqlNode>;
-      $$->emplace_back(*$3);
-      delete $3;
-    }
     ;
 
 rel_attr:
@@ -678,6 +631,88 @@ rel_attr:
       $$->attribute_name = $3;
       free($1);
       free($3);
+    }
+    | AGG_MAX LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "MAX";
+      $$->attribute_name = $3;
+      free($3);
+    }
+    | AGG_MIN LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "MIN";
+      $$->attribute_name = $3;
+      free($3);
+    }
+    | AGG_COUNT LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "COUNT";
+      $$->attribute_name = $3;
+      free($3);
+    }
+    | AGG_COUNT LBRACE '*' RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "COUNT";
+      $$->attribute_name = "*";
+      $$->relation_name = "";
+    }
+    | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*)的区别
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "COUNT";
+      $$->attribute_name = "*";
+      $$->relation_name = "";
+    }
+    | AGG_AVG LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "AVG";
+      $$->attribute_name = $3;
+      free($3);
+    }
+    | AGG_SUM LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "SUM";
+      $$->attribute_name = $3;
+      free($3);
+    }
+    | AGG_MAX LBRACE ID DOT ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "MAX";
+      $$->relation_name = $3;
+      $$->attribute_name = $5;
+      free($3);
+      free($5);
+    }
+    | AGG_MIN LBRACE ID DOT ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "MIN";
+      $$->relation_name = $3;
+      $$->attribute_name = $5;
+      free($3);
+      free($5);
+    }
+    | AGG_COUNT LBRACE ID DOT ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "COUNT";
+      $$->relation_name = $3;
+      $$->attribute_name = $5;
+      free($3);
+      free($5);
+    }
+    | AGG_AVG LBRACE ID DOT ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "AVG";
+      $$->relation_name = $3;
+      $$->attribute_name = $5;
+      free($3);
+      free($5);
+    }
+    | AGG_SUM LBRACE ID DOT ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->aggregation_func = "SUM";
+      $$->relation_name = $3;
+      $$->attribute_name = $5;
+      free($3);
+      free($5);
     }
     ;
 

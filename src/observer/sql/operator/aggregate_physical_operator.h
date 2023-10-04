@@ -43,8 +43,9 @@ private:
   std::vector<Field> fields_;
 
   std::vector<std::vector<Value>> tuples_values_;   // 保存所有可能需要聚合的tuple，每行为tuple的field value
-  std::vector<ValueListTuple> aggregate_results_;   // 保存所有聚合之后的结果，tuple类型统一为ValueListTuple
-  int aggregate_results_idx = -1;
+  std::vector<Value> aggregate_results_;            // 保存所有聚合之后的结果，tuple类型统一为ValueListTuple
+  std::vector<ValueListTuple> return_results_;
+  int return_results_idx = -1;
 
   void do_max_aggregate(Field& field);
   void do_min_aggregate(Field& field);
