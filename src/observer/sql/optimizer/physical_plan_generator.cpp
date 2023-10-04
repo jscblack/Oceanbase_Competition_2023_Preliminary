@@ -31,6 +31,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/predicate_physical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/project_physical_operator.h"
+#include "sql/operator/aggregate_logical_operator.h"
+#include "sql/operator/aggregate_physical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/table_scan_physical_operator.h"
 #include "sql/operator/update_logical_operator.h"
@@ -58,6 +60,10 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
 
     case LogicalOperatorType::PROJECTION: {
       return create_plan(static_cast<ProjectLogicalOperator &>(logical_operator), oper);
+    } break;
+
+    case LogicalOperatorType::AGGREGATE: {
+      return create_plan(static_cast<AggregateLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::INSERT: {
@@ -205,6 +211,35 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
   oper = unique_ptr<PhysicalOperator>(project_operator);
 
   LOG_TRACE("create a project physical operator");
+  return rc;
+}
+
+RC PhysicalPlanGenerator::create_plan(AggregateLogicalOperator &aggregate_oper, unique_ptr<PhysicalOperator> &oper)
+{
+  vector<unique_ptr<LogicalOperator>> &child_opers = aggregate_oper.children();
+
+  unique_ptr<PhysicalOperator> child_phy_oper;
+
+  RC rc = RC::SUCCESS;
+  if (!child_opers.empty()) {
+    LogicalOperator *child_oper = child_opers.front().get();
+    rc                          = create(*child_oper, child_phy_oper);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to create aggregate logical operator's child physical operator. rc=%s", strrc(rc));
+      return rc;
+    }
+  }
+
+  AggregatePhysicalOperator *aggregate_operator =
+      new AggregatePhysicalOperator(aggregate_oper.aggregations(), aggregate_oper.fields());
+
+  if (child_phy_oper) {
+    aggregate_operator->add_child(std::move(child_phy_oper));
+  }
+
+  oper = unique_ptr<PhysicalOperator>(aggregate_operator);
+
+  LOG_TRACE("create a aggregate physical operator");
   return rc;
 }
 

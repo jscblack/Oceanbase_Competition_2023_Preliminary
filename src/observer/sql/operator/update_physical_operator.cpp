@@ -19,6 +19,10 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 #include "storage/trx/trx.h"
 
+/* 细节说明：
+ * 此时的UpdatePhysicalOperator，其孩子节点即为表中的筛选条件
+ * 更新的select子句都在valueorphysoper中
+ */
 RC UpdatePhysicalOperator::open(Trx *trx)
 {
   if (children_.empty()) {
@@ -33,6 +37,45 @@ RC UpdatePhysicalOperator::open(Trx *trx)
   }
 
   trx_ = trx;
+
+  for (auto &value : values_) {
+    // 这里需要判断value的类型，如果是一个表达式，那么需要计算出来
+    if (value.value_from_select) {
+      std::unique_ptr<PhysicalOperator> &value_select = value.select_physical_operator;
+      rc                                              = value_select->open(trx);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to open child operator: %s", strrc(rc));
+        return rc;
+      }
+
+      if (RC::SUCCESS == (rc = value_select->next())) {
+        // only grab one
+        Tuple *tuple = value_select->current_tuple();
+        if (tuple == nullptr) {
+          LOG_WARN("failed to get current record: %s", strrc(rc));
+          return RC::INTERNAL;
+        }
+        if (tuple->cell_num() > 1) {
+          LOG_WARN("invalid select result, too much columns");
+          return RC::INTERNAL;
+        }
+        rc                      = tuple->cell_at(0, value.literal_value);
+        value.value_from_select = false;  // 从select中拿到了值，不需要再计算了
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("failed to get cell: %s", strrc(rc));
+          return rc;
+        }
+      } else {
+        LOG_WARN("failed to get next record: %s", strrc(rc));
+        return rc;
+      }
+      // 再尝试拿一次，如果拿到了，那么就是错误的，因为select出的结果必然只有一行
+      if (RC::RECORD_EOF != (rc = value_select->next())) {
+        LOG_WARN("invalid select result, too much rows");
+        return RC::INTERNAL;
+      }
+    }
+  }
 
   return RC::SUCCESS;
 }
@@ -69,8 +112,20 @@ RC UpdatePhysicalOperator::next()
       for (int j = 0; j < attr_names_.size(); j++) {
         if (strcmp(attr_names_[j].c_str(), field->name()) == 0) {
           // 找到了需要更新的字段
-          const Value &value    = values_[j];
-          size_t       copy_len = field->len();
+          // 必然在字面量中，否则出错
+          assert(values_[j].value_from_select == false);
+          const Value &value = values_[j].literal_value;
+
+          // 此处进行一次兜底的类型转换
+          if (value.attr_type() != field->type()) {
+            rc = value.auto_cast(field->type());
+            if (rc != RC::SUCCESS) {
+              LOG_WARN("failed to auto cast value: %s", strrc(rc));
+              return rc;
+            }
+          }
+
+          size_t copy_len = field->len();
           if (field->type() == CHARS) {
             const size_t data_len = value.length();
             if (copy_len > data_len) {
@@ -87,40 +142,6 @@ RC UpdatePhysicalOperator::next()
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;
     }
-
-    // old_record.data();
-    // Record new_record;
-    // vector<Value>new_values;
-    // const TableMeta &table_meta = table_->table_meta();
-    // // table_->table_meta_.
-    // for (int i = 0; i < table_meta.field_num()-table_meta.sys_field_num(); i++)
-    // {
-
-    // }
-
-    // for (int i = 0; i < old_record.size(); i++) {
-    //     Value value = old_record.get_value(i);
-    //     new_values.push_back(value);
-    // }
-
-    // new record;
-    // Record record;
-    // rc = table_->make_record(static_cast<int>(values_.size()), values_.data(), record);
-    // if (rc != RC::SUCCESS) {
-    //     LOG_WARN("failed to insert record by transaction. rc=%s", strrc(rc));
-    // }
-
-    // remove old record
-    // rc = trx_->delete_record(table_, record);
-    // if (rc != RC::SUCCESS) {
-    //     LOG_WARN("failed to insert record by transaction. rc=%s", strrc(rc));
-    // }
-
-    // insert new record
-    // rc = trx->insert_record(table_, record);
-    // if (rc != RC::SUCCESS) {
-    //     LOG_WARN("failed to insert record by transaction. rc=%s", strrc(rc));
-    // }
   }
 
   return RC::RECORD_EOF;

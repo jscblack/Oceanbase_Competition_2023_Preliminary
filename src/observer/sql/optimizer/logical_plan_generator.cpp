@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/predicate_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
+#include "sql/operator/aggregate_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 
@@ -127,7 +128,15 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   }
   // 注意此时的逻辑树是， (project) -> (predicate) -> (table_oper|table_get / join)
 
-  logical_operator.swap(project_oper);
+  const std::vector<std::pair<std::string, Field>> &all_aggregations = select_stmt->aggregation_func();
+  if (!all_aggregations.empty()) {
+    unique_ptr<LogicalOperator> aggregate_oper(new AggregateLogicalOperator(all_aggregations, all_fields));
+    aggregate_oper->add_child(std::move(project_oper));
+    logical_operator.swap(aggregate_oper);
+  } else {
+    logical_operator.swap(project_oper);
+  }
+
   return RC::SUCCESS;
 }
 
@@ -206,12 +215,11 @@ RC LogicalPlanGenerator::create_plan(DeleteStmt *delete_stmt, unique_ptr<Logical
 
 RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
-  Table             *table       = update_stmt->table();
-  const char       **field_names = update_stmt->field_names();
-  const Value       *values      = update_stmt->values();
-  int                value_num   = update_stmt->value_amount();
-  FilterStmt        *filter_stmt = update_stmt->filter_stmt();
-  std::vector<Field> fields;
+  Table                          *table       = update_stmt->table();
+  const std::vector<std::string> &field_names = update_stmt->field_names();
+  const std::vector<ValueOrStmt> &values      = update_stmt->values();
+  FilterStmt                     *filter_stmt = update_stmt->filter_stmt();
+  std::vector<Field>              fields;
   for (int i = table->table_meta().sys_field_num(); i < table->table_meta().field_num(); i++) {
     const FieldMeta *field_meta = table->table_meta().field(i);
     fields.push_back(Field(table, field_meta));
@@ -223,13 +231,8 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, unique_ptr<Logical
   if (rc != RC::SUCCESS) {
     return rc;
   }
-  std::vector<std::string> attr_names;
-  std::vector<Value>       vec_values;
-  for (int i = 0; i < value_num; i++) {
-    attr_names.push_back(field_names[i]);
-    vec_values.push_back(values[i]);
-  }
-  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, attr_names, vec_values));
+
+  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, field_names, values));
 
   if (predicate_oper) {
     predicate_oper->add_child(std::move(table_get_oper));
