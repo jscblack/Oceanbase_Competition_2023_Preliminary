@@ -46,14 +46,14 @@ struct RelAttrSqlNode
  */
 enum CompOp
 {
-  EQUAL_TO,     ///< "="
-  LESS_EQUAL,   ///< "<="
-  NOT_EQUAL,    ///< "<>"
-  LESS_THAN,    ///< "<"
-  GREAT_EQUAL,  ///< ">="
-  GREAT_THAN,   ///< ">"
-  LIKE_ENUM,         ///< "LIKE"
-  NOT_LIKE_ENUM,     ///< "NOT LIKE"
+  EQUAL_TO,       ///< "="
+  LESS_EQUAL,     ///< "<="
+  NOT_EQUAL,      ///< "<>"
+  LESS_THAN,      ///< "<"
+  GREAT_EQUAL,    ///< ">="
+  GREAT_THAN,     ///< ">"
+  LIKE_ENUM,      ///< "LIKE"
+  NOT_LIKE_ENUM,  ///< "NOT LIKE"
   NO_OP
 };
 
@@ -182,9 +182,9 @@ struct DropTableSqlNode
  */
 struct CreateIndexSqlNode
 {
-  std::string index_name;      ///< Index name
-  std::string relation_name;   ///< Relation name
-  bool is_unique; ///< 是否为唯一索引(默认false)
+  std::string              index_name;       ///< Index name
+  std::string              relation_name;    ///< Relation name
+  bool                     is_unique;        ///< 是否为唯一索引(默认false)
   std::vector<std::string> attribute_names;  ///< 支持多索引
 };
 

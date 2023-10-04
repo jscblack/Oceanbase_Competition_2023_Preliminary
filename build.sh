@@ -148,7 +148,6 @@ function gen_parser
 
 function build
 {
-  gen_parser
   set -- "${BUILD_ARGS[@]}"
   case "x$1" in
     xrelease)
@@ -173,8 +172,10 @@ function style
   fi
 
   # Find all source files (adjust the file extensions as needed)
-  source_files=$(find . -type f -name "*.cpp" -o -name "*.h")
+  # only format .cpp and .h files in the /src directory
 
+  source_files=$(find ./src -type f -name "*.cpp" -o -name "*.h")
+  
   # Check if there are any source files
   if [ -z "$source_files" ]; then
     echo "No source files found in the current directory."
@@ -205,6 +206,9 @@ function main
       ;;
     style)
       style
+      ;;
+    gen_parser)
+      gen_parser
       ;;
     *)
       parse_args

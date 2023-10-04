@@ -132,16 +132,16 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
 
   filter_unit->set_comp(comp);
 
-  //like的语法检测, 必须左边是属性(字符串field), 右边是字符串
+  // like的语法检测, 必须左边是属性(字符串field), 右边是字符串
   //目前应该不需要支持右边是非字符串转成字符串???
-  if(LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) { 
-    if(condition.left_is_attr && !condition.right_is_attr) {
-      if(type_left != CHARS || type_right != CHARS) {
+  if (LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) {
+    if (condition.left_is_attr && !condition.right_is_attr) {
+      if (type_left != CHARS || type_right != CHARS) {
         delete filter_unit;
         LOG_WARN("attr LIKE/NOT LIKE value, attr and value must be CHARS");
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
       }
-    } else { // 不满足 condition.left_is_attr && !condition.right_is_attr
+    } else {  // 不满足 condition.left_is_attr && !condition.right_is_attr
       delete filter_unit;
       LOG_WARN("LIKE/NOT LIKE must be 'attr LIKE value'");
       return RC::SQL_SYNTAX;
