@@ -152,5 +152,12 @@ RC UpdatePhysicalOperator::close()
   if (!children_.empty()) {
     children_[0]->close();
   }
+  for(auto &value : values_) {
+    // 需要关闭子查询
+    if(value.value_from_select) {
+      std::unique_ptr<PhysicalOperator> &value_select = value.select_physical_operator;
+      value_select->close();
+    }
+  }
   return RC::SUCCESS;
 }
