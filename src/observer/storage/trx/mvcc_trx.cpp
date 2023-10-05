@@ -184,7 +184,81 @@ RC MvccTrx::delete_record(Table *table, Record &record)
   return RC::SUCCESS;
 }
 
-RC MvccTrx::update_record(Table *table, Record &record, const char *data) { return RC::UNIMPLENMENT; }
+RC MvccTrx::update_record(Table *table, Record &record, const char *data) 
+{ 
+  // 获取指定表上的事务使用的字段
+  Field begin_field;
+  Field end_field;
+  trx_fields(table, begin_field, end_field);
+
+  // 给旧record打删除标记, 记得处理失败情形, 可能有其他事务真正update这个record所以先check一下
+  [[maybe_unused]] int32_t end_xid = end_field.get_int(record);
+  /// 在删除之前，第一次获取record时，就已经对record做了对应的检查，并且保证不会有其它的事务来访问这条数据
+  ASSERT(end_xid > 0,
+      "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
+      end_xid,
+      trx_id_,
+      record.rid().to_string().c_str());
+  if (end_xid != trx_kit_.max_trx_id()) {
+    // 有并发的updater, 那么就让first-committer赢了吧, 我放弃更新
+    LOG_INFO("MVCC concurrent updater: first-committed updater wins");
+    return RC::SUCCESS;
+  } else {
+    end_field.set_int(record, -trx_id_);
+  }
+
+  // 对异位更新即将插入的new_record设置事务相关元数据
+  Record new_record(record); // Copy-On-Write 
+  begin_field.set_int(new_record, -trx_id_);
+  end_field.set_int(new_record, trx_kit_.max_trx_id());
+  // 对异位更新的new_record更新一下新插入的data数据
+  // 如果想调用现有的原位更新接口，似乎需要先插入record才能比较好地实现？所以这里似乎应该调用
+  // 不太行, 因为record的RID得是新的, 此时的record未更新RID, 得先插入
+  RC rc = table->insert_record(new_record);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("MVCC: failed to insert new-version record into table when update. rc=%s", strrc(rc));
+    return rc;
+  }
+  rc = table->update_record(new_record, data);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("MVCC: failed to update new-version record into table when update. rc=%s", strrc(rc));
+    return rc;
+  }
+
+  // 此处更新顺序可能有影响,因为一般得保证日志比对应数据先落盘(此处代码顺序可能不关键,需要在另外地方保证),
+  // 与前面的insert和delete的先table操作再append log统一
+  rc = log_manager_->append_log(CLogType::DELETE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
+  ASSERT(rc == RC::SUCCESS,
+      "failed to append delete record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
+      trx_id_,
+      table->table_id(),
+      record.rid().to_string().c_str(),
+      record.len(),
+      strrc(rc));
+  rc = log_manager_->append_log(
+      CLogType::INSERT, trx_id_, table->table_id(), new_record.rid(), new_record.len(), 0 /*offset*/, new_record.data());
+  ASSERT(rc == RC::SUCCESS,
+      "failed to append insert record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
+      trx_id_,
+      table->table_id(),
+      record.rid().to_string().c_str(),
+      record.len(),
+      strrc(rc));
+
+  pair<OperationSet::iterator, bool> ret = operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
+  if (!ret.second) {
+    rc = RC::INTERNAL;
+    LOG_WARN("failed to insert operation(update) into operation set: duplicate");
+  }
+  ret = operations_.insert(Operation(Operation::Type::INSERT, table, new_record.rid()));
+  if (!ret.second) {
+    rc = RC::INTERNAL;
+    LOG_WARN("failed to insert operation(update) into operation set: duplicate");
+  }
+
+  return rc; 
+  
+}
 
 RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
 {
@@ -313,7 +387,10 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
             rid.to_string().c_str(),
             strrc(rc));
       } break;
+      
+      case Operation::Type::UPDATE: { 
 
+      } break;
       default: {
         ASSERT(false, "unsupported operation. type=%d", static_cast<int>(operation.type()));
       }
@@ -381,6 +458,10 @@ RC MvccTrx::rollback()
             "failed to get record while committing. rid=%s, rc=%s",
             rid.to_string().c_str(),
             strrc(rc));
+      } break;
+
+      case Operation::Type::UPDATE: {
+
       } break;
 
       default: {
