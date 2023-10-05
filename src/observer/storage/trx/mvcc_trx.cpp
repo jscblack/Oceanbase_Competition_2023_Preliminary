@@ -191,9 +191,21 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   Field end_field;
   trx_fields(table, begin_field, end_field);
 
+  if(begin_field.get_int(record) == -trx_id_) {
+    // update 多次的log怎么搞？？ 可能还是得update log？？
+    RC rc = table->update_record(record, data);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("MVCC: failed to update new-version record into table when update. rc=%s", strrc(rc));
+      return rc;
+    }
+    // 这个if语句未完成，。。。包括下面的检查也是，得check一下并发update
+    // 并发update得检查begin_field
+    // 同一个事务多次update的处理也还没搞
+  }
+
   // 给旧record打删除标记, 记得处理失败情形, 可能有其他事务真正update这个record所以先check一下
   [[maybe_unused]] int32_t end_xid = end_field.get_int(record);
-  /// 在删除之前，第一次获取record时，就已经对record做了对应的检查，并且保证不会有其它的事务来访问这条数据
+  /// 在删除之前，第一次获取record时，就已经对record做了对应的检查，并且保证不会有其它的事务来访问（并发删除）这条数据
   ASSERT(end_xid > 0,
       "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
       end_xid,
@@ -202,10 +214,16 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   if (end_xid != trx_kit_.max_trx_id()) {
     // 有并发的updater, 那么就让first-committer赢了吧, 我放弃更新
     LOG_INFO("MVCC concurrent updater: first-committed updater wins");
-    return RC::CONCURRENCY_UPDATE_FAIL;
+    // return RC::CONCURRENCY_UPDATE_FAIL;
+    return RC::SUCCESS;
   } else {
+    // 这种情况也可能是并发的updater新插入的record？？
+    // 但这个updater肯定已提交（不然如果它终端没法回滚了）
+    // 所以update未提交时也得check一下
     end_field.set_int(record, -trx_id_);
   }
+
+
 
   // 对异位更新即将插入的new_record设置事务相关元数据
   Record new_record(record); // Copy-On-Write 
@@ -215,6 +233,8 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   new_record.set_data_owner(record_data, record_size);
 
   begin_field.set_int(new_record, -trx_id_);
+  // 为了避免追加的新版本被再次扫描，并识别成新insert的数据，也需要将end_field置为负数与前面的ASSERT冲突起来
+  // 这个东西的更新不能再用insert的更新逻辑
   end_field.set_int(new_record, trx_kit_.max_trx_id());
   // 对异位更新的new_record更新一下新插入的data数据
   // 如果想调用现有的原位更新接口，似乎需要先插入record才能比较好地实现？所以这里似乎应该调用
@@ -258,6 +278,18 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   // 但真的会有影响吗? 这个先后顺序? 如果原子提交好像没影响, 现在本来就不能保证原子提交也好像没影响
   pair<OperationSet::iterator, bool> ret = operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
   if (!ret.second) {
+    // for (auto& operation : operations_) {
+    //   switch (operation.type()) {
+    //     case Operation::Type::INSERT : {
+    //       LOG_INFO("=======LOG BY LOSK\n=======INSERT: pagenum:%d,slotnum:%d",operation.page_num(),operation.slot_num());
+    //     } break;
+    //     case Operation::Type::DELETE : {
+    //       LOG_INFO("=======LOG BY LOSK\n=======DELETE: pagenum:%d,slotnum:%d",operation.page_num(),operation.slot_num());
+    //     } break;
+    //     default:
+    //       break;
+    //   }
+    // }
     rc = RC::INTERNAL;
     LOG_WARN("failed to insert operation(update) into operation set: duplicate");
   }
@@ -290,7 +322,7 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
   } else if (begin_xid < 0) {
     // begin xid 小于0说明是刚插入而且没有提交的数据
     rc = (-begin_xid == trx_id_) ? RC::SUCCESS : RC::RECORD_INVISIBLE;
-  } else if (end_xid < 0) {
+  } else if (end_xid < 0) { // begin > 0 and end_xid < 0
     // end xid 小于0 说明是正在删除但是还没有提交的数据
     if (readonly) {
       // 如果 -end_xid 就是当前事务的事务号，说明是当前事务删除的
