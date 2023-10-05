@@ -202,7 +202,7 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   if (end_xid != trx_kit_.max_trx_id()) {
     // 有并发的updater, 那么就让first-committer赢了吧, 我放弃更新
     LOG_INFO("MVCC concurrent updater: first-committed updater wins");
-    return RC::SUCCESS;
+    return RC::CONCURRENCY_UPDATE_FAIL;
   } else {
     end_field.set_int(record, -trx_id_);
   }
