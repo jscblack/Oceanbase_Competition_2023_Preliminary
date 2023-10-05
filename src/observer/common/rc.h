@@ -78,7 +78,8 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(VALUE_DATE_INVALID)          \
   DEFINE_RC(VALUE_CAST_FAILED)           \
   DEFINE_RC(VALUE_NOT_NUMBER)            \
-  DEFINE_RC(LOGBUF_FULL)
+  DEFINE_RC(LOGBUF_FULL)                 \
+  DEFINE_RC(CONCURRENCY_UPDATE_FAIL)  
 
 enum class RC
 {
