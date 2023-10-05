@@ -209,6 +209,11 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
 
   // 对异位更新即将插入的new_record设置事务相关元数据
   Record new_record(record); // Copy-On-Write 
+  // 参考update_physical的写法来给长度
+  int record_size = table->table_meta().record_size();
+  char* record_data = (char *) malloc (record_size);
+  new_record.set_data_owner(record_data, record_size);
+
   begin_field.set_int(new_record, -trx_id_);
   end_field.set_int(new_record, trx_kit_.max_trx_id());
   // 对异位更新的new_record更新一下新插入的data数据
@@ -219,6 +224,8 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     LOG_WARN("MVCC: failed to insert new-version record into table when update. rc=%s", strrc(rc));
     return rc;
   }
+  ASSERT(new_record.rid() != record.rid(), 
+    "MVCC update: new-copy's RID must NOT EQUAL the old-copy's RID");
   rc = table->update_record(new_record, data);
   if (rc != RC::SUCCESS) {
     LOG_WARN("MVCC: failed to update new-version record into table when update. rc=%s", strrc(rc));
@@ -235,16 +242,20 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
       record.rid().to_string().c_str(),
       record.len(),
       strrc(rc));
+  // 注意前面的table->update_record是不会更新new_record结构体的，只是在物理层面复写，
+  // 所以存进log的数据得是raw-data，而非从new_record获取的data。
   rc = log_manager_->append_log(
-      CLogType::INSERT, trx_id_, table->table_id(), new_record.rid(), new_record.len(), 0 /*offset*/, new_record.data());
+      CLogType::INSERT, trx_id_, table->table_id(), new_record.rid(), record_size, 0 /*offset*/, data);
   ASSERT(rc == RC::SUCCESS,
       "failed to append insert record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
       trx_id_,
       table->table_id(),
-      record.rid().to_string().c_str(),
-      record.len(),
+      new_record.rid().to_string().c_str(),
+      new_record.len(),
       strrc(rc));
 
+  // 注意, OperationSet的迭代顺序是比较随机的, 不一定先迭代delete 后迭代insert, 所以还是得自己处理
+  // 但真的会有影响吗? 这个先后顺序? 如果原子提交好像没影响, 现在本来就不能保证原子提交也好像没影响
   pair<OperationSet::iterator, bool> ret = operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
   if (!ret.second) {
     rc = RC::INTERNAL;
