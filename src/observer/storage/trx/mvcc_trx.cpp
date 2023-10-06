@@ -543,7 +543,8 @@ RC find_table(Db *db, const CLogRecord &log_record, Table *&table)
 {
   switch (clog_type_from_integer(log_record.header().type_)) {
     case CLogType::INSERT:
-    case CLogType::DELETE: {
+    case CLogType::DELETE:
+    case CLogType::UPDATE: {
       const CLogRecordData &data_record = log_record.data_record();
       table                             = db->find_table(data_record.table_id_);
       if (nullptr == table) {
@@ -611,9 +612,14 @@ RC MvccTrx::redo(Db *db, const CLogRecord &log_record)
       // TODO
       const CLogRecordData &data_record = log_record.data_record();
       Record record;
-      record.set_data(const_cast<char*>(data_record.data_), data_record.data_len_);
+      auto record_size = data_record.data_len_;
+      // auto record_size = table->table_meta().record_size(); // redo时读不到这个table_meta, 会段错误，why？
+      char* record_data = (char*) malloc (record_size);
+      memcpy(record_data, data_record.data_, record_size);
+      // record.set_data(const_cast<char*>(data_record.data_), data_record.data_len_);
+      record.set_data_owner(record_data, record_size);
       record.set_rid(data_record.rid_);
-      RC rc = table->update_record(record, record.data()); // 实际是拿record的RID去更新相应位置的data
+      RC rc = table->update_record(record, record.data());
       if (OB_FAIL(rc)) {
         LOG_WARN("failed to recover update. table=%s, log record=%s, rc=%s",
                  table->name(), log_record.to_string().c_str(), strrc(rc));
