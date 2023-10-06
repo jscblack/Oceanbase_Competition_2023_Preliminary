@@ -142,6 +142,7 @@ RC UpdatePhysicalOperator::next()
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;
     }
+    free(new_data);
   }
 
   return RC::RECORD_EOF;
