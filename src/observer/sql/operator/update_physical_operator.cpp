@@ -141,8 +141,6 @@ RC UpdatePhysicalOperator::next()
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;
-    } else {
-      break; // 更新成功就break！
     }
   }
 
