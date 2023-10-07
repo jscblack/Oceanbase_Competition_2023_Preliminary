@@ -152,6 +152,9 @@ void Value::set_value(const Value &value)
 const char *Value::data() const
 {
   switch (attr_type_) {
+    case NONE: {
+      return nullptr;
+    } break;
     case CHARS: {
       return str_value_.c_str();
     } break;
@@ -183,6 +186,9 @@ std::string Value::to_string() const
     case DATES: {
       os << str_value_;
     } break;
+    case NONE: {
+      os << "null";
+    } break;
     default: {
       LOG_WARN("unsupported attr type: %d", attr_type_);
     } break;
@@ -211,6 +217,9 @@ int Value::compare(const Value &other) const
       } break;
       case BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
+      }
+      case NONE: {
+        return 0;
       }
       default: {
         LOG_WARN("unsupported type: %d", this->attr_type_);
@@ -257,6 +266,11 @@ int Value::compare(const Value &other) const
     Value new_val = other.clone();
     new_val.auto_cast(DATES);
     return common::compare_date((void *)this->str_value_.c_str(), (void *)new_val.str_value_.c_str());
+  } else if (this->attr_type_ == NONE) {
+    // 任何值与NULL做对比，结果都是FALSE
+    return -1;
+  } else if (other.attr_type_ == NONE) {
+    return 1;
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?

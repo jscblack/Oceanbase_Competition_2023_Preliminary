@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "storage/field/field_meta.h"
 #include "storage/index/index_meta.h"
+#include "storage/record/record.h"
 
 /**
  * @brief 表元数据
@@ -48,10 +49,15 @@ public:
   const FieldMeta              *field(const char *name) const;
   const FieldMeta              *find_field_by_offset(int offset) const;
   const std::vector<FieldMeta> *field_metas() const { return &fields_; }
-  auto                          trx_fields() const -> const std::pair<const FieldMeta *, int>;
+  bool                          is_field_null(Record &record, const char *field_name) const;
+
+  auto             trx_fields() const -> const std::pair<const FieldMeta *, int>;
+  const FieldMeta *null_field() const;
 
   int field_num() const;  // sys field included
   int sys_field_num() const;
+  int trx_field_num() const;
+  int null_field_num() const;
 
   const IndexMeta *index(const char *name) const;
   const IndexMeta *find_index_by_field(const char *field) const;
@@ -61,6 +67,7 @@ public:
   int record_size() const;
 
 public:
+  // 用于数据的持久化
   int  serialize(std::ostream &os) const override;
   int  deserialize(std::istream &is) override;
   int  get_serial_size() const override;

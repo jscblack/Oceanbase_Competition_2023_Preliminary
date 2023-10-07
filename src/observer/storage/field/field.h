@@ -42,6 +42,7 @@ public:
   void set_int(Record &record, int value);
   int  get_int(const Record &record);
 
+  bool        is_null();
   const char *get_data(const Record &record);
 
 private:

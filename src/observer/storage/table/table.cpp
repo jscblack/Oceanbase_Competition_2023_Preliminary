@@ -324,7 +324,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value     &value = values[i];
-    if (field->type() != value.attr_type()) {
+    if (value.attr_type() != AttrType::NONE && field->type() != value.attr_type()) {
       // 这里应该不会走到，前面都处理过了
       LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
                 table_meta_.name(), field->name(), field->type(), value.attr_type());
@@ -334,19 +334,29 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
 
   // 复制所有字段的值
   int   record_size = table_meta_.record_size();
-  char *record_data = (char *)malloc(record_size);
-
+  char *record_data = (char *)calloc(record_size, record_size);
   for (int i = 0; i < value_num; i++) {
-    const FieldMeta *field    = table_meta_.field(i + normal_field_start_index);
-    const Value     &value    = values[i];
-    size_t           copy_len = field->len();
-    if (field->type() == CHARS) {
-      const size_t data_len = value.length();
-      if (copy_len > data_len) {
-        copy_len = data_len + 1;
+    const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
+    const Value     &value = values[i];
+    if (value.attr_type() == AttrType::NONE) {
+      // 空值额外处理
+      memset(record_data + field->offset(), 0, field->len());
+      const FieldMeta *null_field = table_meta_.null_field();
+      // 取出null_field的值
+      char *null_field_data = record_data + null_field->offset();
+      // 设置null_field的值
+
+      null_field_data[i / CHAR_BIT] |= (1 << (i % CHAR_BIT));
+    } else {
+      size_t copy_len = field->len();
+      if (field->type() == CHARS) {
+        const size_t data_len = value.length();
+        if (copy_len > data_len) {
+          copy_len = data_len + 1;
+        }
       }
+      memcpy(record_data + field->offset(), value.data(), copy_len);
     }
-    memcpy(record_data + field->offset(), value.data(), copy_len);
   }
 
   record.set_data_owner(record_data, record_size);
