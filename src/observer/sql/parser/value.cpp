@@ -225,6 +225,11 @@ int Value::compare(const Value &other) const
         LOG_WARN("unsupported type: %d", this->attr_type_);
       }
     }
+  } else if (this->attr_type_ == NONE) {
+    // 任何值与NULL做对比，结果都是FALSE
+    return -1;
+  } else if (other.attr_type_ == NONE) {
+    return 1;
   } else if (this->attr_type_ == INTS && other.attr_type_ == FLOATS) {
     float this_data = this->num_value_.int_value_;
     return common::compare_float((void *)&this_data, (void *)&other.num_value_.float_value_);
@@ -266,11 +271,6 @@ int Value::compare(const Value &other) const
     Value new_val = other.clone();
     new_val.auto_cast(DATES);
     return common::compare_date((void *)this->str_value_.c_str(), (void *)new_val.str_value_.c_str());
-  } else if (this->attr_type_ == NONE) {
-    // 任何值与NULL做对比，结果都是FALSE
-    return -1;
-  } else if (other.attr_type_ == NONE) {
-    return 1;
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?

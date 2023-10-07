@@ -345,7 +345,6 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
       // 取出null_field的值
       char *null_field_data = record_data + null_field->offset();
       // 设置null_field的值
-
       null_field_data[i / CHAR_BIT] |= (1 << (i % CHAR_BIT));
     } else {
       size_t copy_len = field->len();
@@ -600,6 +599,7 @@ RC Table::update_record(const Record &record, const char *data)
   }
 
   rc = record_handler_->update_record(record.rid(), data);
+
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
