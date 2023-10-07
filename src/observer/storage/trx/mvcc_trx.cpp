@@ -158,7 +158,13 @@ RC MvccTrx::delete_record(Table *table, Record &record)
   trx_fields(table, begin_field, end_field);
 
   [[maybe_unused]] int32_t end_xid = end_field.get_int(record);
+
   /// 在删除之前，第一次获取record时，就已经对record做了对应的检查，并且保证不会有其它的事务来访问这条数据
+  // 错误，现在修复成在这里判断是否有删除/更新的冲突
+  if (end_xid < 0 && -end_xid == trx_id_) {
+    // 自己此前已经删除过
+    return RC::SUCCESS;
+  }
   ASSERT(end_xid > 0,
       "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
       end_xid,
@@ -355,7 +361,11 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
       // 如果当前想要修改此条数据，并且不是当前事务删除的，简单的报错
       // 这是事务并发处理的一种方式，非常简单粗暴。其它的并发处理方法，可以等待，或者让客户端重试
       // 或者等事务结束后，再检测修改的数据是否有冲突
-      rc = (-end_xid != trx_id_) ? RC::LOCKED_CONCURRENCY_CONFLICT : RC::RECORD_INVISIBLE;
+
+      // 错误的处理！这里扫描的时候扫到的未必是自己想要删除的，删除冲突的解决方案应该在trx->delete_record中解决
+      // 这里只做可见性的判断，而不做其他判断
+      rc = (-end_xid != trx_id_) ? RC::SUCCESS : RC::RECORD_INVISIBLE;
+      // rc = (-end_xid != trx_id_) ? RC::LOCKED_CONCURRENCY_CONFLICT : RC::RECORD_INVISIBLE;
     }
   }
   return rc;
