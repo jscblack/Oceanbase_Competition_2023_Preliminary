@@ -541,7 +541,11 @@ extern int yylex \
 #undef yyTABLES_NAME
 #endif
 
+<<<<<<< HEAD
 #line 153 "lex_sql.l"
+=======
+#line 149 "lex_sql.l"
+>>>>>>> 24b4f9de55171240064c617c7c87b451b732093d
 
 
 #line 548 "lex_sql.h"
