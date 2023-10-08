@@ -225,9 +225,11 @@ int Value::compare(const Value &other) const
         LOG_WARN("unsupported type: %d", this->attr_type_);
       }
     }
-  } else if (this->attr_type_ == NONE || other.attr_type_ == NONE) {
-    // 任何值与NULL做对比，结果都是FALSE
+  } else if (this->attr_type_ == NONE) {
+    // 任何值理性上都是大于NULL的
     return -1;
+  } else if (other.attr_type_ == NONE) {
+    return 1;
   } else if (this->attr_type_ == INTS && other.attr_type_ == FLOATS) {
     float this_data = this->num_value_.int_value_;
     return common::compare_float((void *)&this_data, (void *)&other.num_value_.float_value_);
