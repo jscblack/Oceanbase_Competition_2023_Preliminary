@@ -41,8 +41,8 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     tuples_values_.emplace_back(values);
   }
 
-  LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
-  LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());
+  // LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
+  // LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());
 
   for (auto &agg : aggregations_) {
     if (agg.first == "MAX") {
@@ -216,6 +216,9 @@ void AggregatePhysicalOperator::do_count_aggregate(Field &field)
 
   if (field.table() != nullptr && field.meta() == nullptr) {  // count(*)
     LOG_DEBUG("========== do_count(*) ==========");
+    if (tuples_values_.empty()) {
+      count = 0;
+    }
     count = tuples_values_.size();
   } else {
     int idx;
@@ -232,11 +235,13 @@ void AggregatePhysicalOperator::do_count_aggregate(Field &field)
     }
 
     LOG_DEBUG("========== idx = %d ==========",idx);
-
-    for (auto t : tuples_values_) {
-      Value &cur_value = t[idx];
-      if (!cur_value.is_null()) {
-        count++;
+    // 检查是否为空
+    if (!tuples_values_.empty()) {
+      for (auto t : tuples_values_) {
+        Value &cur_value = t[idx];
+        if (!cur_value.is_null()) {
+          count++;
+        }
       }
     }
   }
