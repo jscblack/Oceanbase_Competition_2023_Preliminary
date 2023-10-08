@@ -123,6 +123,7 @@ CHAR                                    RETURN_TOKEN(STRING_T);
 FLOAT                                   RETURN_TOKEN(FLOAT_T);
 DATE                                    RETURN_TOKEN(DATE_T);
 NULL                                    RETURN_TOKEN(NULL_T);
+TEXT                                    RETURN_TOKEN(TEXT_T);
 NULLABLE                                RETURN_TOKEN(NULLABLE);
 NOT{WHITE_SAPCE}+NULL                   RETURN_TOKEN(UNNULLABLE);
 LOAD                                    RETURN_TOKEN(LOAD);
