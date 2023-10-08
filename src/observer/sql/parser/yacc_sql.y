@@ -70,6 +70,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         AGG_AVG
         AGG_SUM
         NULLABLE
+        UNNULLABLE
         SHOW
         SYNC
         INSERT
@@ -338,6 +339,10 @@ drop_index_stmt:      /*drop index 语句的语法解析树*/
 
 nullable_marker:
     /* empty */
+    {
+      $$ = false;
+    }
+    | UNNULLABLE
     {
       $$ = false;
     }

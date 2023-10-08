@@ -625,7 +625,7 @@ RC Table::update_record(const Record &record, const char *data)
       attr_length_sum       = index->get_user_key(data, user_key);
 
       int modified = memcmp(user_key, user_key_before, attr_length_sum);
-      
+
       if (modified == 0) {
         // 无任何变更，不需要检查
         continue;
