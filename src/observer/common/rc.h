@@ -39,6 +39,7 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(RECORD_EOF)                  \
   DEFINE_RC(RECORD_NOT_EXIST)            \
   DEFINE_RC(RECORD_INVISIBLE)            \
+  DEFINE_RC(RECORD_UNNULLABLE)           \
   DEFINE_RC(SCHEMA_DB_EXIST)             \
   DEFINE_RC(SCHEMA_DB_NOT_EXIST)         \
   DEFINE_RC(SCHEMA_DB_NOT_OPENED)        \

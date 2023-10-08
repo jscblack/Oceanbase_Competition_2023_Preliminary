@@ -12,8 +12,8 @@ See the Mulan PSL v2 for more details. */
 // Created by tong1heng on 2023/10/03.
 //
 
-#include "common/log/log.h"
 #include "sql/operator/aggregate_physical_operator.h"
+#include "common/log/log.h"
 #include "storage/record/record.h"
 #include "storage/table/table.h"
 
@@ -41,8 +41,8 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     tuples_values_.emplace_back(values);
   }
 
-  LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
-  LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());
+  // LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
+  // LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());
 
   for (auto &agg : aggregations_) {
     if (agg.first == "MAX") {
@@ -113,13 +113,37 @@ void AggregatePhysicalOperator::do_max_aggregate(Field &field)
   }
 
   LOG_DEBUG("========== idx = %d ==========",idx);
+  // 检查是否为空
+  if (tuples_values_.empty()) {
+    Value empty_value;
+    empty_value.set_type(field.attr_type());
+    aggregate_results_.emplace_back(empty_value);
+    return;
+  }
+
+  // 检查是否均为null
+  bool all_null = true;
+  for (auto t : tuples_values_) {
+    Value &cur_value = t[idx];
+    if (!cur_value.is_null()) {
+      all_null = false;
+      break;
+    }
+  }
+  if (all_null) {
+    Value null_value;
+    null_value.set_type(AttrType::NONE);
+    aggregate_results_.emplace_back(null_value);
+    return;
+  }
 
   Value max_value = tuples_values_[0][idx];
 
   for (auto t : tuples_values_) {
     Value &cur_value = t[idx];
-    if (cur_value.compare(max_value) >
-        0) {  // FIXME: 实现NULL之后修改为 cur_value != NULL && cur_value.compare(max_value) > 0
+    if (cur_value.compare(max_value) > 0) {
+      // FIXME: 实现NULL之后修改为 cur_value != NULL && cur_value.compare(max_value) > 0
+      // RESP: 这里不影响，因为任何东西都比null小
       max_value = cur_value;
     }
   }
@@ -146,13 +170,36 @@ void AggregatePhysicalOperator::do_min_aggregate(Field &field)
   }
 
   LOG_DEBUG("========== idx = %d ==========",idx);
+  // 检查是否为空
+  if (tuples_values_.empty()) {
+    Value empty_value;
+    empty_value.set_type(field.attr_type());
+    aggregate_results_.emplace_back(empty_value);
+    return;
+  }
+
+  // 检查是否均为null
+  bool all_null = true;
+  for (auto t : tuples_values_) {
+    Value &cur_value = t[idx];
+    if (!cur_value.is_null()) {
+      all_null = false;
+      break;
+    }
+  }
+  if (all_null) {
+    Value null_value;
+    null_value.set_type(AttrType::NONE);
+    aggregate_results_.emplace_back(null_value);
+    return;
+  }
 
   Value min_value = tuples_values_[0][idx];
 
   for (auto t : tuples_values_) {
     Value &cur_value = t[idx];
-    if (cur_value.compare(min_value) <
-        0) {  // FIXME: 实现NULL之后修改为 cur_value != NULL && cur_value.compare(min_value) < 0
+    if (cur_value.compare(min_value) < 0) {
+      // FIXME: 实现NULL之后修改为 cur_value != NULL && cur_value.compare(max_value) < 0
       min_value = cur_value;
     }
   }
@@ -169,6 +216,9 @@ void AggregatePhysicalOperator::do_count_aggregate(Field &field)
 
   if (field.table() != nullptr && field.meta() == nullptr) {  // count(*)
     LOG_DEBUG("========== do_count(*) ==========");
+    if (tuples_values_.empty()) {
+      count = 0;
+    }
     count = tuples_values_.size();
   } else {
     int idx;
@@ -185,14 +235,14 @@ void AggregatePhysicalOperator::do_count_aggregate(Field &field)
     }
 
     LOG_DEBUG("========== idx = %d ==========",idx);
-
-    for (auto t : tuples_values_) {
-      Value &cur_value = t[idx];
-      /*
-        FIXME: 实现NULL之后需要加入空值判断
-        if (cur_value != NULL)
-      */
-      count++;
+    // 检查是否为空
+    if (!tuples_values_.empty()) {
+      for (auto t : tuples_values_) {
+        Value &cur_value = t[idx];
+        if (!cur_value.is_null()) {
+          count++;
+        }
+      }
     }
   }
 
@@ -220,6 +270,28 @@ void AggregatePhysicalOperator::do_avg_aggregate(Field &field)
   }
 
   LOG_DEBUG("========== idx = %d ==========",idx);
+  // 检查是否为空
+  if (tuples_values_.empty()) {
+    Value empty_value;
+    empty_value.set_type(field.attr_type());
+    aggregate_results_.emplace_back(empty_value);
+    return;
+  }
+  // 检查是否均为null
+  bool all_null = true;
+  for (auto t : tuples_values_) {
+    Value &cur_value = t[idx];
+    if (!cur_value.is_null()) {
+      all_null = false;
+      break;
+    }
+  }
+  if (all_null) {
+    Value null_value;
+    null_value.set_type(AttrType::NONE);
+    aggregate_results_.emplace_back(null_value);
+    return;
+  }
 
   Value    avg_value;
   int      cnt       = 0;
@@ -228,56 +300,63 @@ void AggregatePhysicalOperator::do_avg_aggregate(Field &field)
     int sum = 0;
     for (auto t : tuples_values_) {
       Value &cur_value = t[idx];
-      /*
-        FIXME: 实现NULL之后需要加入空值判断
-        if (cur_value != NULL)
-      */
-      sum += cur_value.get_int();
-      cnt++;
+      if (!cur_value.is_null()) {
+        sum += cur_value.get_int();
+        cnt++;
+      }
     }
     avg_value.set_int(sum / cnt);
   } else if (attr_type == FLOATS) {
     float sum = 0;
     for (auto t : tuples_values_) {
       Value &cur_value = t[idx];
-      /*
-        FIXME: 实现NULL之后需要加入空值判断
-        if (cur_value != NULL)
-      */
-      sum += cur_value.get_float();
-      cnt++;
+      if (!cur_value.is_null()) {
+        sum += cur_value.get_float();
+        cnt++;
+      }
     }
     avg_value.set_float(sum / cnt);
   } else if (attr_type == CHARS) {
     for (auto t : tuples_values_) {
-      t[idx].str_to_number();
-    }
-
-    if (tuples_values_[0][idx].attr_type() == INTS) {
-      int sum = 0;
-      for (auto t : tuples_values_) {
-        Value &cur_value = t[idx];
-        /*
-          FIXME: 实现NULL之后需要加入空值判断
-          if (cur_value != NULL)
-        */
-        sum += cur_value.get_int();
-        cnt++;
-      }
-      avg_value.set_int(sum / cnt);
-    } else {
-      float sum = 0;
-      for (auto t : tuples_values_) {
-        Value &cur_value = t[idx];
-        /*
-          FIXME: 实现NULL之后需要加入空值判断
-          if (cur_value != NULL)
-        */
-        sum += cur_value.get_float();
-        cnt++;
+      float  sum       = 0;
+      Value &cur_value = t[idx];
+      if (!cur_value.is_null()) {
+        cur_value.str_to_number();
+        if (cur_value.attr_type() == INTS) {
+          sum += cur_value.get_int();
+          cnt++;
+        } else {
+          sum += cur_value.get_float();
+          cnt++;
+        }
       }
       avg_value.set_float(sum / cnt);
     }
+    // if (tuples_values_[0][idx].attr_type() == INTS) {
+    //   int sum = 0;
+    //   for (auto t : tuples_values_) {
+    //     Value &cur_value = t[idx];
+    //     /*
+    //       FIXME: 实现NULL之后需要加入空值判断
+    //       if (cur_value != NULL)
+    //     */
+    //     sum += cur_value.get_int();
+    //     cnt++;
+    //   }
+    //   avg_value.set_int(sum / cnt);
+    // } else {
+    //   float sum = 0;
+    //   for (auto t : tuples_values_) {
+    //     Value &cur_value = t[idx];
+    //     /*
+    //       FIXME: 实现NULL之后需要加入空值判断
+    //       if (cur_value != NULL)
+    //     */
+    //     sum += cur_value.get_float();
+    //     cnt++;
+    //   }
+    //   avg_value.set_float(sum / cnt);
+    // }
   } else {  // 其余类型无法求和
     return;
   }
@@ -304,6 +383,28 @@ void AggregatePhysicalOperator::do_sum_aggregate(Field &field)
   }
 
   LOG_DEBUG("========== idx = %d ==========",idx);
+  // 检查是否为空
+  if (tuples_values_.empty()) {
+    Value empty_value;
+    empty_value.set_type(field.attr_type());
+    aggregate_results_.emplace_back(empty_value);
+    return;
+  }
+  // 检查是否均为null
+  bool all_null = true;
+  for (auto t : tuples_values_) {
+    Value &cur_value = t[idx];
+    if (!cur_value.is_null()) {
+      all_null = false;
+      break;
+    }
+  }
+  if (all_null) {
+    Value null_value;
+    null_value.set_type(AttrType::NONE);
+    aggregate_results_.emplace_back(null_value);
+    return;
+  }
 
   Value    sum_value;
   AttrType attr_type = tuples_values_[0][idx].attr_type();
@@ -315,7 +416,9 @@ void AggregatePhysicalOperator::do_sum_aggregate(Field &field)
         FIXME: 实现NULL之后需要加入空值判断
         if (cur_value != NULL)
       */
-      sum += cur_value.get_int();
+      if (!cur_value.is_null()) {
+        sum += cur_value.get_int();
+      }
     }
     sum_value.set_int(sum);
   } else if (attr_type == FLOATS) {
@@ -326,36 +429,58 @@ void AggregatePhysicalOperator::do_sum_aggregate(Field &field)
         FIXME: 实现NULL之后需要加入空值判断
         if (cur_value != NULL)
       */
-      sum += cur_value.get_float();
+      if (!cur_value.is_null()) {
+        sum += cur_value.get_float();
+      }
     }
     sum_value.set_float(sum);
   } else if (attr_type == CHARS) {
     for (auto t : tuples_values_) {
-      t[idx].str_to_number();
-    }
-
-    if (tuples_values_[0][idx].attr_type() == INTS) {
-      int sum = 0;
-      for (auto t : tuples_values_) {
-        Value &cur_value = t[idx];
-        /*
-          FIXME: 实现NULL之后需要加入空值判断
-          if (cur_value != NULL)
-        */
-        sum += cur_value.get_int();
-      }
-      sum_value.set_int(sum);
-    } else {
-      float sum = 0;
-      for (auto t : tuples_values_) {
-        Value &cur_value = t[idx];
-        /*
-          FIXME: 实现NULL之后需要加入空值判断
-          if (cur_value != NULL)
-        */
-        sum += cur_value.get_float();
+      float  sum       = 0;
+      Value &cur_value = t[idx];
+      if (!cur_value.is_null()) {
+        cur_value.str_to_number();
+        if (cur_value.attr_type() == INTS) {
+          sum += cur_value.get_int();
+        } else {
+          sum += cur_value.get_float();
+        }
       }
       sum_value.set_float(sum);
+      // // 处理对字符串求和的情况
+      // for (auto t : tuples_values_) {
+      //   // 这里有点疑问，CHARS不一定可以是个数
+      //   if (!t[idx].is_null()) {
+      //     t[idx].str_to_number();
+      //   }
+      // }
+      // if (tuples_values_[0][idx].attr_type() == INTS) {
+      //   int sum = 0;
+      //   for (auto t : tuples_values_) {
+      //     Value &cur_value = t[idx];
+      //     /*
+      //       FIXME: 实现NULL之后需要加入空值判断
+      //       if (cur_value != NULL)
+      //     */
+      //     if (!cur_value.is_null()) {
+      //       sum += cur_value.get_int();
+      //     }
+      //   }
+      //   sum_value.set_int(sum);
+      // } else {
+      //   float sum = 0;
+      //   for (auto t : tuples_values_) {
+      //     Value &cur_value = t[idx];
+      //     /*
+      //       FIXME: 实现NULL之后需要加入空值判断
+      //       if (cur_value != NULL)
+      //     */
+      //     if (!cur_value.is_null()) {
+      //       sum += cur_value.get_float();
+      //     }
+      //   }
+      //   sum_value.set_float(sum);
+      // }
     }
   } else {  // 其余类型无法求和
     return;

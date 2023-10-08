@@ -113,9 +113,21 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC  rc         = RC::SUCCESS;
-  int cmp_result = left.compare(right);
-  result         = false;
+  RC  rc = RC::SUCCESS;
+  int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
+  result = false;
+  if (left.is_null() || right.is_null()) {
+    // null的比较当中只有null is null会返回true，以及value is not null会返回true
+    // 其他的比较都会返回false
+    if (comp_ == IS_ENUM && left.is_null() && right.is_null()) {
+      result = true;
+    } else if (comp_ == IS_NOT_ENUM && (!left.is_null() || !right.is_null())) {
+      result = true;
+    } else {
+      result = false;
+    }
+    return rc;
+  }
   switch (comp_) {
     case EQUAL_TO: {
       result = (0 == cmp_result);
@@ -135,6 +147,24 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     case GREAT_THAN: {
       result = (cmp_result > 0);
     } break;
+    // TODO: IS和IS NOT的比较，不需要cast，直接比较
+    // case IS_ENUM: {
+    //   // null is null
+    //   if (left.is_null() && right.is_null()) {
+    //     result = true;
+    //     break;
+    //   }
+    //   result = (cmp_result == 0);
+    // } break;
+    // case IS_NOT_ENUM: {
+    //   // value is not null
+    //   // null is not value
+    //   if (left.is_null() && right.is_null()) {
+    //     result = false;
+    //     break;
+    //   }
+    //   result = (cmp_result != 0);
+    // } break;
     default: {
       LOG_WARN("unsupported comparison. %d", comp_);
       rc = RC::INTERNAL;

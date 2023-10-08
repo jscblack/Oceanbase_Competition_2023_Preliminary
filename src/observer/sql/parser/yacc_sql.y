@@ -69,6 +69,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         AGG_COUNT
         AGG_AVG
         AGG_SUM
+        NULLABLE
+        UNNULLABLE
         SHOW
         SYNC
         INSERT
@@ -85,6 +87,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         STRING_T
         FLOAT_T
         DATE_T
+        NULL_T
         TEXT_T
         HELP
         EXIT
@@ -108,6 +111,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         NE
         LIKE
         NOT_LIKE
+        IS
+        IS_NOT
         INNER_JOIN
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
@@ -154,6 +159,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <insert_list>         insert_list
 %type <value_list>          value_list
 %type <boolean>             unique_marker
+%type <boolean>             nullable_marker
 %type <condition_list>      where
 %type <condition_list>      condition_list
 %type <rel_attr_list>       select_attr
@@ -331,6 +337,22 @@ drop_index_stmt:      /*drop index 语句的语法解析树*/
       free($5);
     }
     ;
+
+nullable_marker:
+    /* empty */
+    {
+      $$ = false;
+    }
+    | UNNULLABLE
+    {
+      $$ = false;
+    }
+    | NULLABLE
+    {
+      $$ = true;
+    }
+    ;
+
 create_table_stmt:    /*create table 语句的语法解析树*/
     CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE
     {
@@ -367,15 +389,16 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type LBRACE number RBRACE 
+    ID type nullable_marker LBRACE number RBRACE 
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = $4;
+      $$->length = $5;
+      $$->nullable=$3;
       free($1);
     }
-    | ID type
+    | ID type nullable_marker
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
@@ -387,6 +410,7 @@ attr_def:
       if ($$->type == TEXTS) {
         $$->length = 4096;
       }
+      $$->nullable=$3;
       free($1);
     }
     ;
@@ -472,7 +496,11 @@ value_list:
     }
     ;
 value:
-    NUMBER {
+    NULL_T {
+      $$ = new Value();
+      $$->set_type(AttrType::NONE);
+    }
+    |NUMBER {
       $$ = new Value((int)$1);
       @$ = @1;
       LOG_INFO("===============================LOG BY LOSK===============================\n"
@@ -966,6 +994,8 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | LIKE { $$ = LIKE_ENUM; }
     | NOT_LIKE { $$ = NOT_LIKE_ENUM; }
+    | IS_NOT { $$ = IS_NOT_ENUM; }
+    | IS { $$ = IS_ENUM; }
     ;
 
 load_data_stmt:

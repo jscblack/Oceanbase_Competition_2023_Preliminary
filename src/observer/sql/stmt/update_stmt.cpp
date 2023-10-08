@@ -92,11 +92,22 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
       // from value
       const AttrType value_type = complex_values[i].literal_value.attr_type();
       if (field_type != value_type) {  // TODO try to convert the value type to field type
-        rc = complex_values[i].literal_value.auto_cast(field_type);
-        if (rc != RC::SUCCESS) {
-          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+
+        if (value_type == AttrType::NONE) {
+          // 空值检查
+          if (!field_meta->nullable()) {
+            LOG_WARN("field can not be null. table=%s, field=%s, field type=%d, value_type=%d",
+                     table_name, field_meta->name(), field_type, value_type);
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+        } else {
+          // 正常转换
+          rc = complex_values[i].literal_value.auto_cast(field_type);
+          if (rc != RC::SUCCESS) {
+            LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
             table_name, field_meta->name(), field_type, value_type);
-          return rc;
+            return rc;
+          }
         }
       }
       update_values.emplace_back(false, complex_values[i].literal_value);
