@@ -153,7 +153,7 @@ public:
     FieldExpr       *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
     // 在这里需要判断一下，record当中，这个字段是否为空
-    if (field_meta->nullable() && table_->table_meta().is_field_null(*record_, field_meta->name())) {
+    if (field_meta->nullable() && table_->table_meta().is_field_null(record_->data(), field_meta->name())) {
       // 为null
       cell.set_type(AttrType::NONE);
     } else {

@@ -223,7 +223,7 @@ RC Table::insert_record(Record &record)
       // 索引字段中带有null的record不保证唯一性，直接跳过
       bool has_null = false;
       for (auto field_name : index->index_meta().fields()) {
-        if (table_meta_.is_field_null(record, field_name.c_str())) {
+        if (table_meta_.is_field_null(record.data(), field_name.c_str())) {
           has_null = true;
           break;
         }
@@ -254,7 +254,7 @@ RC Table::insert_record(Record &record)
           return rc;
         }
         for (auto field_name : index->index_meta().fields()) {
-          if (table_meta_.is_field_null(tmp_record, field_name.c_str())) {
+          if (table_meta_.is_field_null(tmp_record.data(), field_name.c_str())) {
             rids.remove(rid);
           }
         }
@@ -476,7 +476,7 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, con
       // 索引字段中带有null的record不保证唯一性，直接跳过
       bool has_null = false;
       for (auto field : fields_meta) {
-        if (table_meta_.is_field_null(record_unique, field->name())) {
+        if (table_meta_.is_field_null(record_unique.data(), field->name())) {
           has_null = true;
           break;
         }
@@ -608,10 +608,18 @@ RC Table::update_record(const Record &record, const char *data)
   for (Index *index : indexes_) {
     if (index->index_meta().is_unique()) {
       // 在这里需要针对支持null的情况做特殊处理
-      bool has_null = false;
+      // record是旧的值，这里检查新值是否有null
+      bool has_null         = false;
+      bool old_rec_has_null = false;
       for (auto field_name : index->index_meta().fields()) {
-        if (table_meta_.is_field_null(record, field_name.c_str())) {
+        if (table_meta_.is_field_null(data, field_name.c_str())) {
           has_null = true;
+          break;
+        }
+      }
+      for (auto field_name : index->index_meta().fields()) {
+        if (table_meta_.is_field_null(record.data(), field_name.c_str())) {
+          old_rec_has_null = true;
           break;
         }
       }
@@ -626,8 +634,10 @@ RC Table::update_record(const Record &record, const char *data)
 
       int modified = memcmp(user_key, user_key_before, attr_length_sum);
 
-      if (modified == 0) {
-        // 无任何变更，不需要检查
+      if (modified == 0 && !old_rec_has_null) {
+        // FIX: 此时新值无null，因此必须要与现有检查冲突，事实上，就算字面量没变，新值与旧值可能在null上有区别
+        // 比如将原先的null设置成新的0，这就产生的unique的冲突，依然需要检查
+        // 旧值无null，（新值也无null）无任何变更，不需要检查
         continue;
       }
       // 需要首先检查插入后的情况是否会有键值重复的情况
@@ -638,6 +648,7 @@ RC Table::update_record(const Record &record, const char *data)
                   name(), index->index_meta().name(), strrc(rc));
         return rc;
       }
+      rids.remove_if([&record](const RID &rid) { return rid == record.rid(); });
       for (auto rid : rids) {
         RecordPageHandler record_page_handler;
         record_page_handler.cleanup();
@@ -649,7 +660,7 @@ RC Table::update_record(const Record &record, const char *data)
           return rc;
         }
         for (auto field_name : index->index_meta().fields()) {
-          if (table_meta_.is_field_null(tmp_record, field_name.c_str())) {
+          if (table_meta_.is_field_null(tmp_record.data(), field_name.c_str())) {
             rids.remove(rid);
           }
         }
