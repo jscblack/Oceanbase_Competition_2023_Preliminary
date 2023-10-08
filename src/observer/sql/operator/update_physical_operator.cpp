@@ -120,15 +120,19 @@ RC UpdatePhysicalOperator::next()
           const Value &value = values_[j].literal_value;
 
           // 此处进行一次兜底的类型转换
-          if (value.attr_type() != AttrType::NONE && value.attr_type() != field->type()) {
+          if (!value.is_null() && value.attr_type() != field->type()) {
             rc = value.auto_cast(field->type());
             if (rc != RC::SUCCESS) {
               LOG_WARN("failed to auto cast value: %s", strrc(rc));
               return rc;
             }
           }
-          if (value.attr_type() == AttrType::NONE) {
+          if (value.is_null()) {
             // 空值额外处理
+            if (!field->nullable()) {
+              LOG_WARN("field %s is not nullable",field->name());
+              return RC::RECORD_UNNULLABLE;
+            }
             memset(new_data + field->offset(), 0, field->len());
             // 设置null_field的值
             null_field_data[i / CHAR_BIT] |= (1 << (i % CHAR_BIT));
