@@ -20,7 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include <cmath>
 #include <sstream>
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates", "booleans"};
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates", "texts", "booleans"};
 
 const char *attr_type_to_string(AttrType type)
 {
@@ -60,6 +60,9 @@ Value Value::clone() const
 void Value::set_data(char *data, int length)
 {
   switch (attr_type_) {
+    case TEXTS: {
+      set_text(data, length);
+    } break;
     case CHARS: {
       set_string(data, length);
     } break;
@@ -89,7 +92,6 @@ void Value::set_int(int val)
   num_value_.int_value_ = val;
   length_               = sizeof(val);
 }
-
 void Value::set_float(float val)
 {
   attr_type_              = FLOATS;
@@ -101,6 +103,17 @@ void Value::set_boolean(bool val)
   attr_type_             = BOOLEANS;
   num_value_.bool_value_ = val;
   length_                = sizeof(val);
+}
+void Value::set_text(const char *s, int len /*= 4096*/)
+{
+  attr_type_ = TEXTS;
+  if (len > 0) {
+    len = strnlen(s, len);
+    str_value_.assign(s, len);
+  } else {
+    str_value_.assign(s);
+  }
+  length_ = str_value_.length();
 }
 void Value::set_string(const char *s, int len /*= 0*/)
 {
@@ -134,11 +147,14 @@ void Value::set_value(const Value &value)
     case FLOATS: {
       set_float(value.get_float());
     } break;
+    case TEXTS: {
+      set_text(value.get_string().c_str());
+    } break;
     case CHARS: {
       set_string(value.get_string().c_str());
     } break;
     case DATES: {
-      set_string(value.get_string().c_str());
+      set_date(value.get_string().c_str());
     } break;
     case BOOLEANS: {
       set_boolean(value.get_boolean());
@@ -152,6 +168,7 @@ void Value::set_value(const Value &value)
 const char *Value::data() const
 {
   switch (attr_type_) {
+    case TEXTS:
     case CHARS: {
       return str_value_.c_str();
     } break;
@@ -177,6 +194,7 @@ std::string Value::to_string() const
     case BOOLEANS: {
       os << num_value_.bool_value_;
     } break;
+    case TEXTS:
     case CHARS: {
       os << str_value_;
     } break;
@@ -192,6 +210,7 @@ std::string Value::to_string() const
 
 int Value::compare(const Value &other) const
 {
+  // 尚未处理text
   if (this->attr_type_ == other.attr_type_) {
     switch (this->attr_type_) {
       case INTS: {
@@ -265,6 +284,7 @@ int Value::compare(const Value &other) const
 int Value::get_int() const
 {
   switch (attr_type_) {
+    case TEXTS:
     case CHARS: {
       try {
         return (int)(std::stol(str_value_));
@@ -293,6 +313,7 @@ int Value::get_int() const
 float Value::get_float() const
 {
   switch (attr_type_) {
+    case TEXTS:
     case CHARS: {
       try {
         return std::stof(str_value_);
@@ -492,6 +513,13 @@ RC Value::auto_cast(AttrType field_type) const
   Value   *bypass_const_p = const_cast<Value *>(this);
   AttrType value_type     = this->attr_type();
   RC       rc             = RC::SUCCESS;
+
+  if (value_type == CHARS && field_type == TEXTS) {
+    bypass_const_p->attr_type_ = TEXTS;
+    bypass_const_p->length_    = 4096;
+    return RC::SUCCESS;
+  }
+
   if (value_type == CHARS) {
     // convert value to some specific type
     if (field_type == DATES) {

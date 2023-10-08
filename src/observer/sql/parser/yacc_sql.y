@@ -85,6 +85,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         STRING_T
         FLOAT_T
         DATE_T
+        TEXT_T
         HELP
         EXIT
         DOT //QUOTE
@@ -383,6 +384,9 @@ attr_def:
       if ($$->type == DATES){
         $$->length = 10;//XXXX-XX-XX
       }
+      if ($$->type == TEXTS) {
+        $$->length = 4096;
+      }
       free($1);
     }
     ;
@@ -392,6 +396,7 @@ number:
 type:
     INT_T      { $$=INTS; }
     | STRING_T { $$=CHARS; }
+    | TEXT_T   { $$=TEXTS; }
     | FLOAT_T  { $$=FLOATS; }
     | DATE_T  { $$=DATES; }
     ;
