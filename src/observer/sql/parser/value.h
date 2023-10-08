@@ -86,6 +86,7 @@ public:
   float       get_float() const;
   std::string get_string() const;
   bool        get_boolean() const;
+  bool        is_null() const { return attr_type_ == NONE; }
 
 public:
   /**

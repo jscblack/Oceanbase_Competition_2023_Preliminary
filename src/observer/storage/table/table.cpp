@@ -219,6 +219,19 @@ RC Table::insert_record(Record &record)
   // 检查索引中是否有存在的项
   for (Index *index : indexes_) {
     if (index->index_meta().is_unique()) {
+      // null破坏唯一索引
+      // 索引字段中带有null的record不保证唯一性，直接跳过
+      bool has_null = false;
+      for (auto field_name : index->index_meta().fields()) {
+        if (table_meta_.is_field_null(record, field_name.c_str())) {
+          has_null = true;
+          break;
+        }
+      }
+      if (has_null) {
+        continue;
+      }
+
       // 需要首先检查插入后的情况是否会有键值重复的情况
       std::list<RID> rids;
       rc = index->get_entry(record.data(), rids);
@@ -227,6 +240,26 @@ RC Table::insert_record(Record &record)
                   name(), index->index_meta().name(), strrc(rc));
         return rc;
       }
+      // null破坏唯一索引，插入的0值与null值在索引层面是相同的，但是record层面是不同的
+      // 也就意味着同样需要检查返回的这一堆看似重复的record中是否有null值
+      // 如果有，那就不构成重复
+      for (auto rid : rids) {
+        RecordPageHandler record_page_handler;
+        record_page_handler.cleanup();
+        Record tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
+                      name(), strrc(rc));
+          return rc;
+        }
+        for (auto field_name : index->index_meta().fields()) {
+          if (table_meta_.is_field_null(tmp_record, field_name.c_str())) {
+            rids.remove(rid);
+          }
+        }
+      }
+
       if (rids.size() >= 1) {
         LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
                   name(), index->index_meta().name(), strrc(rc));
@@ -397,6 +430,7 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
 
 RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, const char *index_name, bool is_unique)
 {
+  // 只有null的字段可以bypass掉unique的限制
   // 在当前情况下先做unique index
   // const FieldMeta *field_meta = field_metas[0];  // TODO: support multi-field index
   if (common::is_blank(index_name) || fields_meta.empty()) {
@@ -413,6 +447,8 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, con
   }
   // 检查唯一性
   if (is_unique) {
+    // 需要对于unique的问题单独处理，即如果两个record
+    // 完全相等，但是但凡有一个是带null字段的，那么就可以插入
     std::unordered_set<std::string> unique_check_set;
     // 遍历当前的所有数据，插入这个索引
     RecordFileScanner scanner_unique;
@@ -437,6 +473,17 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, con
         return rc;
       }
 
+      // 索引字段中带有null的record不保证唯一性，直接跳过
+      bool has_null = false;
+      for (auto field : fields_meta) {
+        if (table_meta_.is_field_null(record_unique, field->name())) {
+          has_null = true;
+          break;
+        }
+      }
+      if (has_null) {
+        continue;
+      }
       char *key_data = new char[attr_length_sum];
       int   offset   = 0;
       for (int i = 0; i < fields_meta.size(); i++) {
@@ -560,6 +607,17 @@ RC Table::update_record(const Record &record, const char *data)
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     if (index->index_meta().is_unique()) {
+      // 在这里需要针对支持null的情况做特殊处理
+      bool has_null = false;
+      for (auto field_name : index->index_meta().fields()) {
+        if (table_meta_.is_field_null(record, field_name.c_str())) {
+          has_null = true;
+          break;
+        }
+      }
+      if (has_null) {
+        continue;
+      }
       // 检查更新前后，索引对应的字段是否发生变化
       char *user_key        = nullptr;
       char *user_key_before = nullptr;
@@ -567,7 +625,7 @@ RC Table::update_record(const Record &record, const char *data)
       attr_length_sum       = index->get_user_key(data, user_key);
 
       int modified = memcmp(user_key, user_key_before, attr_length_sum);
-
+      
       if (modified == 0) {
         // 无任何变更，不需要检查
         continue;
@@ -579,6 +637,22 @@ RC Table::update_record(const Record &record, const char *data)
         LOG_ERROR("Failed to get entry from index. table name=%s, index name=%s, rc=%s",
                   name(), index->index_meta().name(), strrc(rc));
         return rc;
+      }
+      for (auto rid : rids) {
+        RecordPageHandler record_page_handler;
+        record_page_handler.cleanup();
+        Record tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
+                      name(), strrc(rc));
+          return rc;
+        }
+        for (auto field_name : index->index_meta().fields()) {
+          if (table_meta_.is_field_null(tmp_record, field_name.c_str())) {
+            rids.remove(rid);
+          }
+        }
       }
       if (rids.size() >= 1) {
         LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",

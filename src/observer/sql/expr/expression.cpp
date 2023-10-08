@@ -114,10 +114,15 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   }
 
   RC  rc         = RC::SUCCESS;
-  int cmp_result = left.compare(right);
+  int cmp_result = left.compare(right);  // 这是基于cast的比较
   result         = false;
   switch (comp_) {
     case EQUAL_TO: {
+      // fix一下null的比较
+      if (left.is_null() && right.is_null()) {
+        result = false;
+        break;
+      }
       result = (0 == cmp_result);
     } break;
     case LESS_EQUAL: {
@@ -134,6 +139,23 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     } break;
     case GREAT_THAN: {
       result = (cmp_result > 0);
+    } break;
+    case IS_ENUM: {
+      // null is null
+      if (left.is_null() && right.is_null()) {
+        result = true;
+        break;
+      }
+      result = (cmp_result == 0);
+    } break;
+    case IS_NOT_ENUM: {
+      // value is not null
+      // null is not value
+      if (left.is_null() && right.is_null()) {
+        result = false;
+        break;
+      }
+      result = (cmp_result != 0);
     } break;
     default: {
       LOG_WARN("unsupported comparison. %d", comp_);

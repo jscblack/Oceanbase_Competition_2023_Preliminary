@@ -168,6 +168,20 @@ bool TableMeta::is_field_null(Record &record, const char *field_name) const
   return true;
 }
 
+bool TableMeta::is_field_null(const Record &record, const char *field_name) const
+{
+  const FieldMeta *null_field_meta = null_field();
+  const char      *null_field_data = record.data() + null_field_meta->offset();
+  for (int i = 0; i < field_num(); i++) {
+    const FieldMeta *field_meta = field(i + sys_field_num());
+    if (strcmp(field_meta->name(), field_name) == 0) {
+      return (null_field_data[i / CHAR_BIT] & (1 << i % CHAR_BIT)) != 0;
+    }
+  }
+  // field_meta->offset()
+  return true;
+}
+
 int TableMeta::field_num() const { return fields_.size(); }
 
 int TableMeta::trx_field_num() const
