@@ -46,10 +46,12 @@ public:
   const std::vector<Field>                         &query_fields() const { return query_fields_; }
   FilterStmt                                       *filter_stmt() const { return filter_stmt_; }
   const std::vector<std::pair<std::string, Field>> &aggregation_func() const { return aggregation_func_; }
+  const std::vector<std::pair<Field, bool>>        &order_by() const { return order_by_; }
 
 private:
   std::vector<Field>                         query_fields_;
   std::vector<Table *>                       tables_;
   FilterStmt                                *filter_stmt_ = nullptr;
   std::vector<std::pair<std::string, Field>> aggregation_func_;  // (aggregation_function_type, Field)
+  std::vector<std::pair<Field, bool>>        order_by_;          // (Field, is_asc)
 };
