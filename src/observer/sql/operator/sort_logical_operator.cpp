@@ -14,4 +14,4 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/sort_logical_operator.h"
 
-SortLogicalOperator(const std::vector<std::pair<Field, bool>> &orders) : orders_(orders) {}
+SortLogicalOperator::SortLogicalOperator(const std::vector<std::pair<Field, bool>> &orders) : orders_(orders) {}

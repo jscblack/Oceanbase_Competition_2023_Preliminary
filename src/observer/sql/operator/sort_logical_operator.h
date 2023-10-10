@@ -34,9 +34,7 @@ public:
 
   LogicalOperatorType type() const override { return LogicalOperatorType::SORT; }
 
-  std::vector<std::unique_ptr<Expression>>       &expressions() { return expressions_; }
-  const std::vector<std::unique_ptr<Expression>> &expressions() const { return expressions_; }
-  const std::vector<std::pair<Field, bool>>      &orders() const { return orders_; }
+  const std::vector<std::pair<Field, bool>> &orders() const { return orders_; }
 
 private:
   std::vector<std::pair<Field, bool>> orders_;
