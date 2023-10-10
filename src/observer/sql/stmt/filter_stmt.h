@@ -14,11 +14,11 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <vector>
-#include <unordered_map>
+#include "sql/expr/expression.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/stmt.h"
-#include "sql/expr/expression.h"
+#include <unordered_map>
+#include <vector>
 
 class Db;
 class Table;
@@ -26,20 +26,27 @@ class FieldMeta;
 
 struct FilterObj
 {
-  bool  is_attr;
-  Field field;
+  int   obj_type;  ///< 0: value, 1: attr, 2: select_stmt
   Value value;
-
-  void init_attr(const Field &field)
-  {
-    is_attr     = true;
-    this->field = field;
-  }
+  Field field;
+  Stmt *select_stmt;  ///< select clause
 
   void init_value(const Value &value)
   {
-    is_attr     = false;
+    obj_type    = 0;
     this->value = value;
+  }
+
+  void init_attr(const Field &field)
+  {
+    obj_type    = 1;
+    this->field = field;
+  }
+
+  void init_select_stmt(Stmt *stmt)
+  {
+    obj_type    = 2;
+    select_stmt = stmt;
   }
 };
 
@@ -58,6 +65,8 @@ public:
 
   const FilterObj &left() const { return left_; }
   const FilterObj &right() const { return right_; }
+  FilterObj       &left() { return left_; }
+  FilterObj       &right() { return right_; }
 
 private:
   CompOp    comp_ = NO_OP;

@@ -14,13 +14,14 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <string.h>
 #include <memory>
+#include <string.h>
 #include <string>
 
-#include "storage/field/field.h"
-#include "sql/parser/value.h"
 #include "common/log/log.h"
+#include "sql/parser/value.h"
+#include "sql/stmt/stmt.h"
+#include "storage/field/field.h"
 
 class Tuple;
 
@@ -42,6 +43,7 @@ enum class ExprType
   CAST,         ///< 需要做类型转换的表达式
   COMPARISON,   ///< 需要做比较的表达式
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
+  SELECT,       ///< select子查询
   ARITHMETIC,   ///< 算术运算
 };
 
@@ -196,6 +198,7 @@ public:
   ExprType type() const override { return ExprType::COMPARISON; }
 
   RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx) const;
 
   AttrType value_type() const override { return BOOLEANS; }
 
@@ -216,10 +219,49 @@ public:
    */
   RC compare_value(const Value &left, const Value &right, bool &value) const;
 
+  /**
+   * to handle in and not in
+   * @param value the result of comparison
+   */
+  RC compare_value(const Value &left, const std::vector<Value> &right, bool &value) const;
+
 private:
   CompOp                      comp_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
+};
+
+/**
+ * @brief select子查询表达式，这其中需要处理子查询完整的生命周期
+ * @ingroup Expression
+ */
+class SelectExpr : public Expression
+{
+  inline static std::unordered_map<std::string, const Tuple *>
+      tuples_;  // 外层tuple的缓存，key是record所在的table的名字
+
+public:
+  SelectExpr(Stmt *select_stmt);
+  virtual ~SelectExpr() = default;
+
+  // 会递归调用get_value，即外层的tuple传给子查询，子查询再传给子查询的子查询
+  // 2023年10月9日20:17:12 得想清楚这玩意儿的逻辑，事实上pred的意义在于判断一个record是否应该被放进结果集
+  // 然后判断的过程就依赖于expression本身
+  // 比如外层一个record，这个时候他需要去得到内层的结果集才能判断是否应该留下
+  // 而内层需要知道外层才能得到结果集
+  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, std::vector<Value> &values, Trx *trx);
+
+  ExprType type() const override { return ExprType::SELECT; }
+  AttrType value_type() const override
+  {
+    // 在select真正执行之前，是无法知道select的结果集的类型的
+    return AttrType::UNDEFINED;
+  }
+  RC rewrite_stmt(Stmt *&rewrited_stmt);
+
+private:
+  Stmt *select_stmt_;  // select子查询的语句
 };
 
 /**

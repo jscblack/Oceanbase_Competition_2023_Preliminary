@@ -14,9 +14,9 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <memory>
-#include "sql/operator/physical_operator.h"
 #include "sql/expr/expression.h"
+#include "sql/operator/physical_operator.h"
+#include <memory>
 
 class FilterStmt;
 
@@ -41,4 +41,5 @@ public:
 
 private:
   std::unique_ptr<Expression> expression_;
+  Trx                        *trx_ = nullptr;
 };

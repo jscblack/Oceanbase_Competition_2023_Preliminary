@@ -13,12 +13,12 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "net/plain_communicator.h"
-#include "net/buffered_writer.h"
-#include "sql/expr/tuple.h"
-#include "event/session_event.h"
-#include "session/session.h"
 #include "common/io/io.h"
 #include "common/log/log.h"
+#include "event/session_event.h"
+#include "net/buffered_writer.h"
+#include "session/session.h"
+#include "sql/expr/tuple.h"
 
 PlainCommunicator::PlainCommunicator()
 {
@@ -264,11 +264,12 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
   if (rc == RC::RECORD_EOF) {
     rc = RC::SUCCESS;
   }
-
-  if (cell_num == 0) {
+  // 如果他在内部出现错误，哪怕select已经打出来了，也要返回错误
+  if (cell_num == 0 || rc != RC::SUCCESS) {
     // 除了select之外，其它的消息通常不会通过operator来返回结果，表头和行数据都是空的
     // 这里针对这种情况做特殊处理，当表头和行数据都是空的时候，就返回处理的结果
     // 可能是insert/delete等操作，不直接返回给客户端数据，这里把处理结果返回给客户端
+    writer_->clear();
     RC rc_close = sql_result->close();
     if (rc == RC::SUCCESS) {
       rc = rc_close;

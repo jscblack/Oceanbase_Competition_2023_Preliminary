@@ -84,6 +84,16 @@ public:
    */
   int32_t size() const { return data_size_; }
 
+  /**
+   * @brief 清空缓存
+   */
+  void clear()
+  {
+    data_size_ = 0;
+    write_pos_ = 0;
+    buffer_.clear();
+  }
+
 private:
   int32_t read_pos() const { return (write_pos_ - this->size() + capacity()) % capacity(); }
 

@@ -13,9 +13,9 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/optimizer/predicate_pushdown_rewriter.h"
+#include "sql/expr/expression.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
-#include "sql/expr/expression.h"
 
 RC PredicatePushdownRewriter::rewrite(std::unique_ptr<LogicalOperator> &oper, bool &change_made)
 {
@@ -109,6 +109,10 @@ RC PredicatePushdownRewriter::get_exprs_can_pushdown(
 
     std::unique_ptr<Expression> &left_expr  = comparison_expr->left();
     std::unique_ptr<Expression> &right_expr = comparison_expr->right();
+    // 但凡有一边是子查询，就不下推
+    if (left_expr->type() == ExprType::SELECT || right_expr->type() == ExprType::SELECT) {
+      return rc;
+    }
     // 比较操作的左右两边只要有一个是取列字段值的并且另一边也是取字段值或常量，就pushdown
     if (left_expr->type() != ExprType::FIELD && right_expr->type() != ExprType::FIELD) {
       return rc;

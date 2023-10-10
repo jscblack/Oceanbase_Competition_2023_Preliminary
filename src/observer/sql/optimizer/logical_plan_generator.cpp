@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/optimizer/logical_plan_generator.h"
 
+#include "sql/operator/aggregate_logical_operator.h"
 #include "sql/operator/calc_logical_operator.h"
 #include "sql/operator/delete_logical_operator.h"
 #include "sql/operator/explain_logical_operator.h"
@@ -22,7 +23,6 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/predicate_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
-#include "sql/operator/aggregate_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 
@@ -147,13 +147,45 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
     const FilterObj &filter_obj_left  = filter_unit->left();
     const FilterObj &filter_obj_right = filter_unit->right();
 
-    unique_ptr<Expression> left(filter_obj_left.is_attr
-                                    ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
-                                    : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+    // unique_ptr<Expression> left(filter_obj_left.is_attr
+    //                                 ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
+    //                                 : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
 
-    unique_ptr<Expression> right(filter_obj_right.is_attr
-                                     ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
-                                     : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+    // unique_ptr<Expression> right(filter_obj_right.is_attr
+    //                                  ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
+    //                                  : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+    unique_ptr<Expression> left, right;
+    switch (filter_obj_left.obj_type) {
+      case 0: {
+        left = unique_ptr<Expression>(new ValueExpr(filter_obj_left.value));
+      } break;
+      case 1: {
+        left = unique_ptr<Expression>(new FieldExpr(filter_obj_left.field));
+      } break;
+      case 2: {
+        left = unique_ptr<Expression>(new SelectExpr(filter_obj_left.select_stmt));
+      } break;
+      default: {
+        LOG_WARN("invalid filter_obj_left.obj_type=%d", filter_obj_left.obj_type);
+        return RC::INVALID_ARGUMENT;
+      } break;
+    }
+
+    switch (filter_obj_right.obj_type) {
+      case 0: {
+        right = unique_ptr<Expression>(new ValueExpr(filter_obj_right.value));
+      } break;
+      case 1: {
+        right = unique_ptr<Expression>(new FieldExpr(filter_obj_right.field));
+      } break;
+      case 2: {
+        right = unique_ptr<Expression>(new SelectExpr(filter_obj_right.select_stmt));
+      } break;
+      default: {
+        LOG_WARN("invalid filter_obj_right.obj_type=%d", filter_obj_right.obj_type);
+        return RC::INVALID_ARGUMENT;
+      } break;
+    }
 
     ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
     cmp_exprs.emplace_back(cmp_expr);

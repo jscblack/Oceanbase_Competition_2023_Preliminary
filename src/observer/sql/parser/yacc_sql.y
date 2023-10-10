@@ -114,6 +114,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         IS
         IS_NOT
         INNER_JOIN
+        IN
+        NOT_IN
+        EXISTS
+        NOT_EXISTS
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -935,12 +939,66 @@ condition_list:
     }
     ;
 condition:
-    rel_attr comp_op value
+    EXISTS LBRACE select_stmt RBRACE {
+      // TODO
+    }
+    | NOT_EXISTS LBRACE select_stmt RBRACE {
+      // TODO
+    }
+    | rel_attr comp_op LBRACE select_stmt RBRACE
+    {
+      // TODO
+      $$ = new ConditionSqlNode;
+      $$->left_type = 1;
+      $$->left_attr = *$1;
+      $$->right_type = 2;
+      $$->right_select = &($4->selection);
+      $$->comp = $2;
+
+      delete $1;
+    }
+    | LBRACE select_stmt RBRACE comp_op rel_attr
+    {
+      // TODO
+      $$ = new ConditionSqlNode;
+      $$->left_type = 2;
+      $$->left_select = &($2->selection);
+      $$->right_type = 1;
+      $$->right_attr = *$5;
+      $$->comp = $4;
+
+      delete $5;
+    }
+    | value comp_op LBRACE select_stmt RBRACE
+    {
+      // TODO
+      $$ = new ConditionSqlNode;
+      $$->left_type = 0;
+      $$->left_value = *$1;
+      $$->right_type = 2;
+      $$->right_select = &($4->selection);
+      $$->comp = $2;
+
+      delete $1;
+    }
+    | LBRACE select_stmt RBRACE comp_op value
+    {
+      // TODO
+      $$ = new ConditionSqlNode;
+      $$->left_type = 2;
+      $$->left_select = &($2->selection);
+      $$->right_type = 0;
+      $$->right_value = *$5;
+      $$->comp = $4;
+
+      delete $5;
+    }
+    | rel_attr comp_op value
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
+      $$->left_type = 1;
       $$->left_attr = *$1;
-      $$->right_is_attr = 0;
+      $$->right_type = 0;
       $$->right_value = *$3;
       $$->comp = $2;
 
@@ -950,9 +1008,9 @@ condition:
     | value comp_op value 
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
+      $$->left_type = 0;
       $$->left_value = *$1;
-      $$->right_is_attr = 0;
+      $$->right_type = 0;
       $$->right_value = *$3;
       $$->comp = $2;
 
@@ -962,9 +1020,9 @@ condition:
     | rel_attr comp_op rel_attr
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
+      $$->left_type = 1;
       $$->left_attr = *$1;
-      $$->right_is_attr = 1;
+      $$->right_type = 1;
       $$->right_attr = *$3;
       $$->comp = $2;
 
@@ -974,15 +1032,16 @@ condition:
     | value comp_op rel_attr
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
+      $$->left_type = 0;
       $$->left_value = *$1;
-      $$->right_is_attr = 1;
+      $$->right_type = 1;
       $$->right_attr = *$3;
       $$->comp = $2;
 
       delete $1;
       delete $3;
-    } 
+    }
+
     ;
 
 comp_op:
@@ -996,6 +1055,10 @@ comp_op:
     | NOT_LIKE { $$ = NOT_LIKE_ENUM; }
     | IS_NOT { $$ = IS_NOT_ENUM; }
     | IS { $$ = IS_ENUM; }
+    | EXISTS { $$ = EXISTS_ENUM; }
+    | NOT_EXISTS { $$ = NOT_EXISTS_ENUM; }
+    | NOT_IN { $$ = NOT_IN_ENUM; }
+    | IN { $$ = IN_ENUM; }
     ;
 
 load_data_stmt:

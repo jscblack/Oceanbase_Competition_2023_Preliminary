@@ -458,7 +458,8 @@ RC Value::str_to_number() const
   // check if number is valid
   int   int_val;
   float float_val;
-  int   read_count = sscanf(bypass_const_p->data(), "%f", &float_val);
+
+  int read_count = sscanf(bypass_const_p->data(), "%f", &float_val);
   if (read_count != 1) {
     bypass_const_p->set_int(0);
     return RC::SUCCESS;

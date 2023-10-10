@@ -14,6 +14,11 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
+#include "sql/operator/logical_operator.h"
+#include "sql/operator/physical_operator.h"
+#include "sql/optimizer/logical_plan_generator.h"
+#include "sql/optimizer/physical_plan_generator.h"
+#include "sql/stmt/stmt.h"
 #include <regex>
 
 using namespace std;
@@ -174,6 +179,29 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   return rc;
 }
 
+RC ComparisonExpr::compare_value(const Value &left, const std::vector<Value> &right, bool &value) const
+{
+  assert(comp_ == IN_ENUM || comp_ == NOT_IN_ENUM);  // 目前只处理in和not in
+  for (int i = 0; i < right.size(); i++) {
+    int result = left.compare(right[i]);
+    if (result == 0) {
+      if (comp_ == IN_ENUM) {
+        value = true;
+        return RC::SUCCESS;
+      } else {
+        value = false;
+        return RC::SUCCESS;
+      }
+    }
+  }
+  if (comp_ == IN_ENUM) {
+    value = false;
+  } else {
+    value = true;
+  }
+  return RC::SUCCESS;
+}
+
 RC ComparisonExpr::try_get_value(Value &cell) const
 {
   if (left_->type() == ExprType::VALUE && right_->type() == ExprType::VALUE) {
@@ -219,7 +247,150 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   return rc;
 }
 
+RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
+{
+  // 只有在有子查询的情况下，才会调用这个函数
+  Value              left_value;
+  Value              right_value;
+  std::vector<Value> left_values;
+  std::vector<Value> right_values;
+  RC                 rc = RC::SUCCESS;
+  if (left_->type() == ExprType::SELECT) {
+    rc = dynamic_cast<SelectExpr *>(left_.get())->get_value(tuple, left_values, trx);
+    if (!left_values.empty()) {
+      left_value = left_values[0];
+    } else {
+      LOG_WARN("left value is empty");
+      // 这是个null
+      left_value.set_type(AttrType::NONE);
+    }
+  } else {
+    rc = left_->get_value(tuple, left_value);
+  }
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  if (right_->type() == ExprType::SELECT) {
+    rc = dynamic_cast<SelectExpr *>(right_.get())->get_value(tuple, right_values, trx);
+    if (!right_values.empty()) {
+      right_value = right_values[0];
+    } else {
+      LOG_WARN("right value is empty");
+      // 这是个null
+      right_value.set_type(AttrType::NONE);
+    }
+  } else {
+    rc = right_->get_value(tuple, right_value);
+  }
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+    return rc;
+  }
+
+  bool bool_value = false;
+  // 包括in 和 not in 也可以在这边处理？
+
+  if (comp_ == IN_ENUM || comp_ == NOT_IN_ENUM) {
+    rc = compare_value(left_value, right_values, bool_value);
+  } else {
+    // 需要在这里处理一下子查询返回过少的情况，因为是一个value的比较
+    if (left_->type() == ExprType::SELECT && left_values.size() > 1) {
+      return RC::INTERNAL;
+    }
+    if (right_->type() == ExprType::SELECT && right_values.size() > 1) {
+      return RC::INTERNAL;
+    }
+    rc = compare_value(left_value, right_value, bool_value);
+  }
+  if (rc == RC::SUCCESS) {
+    value.set_boolean(bool_value);
+  }
+  return rc;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+SelectExpr::SelectExpr(Stmt *stmt) : select_stmt_(stmt) {}
+
+RC SelectExpr::get_value(const Tuple &tuple, Value &value) const
+{
+  // 这里得把stmt真正执行一下，然后把结果放到value里面
+  // 可能是个结果集，也可能是个单值
+  // 这里仅仅占位，不做实现
+  return RC::UNIMPLENMENT;
+}
+
+RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *trx)
+{
+  // 将tuple加入到tuples_里面，但还需要知道table_name
+  // 外面传进来的是一个record，肯定是一个row_tuple
+  // 强转
+  const RowTuple *row_tuple = static_cast<const RowTuple *>(&tuple);
+  std::string     table_name(row_tuple->table().name());
+  SelectExpr::tuples_.insert(std::pair<std::string, const Tuple *>(table_name, &tuple));
+  // 这里得把stmt真正执行一下，然后把结果放到value里面
+  // 从stmt开始，手动处理他的生命周期
+
+  // 在这里就是重写一下stmt，把在tuples_里面已知的attr信息给他变成value
+  Stmt *rewrited_stmt = nullptr;
+  RC    rc            = rewrite_stmt(rewrited_stmt);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to rewrite stmt. rc=%s", strrc(rc));
+    return rc;
+  }
+
+  // 开始真正执行，所有SelectExpr都共享tuple_
+  unique_ptr<LogicalOperator>  logical_operator;
+  unique_ptr<PhysicalOperator> physical_operator;
+  LogicalPlanGenerator         logical_plan_generator_;
+  PhysicalPlanGenerator        physical_plan_generator_;
+
+  logical_plan_generator_.create(rewrited_stmt, logical_operator);
+  physical_plan_generator_.create(*logical_operator, physical_operator);
+
+  rc = physical_operator->open(trx);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to open physical operator. rc=%s", strrc(rc));
+    return rc;
+  }
+
+  while (RC::SUCCESS == (rc = physical_operator->next())) {
+    // only grab one
+    Tuple *tuple = physical_operator->current_tuple();
+    if (tuple == nullptr) {
+      LOG_WARN("failed to get current record: %s", strrc(rc));
+      return RC::INTERNAL;
+    }
+    if (tuple->cell_num() > 1) {
+      LOG_WARN("invalid select result, too much columns");
+      return RC::INTERNAL;
+    }
+    Value value;
+    rc = tuple->cell_at(0, value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get cell: %s", strrc(rc));
+      return rc;
+    }
+    values.push_back(value);
+  }
+  physical_operator->close();
+  // 到这里他就执行完了
+  SelectExpr::tuples_.erase(table_name);
+  return RC::SUCCESS;
+}
+
+RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt)
+{
+  // 基于select_stmt_和tuples_，重写select_stmt_，得到rewrited_stmt
+  // 需要注意的是，在这里把stmt里面的filter_stmt未知的部分，搞成value
+  // todo 重写，现在先做无依赖的
+  rewrited_stmt = select_stmt_;
+  return RC::SUCCESS;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &children)
     : conjunction_type_(type), children_(std::move(children))
 {}
