@@ -93,6 +93,8 @@ public:
    */
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const = 0;
 
+  virtual RC clone(Tuple *&tuple) const = 0;
+
   virtual std::string to_string() const
   {
     std::string str;
@@ -124,13 +126,18 @@ public:
   RowTuple() = default;
   virtual ~RowTuple()
   {
+    delete record_;
     for (FieldExpr *spec : speces_) {
       delete spec;
     }
     speces_.clear();
   }
 
-  void set_record(Record *record) { this->record_ = record; }
+  void set_record(Record *record)
+  {
+    Record *new_record = new Record(*record);
+    this->record_      = new_record;
+  }
 
   void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
   {
@@ -195,6 +202,20 @@ public:
   }
 #endif
 
+  RC clone(Tuple *&tuple) const override
+  {
+    RowTuple *row_tuple = new RowTuple();
+    Record   *record =
+        new Record(*record_);  // 假定data被深拷贝了,但其实得看record是否是data的owner,不知道data的生命周期如何
+    row_tuple->record_ = record;
+    row_tuple->table_  = table_;
+    for (const FieldExpr *field_expr : speces_) {
+      row_tuple->speces_.push_back(new FieldExpr(field_expr->field()));
+    }
+    tuple = row_tuple;
+    return RC::SUCCESS;
+  }
+
   Record &record() { return *record_; }
 
   const Record &record() const { return *record_; }
@@ -216,6 +237,7 @@ class ProjectTuple : public Tuple
 {
 public:
   ProjectTuple() = default;
+
   virtual ~ProjectTuple()
   {
     for (TupleCellSpec *spec : speces_) {
@@ -243,6 +265,12 @@ public:
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return tuple_->find_cell(spec, cell); }
+
+  RC clone(Tuple *&tuple) const override
+  {
+    tuple = nullptr;
+    return RC::INTERNAL;
+  }
 
 #if 0
   RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
@@ -288,6 +316,12 @@ public:
     return RC::NOTFOUND;
   }
 
+  RC clone(Tuple *&tuple) const override
+  {
+    tuple = nullptr;
+    return RC::INTERNAL;
+  }
+
 private:
   const std::vector<std::unique_ptr<Expression>> &expressions_;
 };
@@ -318,6 +352,12 @@ public:
 
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return RC::INTERNAL; }
 
+  RC clone(Tuple *&tuple) const override
+  {
+    tuple = nullptr;
+    return RC::INTERNAL;
+  }
+
 private:
   std::vector<Value> cells_;
 };
@@ -330,11 +370,15 @@ private:
 class JoinedTuple : public Tuple
 {
 public:
-  JoinedTuple()          = default;
-  virtual ~JoinedTuple() = default;
+  JoinedTuple() = default;
+  virtual ~JoinedTuple()
+  {
+    delete left_;
+    delete right_;
+  }
 
-  void set_left(Tuple *left) { left_ = left; }
-  void set_right(Tuple *right) { right_ = right; }
+  void set_left(Tuple *left) { left->clone(left_); }
+  void set_right(Tuple *right) { right->clone(right_); }
 
   int cell_num() const override { return left_->cell_num() + right_->cell_num(); }
 
@@ -360,6 +404,15 @@ public:
     }
 
     return right_->find_cell(spec, value);
+  }
+
+  RC clone(Tuple *&tuple) const override
+  {
+    JoinedTuple *joined_tuple = new JoinedTuple();
+    left_->clone(joined_tuple->left_);
+    right_->clone(joined_tuple->right_);
+    tuple = joined_tuple;
+    return RC::SUCCESS;
   }
 
 private:
