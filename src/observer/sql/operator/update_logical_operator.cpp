@@ -11,7 +11,7 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by Jiangshichao on 2023/9/22.
 //
-#pragma once
+// #pragma once
 
 #include "sql/operator/update_logical_operator.h"
 #include "sql/optimizer/logical_plan_generator.cpp"

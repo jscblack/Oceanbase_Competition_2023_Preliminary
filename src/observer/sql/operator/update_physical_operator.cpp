@@ -105,6 +105,9 @@ RC UpdatePhysicalOperator::next()
     const TableMeta &table_meta  = table_->table_meta();
     int              record_size = table_meta.record_size();
     char            *new_data    = (char *)malloc(record_size);
+    const FieldMeta *null_field  = table_meta.null_field();
+    // 取出null_field的值
+    char *null_field_data = new_data + null_field->offset();
     memcpy(new_data, old_data, record_size);
 
     for (int i = 0; i < table_meta.field_num() - table_meta.sys_field_num(); i++) {
@@ -117,22 +120,34 @@ RC UpdatePhysicalOperator::next()
           const Value &value = values_[j].literal_value;
 
           // 此处进行一次兜底的类型转换
-          if (value.attr_type() != field->type()) {
+          if (!value.is_null() && value.attr_type() != field->type()) {
             rc = value.auto_cast(field->type());
             if (rc != RC::SUCCESS) {
               LOG_WARN("failed to auto cast value: %s", strrc(rc));
               return rc;
             }
           }
-
-          size_t copy_len = field->len();
-          if (field->type() == CHARS) {
-            const size_t data_len = value.length();
-            if (copy_len > data_len) {
-              copy_len = data_len + 1;
+          if (value.is_null()) {
+            // 空值额外处理
+            if (!field->nullable()) {
+              LOG_WARN("field %s is not nullable",field->name());
+              return RC::RECORD_UNNULLABLE;
             }
+            memset(new_data + field->offset(), 0, field->len());
+            // 设置null_field的值
+            null_field_data[i / CHAR_BIT] |= (1 << (i % CHAR_BIT));
+          } else {
+            size_t copy_len = field->len();
+            if (field->type() == CHARS) {
+              const size_t data_len = value.length();
+              if (copy_len > data_len) {
+                copy_len = data_len + 1;
+              }
+            }
+            // 设置null_field的值
+            null_field_data[i / CHAR_BIT] &= ~(1 << (i % CHAR_BIT));
+            memcpy(new_data + field->offset(), value.data(), copy_len);
           }
-          memcpy(new_data + field->offset(), value.data(), copy_len);
         }
       }
     }

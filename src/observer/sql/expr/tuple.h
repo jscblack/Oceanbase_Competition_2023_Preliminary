@@ -15,14 +15,14 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <memory>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
 #include "sql/expr/tuple_cell.h"
 #include "sql/parser/parse.h"
 #include "sql/parser/value.h"
-#include "sql/expr/expression.h"
 #include "storage/record/record.h"
 
 class Table;
@@ -159,8 +159,16 @@ public:
 
     FieldExpr       *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
-    cell.set_type(field_meta->type());
-    cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
+    // 在这里需要判断一下，record当中，这个字段是否为空
+    if (field_meta->nullable() && table_->table_meta().is_field_null(record_->data(), field_meta->name())) {
+      // 为null
+      cell.set_type(AttrType::NONE);
+    } else {
+      // 确有值
+      cell.set_type(field_meta->type());
+      cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
+    }
+
     return RC::SUCCESS;
   }
 

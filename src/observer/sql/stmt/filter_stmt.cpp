@@ -133,7 +133,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   filter_unit->set_comp(comp);
 
   // like的语法检测, 必须左边是属性(字符串field), 右边是字符串
-  //目前应该不需要支持右边是非字符串转成字符串???
+  // 目前应该不需要支持右边是非字符串转成字符串???
   if (LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) {
     if (condition.left_is_attr && !condition.right_is_attr) {
       if (type_left != CHARS || type_right != CHARS) {
@@ -148,6 +148,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
   }
 
+  // fix: 这个处理可能是多余的，待查证
   // 检查两个类型是否能够比较
   if (type_left != type_right) {
     if (type_left == DATES || type_right == DATES) {

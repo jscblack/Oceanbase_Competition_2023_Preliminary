@@ -13,9 +13,9 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "storage/field/field.h"
+#include "common/log/log.h"
 #include "sql/parser/value.h"
 #include "storage/record/record.h"
-#include "common/log/log.h"
 
 void Field::set_int(Record &record, int value)
 {
@@ -32,4 +32,16 @@ int Field::get_int(const Record &record)
   return value.get_int();
 }
 
-const char *Field::get_data(const Record &record) { return record.data() + field_->offset(); }
+bool Field::is_null()
+{
+  // TODO: 根据table前的sys_field，判断是否为null
+  return false;
+}
+
+const char *Field::get_data(const Record &record)
+{
+  if (is_null()) {
+    return nullptr;
+  }
+  return record.data() + field_->offset();
+}
