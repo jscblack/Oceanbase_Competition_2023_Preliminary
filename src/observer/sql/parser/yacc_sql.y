@@ -941,9 +941,33 @@ condition_list:
 condition:
     EXISTS LBRACE select_stmt RBRACE {
       // TODO
+      $$ = new ConditionSqlNode;
+      $$->left_type = 0;
+      $$->left_value = Value();
+      $$->left_value.set_type(AttrType::NONE);
+      $$->right_type = 2;
+      $$->right_select = &($3->selection);
+      $$->comp = EXISTS_ENUM;
     }
     | NOT_EXISTS LBRACE select_stmt RBRACE {
       // TODO
+      $$ = new ConditionSqlNode;
+      $$->left_type = 0;
+      $$->left_value = Value();
+      $$->left_value.set_type(AttrType::NONE);
+      $$->right_type = 2;
+      $$->right_select = &($3->selection);
+      $$->comp = NOT_EXISTS_ENUM;
+    }
+    | LBRACE select_stmt RBRACE comp_op LBRACE select_stmt RBRACE
+    {
+      // TODO
+      $$ = new ConditionSqlNode;
+      $$->left_type = 2;
+      $$->left_select = &($2->selection);
+      $$->right_type = 2;
+      $$->right_select = &($6->selection);
+      $$->comp = $4;
     }
     | rel_attr comp_op LBRACE select_stmt RBRACE
     {

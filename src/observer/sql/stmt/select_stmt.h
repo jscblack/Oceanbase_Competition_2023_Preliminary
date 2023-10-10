@@ -52,4 +52,7 @@ private:
   std::vector<Table *>                       tables_;
   FilterStmt                                *filter_stmt_ = nullptr;
   std::vector<std::pair<std::string, Field>> aggregation_func_;  // (aggregation_function_type, Field)
+
+private:
+  inline static std::unordered_map<std::string, Table *> table_map_;
 };

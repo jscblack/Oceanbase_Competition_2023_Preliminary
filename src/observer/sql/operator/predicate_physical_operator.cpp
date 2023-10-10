@@ -47,11 +47,14 @@ RC PredicatePhysicalOperator::next()
     }
 
     Value value;
-    if (expression_->type() == ExprType::COMPARISON) {
-      rc = dynamic_cast<ComparisonExpr *>(expression_.get())->get_value(*tuple, value, trx_);
-    } else {
-      rc = expression_->get_value(*tuple, value);
-    }
+    // if (expression_->type() == ExprType::COMPARISON) {
+    //   rc = dynamic_cast<ComparisonExpr *>(expression_.get())->get_value(*tuple, value, trx_);
+    // } else {
+    //   rc = expression_->get_value(*tuple, value);
+    // }
+    // rc = dynamic_cast<ComparisonExpr *>(expression_.get())->get_value(*tuple, value, trx_);
+    rc = expression_->get_value(*tuple, value, trx_);
+
     if (rc != RC::SUCCESS) {
       return rc;
     }

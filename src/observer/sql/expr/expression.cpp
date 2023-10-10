@@ -13,22 +13,25 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/expr/expression.h"
+#include "common/rc.h"
 #include "sql/expr/tuple.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/optimizer/logical_plan_generator.h"
 #include "sql/optimizer/physical_plan_generator.h"
+#include "sql/stmt/filter_stmt.h"
+#include "sql/stmt/select_stmt.h"
 #include "sql/stmt/stmt.h"
 #include <regex>
 
 using namespace std;
 
-RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
+RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
 }
 
-RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
+RC ValueExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   value = value_;
   return RC::SUCCESS;
@@ -61,7 +64,7 @@ RC CastExpr::cast(const Value &value, Value &cast_value) const
   return rc;
 }
 
-RC CastExpr::get_value(const Tuple &tuple, Value &cell) const
+RC CastExpr::get_value(const Tuple &tuple, Value &cell, Trx *trx) const
 {
   RC rc = child_->get_value(tuple, cell);
   if (rc != RC::SUCCESS) {
@@ -181,6 +184,22 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
 
 RC ComparisonExpr::compare_value(const Value &left, const std::vector<Value> &right, bool &value) const
 {
+  if (comp_ == EXISTS_ENUM || comp_ == NOT_EXISTS_ENUM) {
+    if (right.empty()) {
+      if (comp_ == EXISTS_ENUM) {
+        value = false;
+      } else {
+        value = true;
+      }
+    } else {
+      if (comp_ == EXISTS_ENUM) {
+        value = true;
+      } else {
+        value = false;
+      }
+    }
+    return RC::SUCCESS;
+  }
   assert(comp_ == IN_ENUM || comp_ == NOT_IN_ENUM);  // 目前只处理in和not in
   for (int i = 0; i < right.size(); i++) {
     int result = left.compare(right[i]);
@@ -223,29 +242,29 @@ RC ComparisonExpr::try_get_value(Value &cell) const
   return RC::INVALID_ARGUMENT;
 }
 
-RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
-{
-  Value left_value;
-  Value right_value;
+// RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
+// {
+//   Value left_value;
+//   Value right_value;
 
-  RC rc = left_->get_value(tuple, left_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-    return rc;
-  }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
-  }
+//   RC rc = left_->get_value(tuple, left_value);
+//   if (rc != RC::SUCCESS) {
+//     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+//     return rc;
+//   }
+//   rc = right_->get_value(tuple, right_value);
+//   if (rc != RC::SUCCESS) {
+//     LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+//     return rc;
+//   }
 
-  bool bool_value = false;
-  rc              = compare_value(left_value, right_value, bool_value);
-  if (rc == RC::SUCCESS) {
-    value.set_boolean(bool_value);
-  }
-  return rc;
-}
+//   bool bool_value = false;
+//   rc              = compare_value(left_value, right_value, bool_value);
+//   if (rc == RC::SUCCESS) {
+//     value.set_boolean(bool_value);
+//   }
+//   return rc;
+// }
 
 RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
@@ -265,7 +284,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
       left_value.set_type(AttrType::NONE);
     }
   } else {
-    rc = left_->get_value(tuple, left_value);
+    rc = left_->get_value(tuple, left_value, trx);
   }
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
@@ -281,7 +300,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
       right_value.set_type(AttrType::NONE);
     }
   } else {
-    rc = right_->get_value(tuple, right_value);
+    rc = right_->get_value(tuple, right_value, trx);
   }
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
@@ -291,7 +310,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   bool bool_value = false;
   // 包括in 和 not in 也可以在这边处理？
 
-  if (comp_ == IN_ENUM || comp_ == NOT_IN_ENUM) {
+  if (comp_ == IN_ENUM || comp_ == NOT_IN_ENUM || comp_ == EXISTS_ENUM || comp_ == NOT_EXISTS_ENUM) {
     rc = compare_value(left_value, right_values, bool_value);
   } else {
     // 需要在这里处理一下子查询返回过少的情况，因为是一个value的比较
@@ -313,7 +332,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 
 SelectExpr::SelectExpr(Stmt *stmt) : select_stmt_(stmt) {}
 
-RC SelectExpr::get_value(const Tuple &tuple, Value &value) const
+RC SelectExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   // 这里得把stmt真正执行一下，然后把结果放到value里面
   // 可能是个结果集，也可能是个单值
@@ -326,15 +345,12 @@ RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *tr
   // 将tuple加入到tuples_里面，但还需要知道table_name
   // 外面传进来的是一个record，肯定是一个row_tuple
   // 强转
-  const RowTuple *row_tuple = static_cast<const RowTuple *>(&tuple);
-  std::string     table_name(row_tuple->table().name());
-  SelectExpr::tuples_.insert(std::pair<std::string, const Tuple *>(table_name, &tuple));
+  SelectExpr::tuples_.insert(std::pair<std::string, const Tuple *>(tuple.to_string(), &tuple));
   // 这里得把stmt真正执行一下，然后把结果放到value里面
   // 从stmt开始，手动处理他的生命周期
 
   // 在这里就是重写一下stmt，把在tuples_里面已知的attr信息给他变成value
-  Stmt *rewrited_stmt = nullptr;
-  RC    rc            = rewrite_stmt(rewrited_stmt);
+  RC rc = rewrite_stmt(select_stmt_, &tuple);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to rewrite stmt. rc=%s", strrc(rc));
     return rc;
@@ -346,7 +362,7 @@ RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *tr
   LogicalPlanGenerator         logical_plan_generator_;
   PhysicalPlanGenerator        physical_plan_generator_;
 
-  logical_plan_generator_.create(rewrited_stmt, logical_operator);
+  logical_plan_generator_.create(select_stmt_, logical_operator);
   physical_plan_generator_.create(*logical_operator, physical_operator);
 
   rc = physical_operator->open(trx);
@@ -376,17 +392,119 @@ RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *tr
   }
   physical_operator->close();
   // 到这里他就执行完了
-  SelectExpr::tuples_.erase(table_name);
+  rc = recover_stmt(select_stmt_, &tuple);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to recover stmt. rc=%s", strrc(rc));
+    return rc;
+  }
+  SelectExpr::tuples_.erase(tuple.to_string());
   return RC::SUCCESS;
 }
 
-RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt)
+RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
 {
   // 基于select_stmt_和tuples_，重写select_stmt_，得到rewrited_stmt
-  // 需要注意的是，在这里把stmt里面的filter_stmt未知的部分，搞成value
+  // 需要注意的是，在这里把stmt里面的filter_stmt 与外部已知match的部分给他替换了
   // todo 重写，现在先做无依赖的
-  rewrited_stmt = select_stmt_;
+  const RowTuple *row_tuple   = static_cast<const RowTuple *>(tuple);
+  SelectStmt     *select_stmt = dynamic_cast<SelectStmt *>(rewrited_stmt);
+  RC              rc          = RC::SUCCESS;
+  // 只要还有filter_unit，就一直处理
+  // 因为就是要把filter_unit里面的filter obj修改
+  for (auto filter_unit : select_stmt->filter_stmt()->filter_units()) {
+    if (filter_unit->left().obj_type == 2) {
+      // 是一个select_stmt，那就递归重写
+      Stmt *rewrited_sub_stmt = filter_unit->left().select_stmt;
+      rc                      = rewrite_stmt(rewrited_sub_stmt, tuple);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewrite sub stmt. rc=%s", strrc(rc));
+        return rc;
+      }
+      filter_unit->left().select_stmt = rewrited_sub_stmt;
+    }
+    if (filter_unit->right().obj_type == 2) {
+      // 是一个select_stmt，那就递归重写
+      Stmt *rewrited_sub_stmt = filter_unit->right().select_stmt;
+      rc                      = rewrite_stmt(rewrited_sub_stmt, tuple);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewrite sub stmt. rc=%s", strrc(rc));
+        return rc;
+      }
+      filter_unit->right().select_stmt = rewrited_sub_stmt;
+    }
+    if (filter_unit->left().field.table() != nullptr &&
+        strcmp(filter_unit->left().field.table_name(), row_tuple->table().name()) == 0) {
+      // 这是需要被替换的东西
+      // 从tuples_里面找到这个tuple
+      rc = row_tuple->find_cell(
+          TupleCellSpec(filter_unit->left().field.table_name(), filter_unit->left().field.field_name()),
+          filter_unit->left().value);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to find cell. rc=%s", strrc(rc));
+        return rc;
+      }
+      filter_unit->left().obj_type = 0;
+    }
+    if (filter_unit->right().field.table() != nullptr &&
+        strcmp(filter_unit->right().field.table_name(), row_tuple->table().name()) == 0) {
+      // 这是需要被替换的东西
+      // 从tuples_里面找到这个tuple
+      rc = row_tuple->find_cell(
+          TupleCellSpec(filter_unit->right().field.table_name(), filter_unit->right().field.field_name()),
+          filter_unit->right().value);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to find cell. rc=%s", strrc(rc));
+        return rc;
+      }
+      filter_unit->right().obj_type = 0;
+    }
+  }
+
   return RC::SUCCESS;
+}
+
+RC SelectExpr::recover_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
+{
+  const RowTuple *row_tuple   = static_cast<const RowTuple *>(tuple);
+  SelectStmt     *select_stmt = dynamic_cast<SelectStmt *>(rewrited_stmt);
+  RC              rc          = RC::SUCCESS;
+  // 只要还有filter_unit，就一直处理
+  // 因为就是要把filter_unit里面的filter obj修改
+  for (auto filter_unit : select_stmt->filter_stmt()->filter_units()) {
+    if (filter_unit->left().obj_type == 2) {
+      // 是一个select_stmt，那就递归重写
+      Stmt *rewrited_sub_stmt = filter_unit->left().select_stmt;
+      rc                      = recover_stmt(rewrited_sub_stmt, row_tuple);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewrite sub stmt. rc=%s", strrc(rc));
+        return rc;
+      }
+      filter_unit->left().select_stmt = rewrited_sub_stmt;
+    }
+    if (filter_unit->right().obj_type == 2) {
+      // 是一个select_stmt，那就递归重写
+      Stmt *rewrited_sub_stmt = filter_unit->right().select_stmt;
+      rc                      = recover_stmt(rewrited_sub_stmt, row_tuple);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewrite sub stmt. rc=%s", strrc(rc));
+        return rc;
+      }
+      filter_unit->right().select_stmt = rewrited_sub_stmt;
+    }
+    if (filter_unit->left().field.table() != nullptr &&
+        strcmp(filter_unit->left().field.table_name(), row_tuple->table().name()) == 0) {
+      // 这是需要被替换的东西
+      // 从tuples_里面找到这个tuple
+      filter_unit->left().obj_type = 1;
+    }
+    if (filter_unit->right().field.table() != nullptr &&
+        strcmp(filter_unit->right().field.table_name(), row_tuple->table().name()) == 0) {
+      // 这是需要被替换的东西
+      // 从tuples_里面找到这个tuple
+      filter_unit->right().obj_type = 1;
+    }
+  }
+  return rc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -395,7 +513,7 @@ ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &chil
     : conjunction_type_(type), children_(std::move(children))
 {}
 
-RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
+RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {
@@ -405,7 +523,7 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
 
   Value tmp_value;
   for (const unique_ptr<Expression> &expr : children_) {
-    rc = expr->get_value(tuple, tmp_value);
+    rc = expr->get_value(tuple, tmp_value, trx);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value by child expression. rc=%s", strrc(rc));
       return rc;
@@ -512,7 +630,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
   return rc;
 }
 
-RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value) const
+RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   RC rc = RC::SUCCESS;
 

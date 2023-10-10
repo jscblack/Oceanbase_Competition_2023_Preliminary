@@ -67,7 +67,7 @@ public:
   /**
    * @brief 根据具体的tuple，来计算当前表达式的值。tuple有可能是一个具体某个表的行数据
    */
-  virtual RC get_value(const Tuple &tuple, Value &value) const = 0;
+  virtual RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const = 0;
 
   /**
    * @brief 在没有实际运行的情况下，也就是无法获取tuple的情况下，尝试获取表达式的值
@@ -121,7 +121,7 @@ public:
 
   const char *field_name() const { return field_.field_name(); }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
 private:
   Field field_;
@@ -139,7 +139,7 @@ public:
 
   virtual ~ValueExpr() = default;
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
   RC try_get_value(Value &value) const override
   {
     value = value_;
@@ -169,7 +169,7 @@ public:
   virtual ~CastExpr();
 
   ExprType type() const override { return ExprType::CAST; }
-  RC       get_value(const Tuple &tuple, Value &value) const override;
+  RC       get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
   RC try_get_value(Value &value) const override;
 
@@ -197,8 +197,7 @@ public:
 
   ExprType type() const override { return ExprType::COMPARISON; }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
-  RC get_value(const Tuple &tuple, Value &value, Trx *trx) const;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
   AttrType value_type() const override { return BOOLEANS; }
 
@@ -249,7 +248,7 @@ public:
   // 然后判断的过程就依赖于expression本身
   // 比如外层一个record，这个时候他需要去得到内层的结果集才能判断是否应该留下
   // 而内层需要知道外层才能得到结果集
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
   RC get_value(const Tuple &tuple, std::vector<Value> &values, Trx *trx);
 
   ExprType type() const override { return ExprType::SELECT; }
@@ -258,7 +257,8 @@ public:
     // 在select真正执行之前，是无法知道select的结果集的类型的
     return AttrType::UNDEFINED;
   }
-  RC rewrite_stmt(Stmt *&rewrited_stmt);
+  RC rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
+  RC recover_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
 
 private:
   Stmt *select_stmt_;  // select子查询的语句
@@ -287,7 +287,7 @@ public:
 
   AttrType value_type() const override { return BOOLEANS; }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
   Type conjunction_type() const { return conjunction_type_; }
 
@@ -323,7 +323,7 @@ public:
 
   AttrType value_type() const override;
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
   RC try_get_value(Value &value) const override;
 
   Type arithmetic_type() const { return arithmetic_type_; }
