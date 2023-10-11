@@ -69,6 +69,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // collect query fields in `select` statement
   std::vector<Field>                         query_fields;
   std::vector<std::pair<std::string, Field>> aggregation_func;
+  std::vector<std::pair<Field, bool>>        order_by;
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
 
@@ -182,6 +183,60 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
   }
 
+  // 创造order by语句
+  for (int i = static_cast<int>(select_sql.orders.size()) - 1; i >= 0; i--) {
+    const RelAttrSqlNode &order_attr = select_sql.orders.at(i).attr;
+    bool                  is_asc     = select_sql.orders.at(i).is_asc;
+
+    if (0 != strcmp(order_attr.aggregation_func.c_str(), "")) {  // 处理一下aggregate的特殊场景
+      return RC::SQL_SYNTAX;
+    }
+
+    if (common::is_blank(order_attr.relation_name.c_str()) &&
+        0 == strcmp(order_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询*
+      return RC::SQL_SYNTAX;
+    } else if (!common::is_blank(order_attr.relation_name.c_str())) {  // 表名非空
+      const char *table_name = order_attr.relation_name.c_str();
+      const char *field_name = order_attr.attribute_name.c_str();
+      if (0 == strcmp(table_name, "*")) {  // table_name == "*"
+        return RC::SQL_SYNTAX;
+      } else {
+        auto iter = table_map.find(table_name);
+        if (iter == table_map.end()) {
+          LOG_WARN("no such table in from list: %s", table_name);
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+
+        Table *table = iter->second;
+        if (0 == strcmp(field_name, "*")) {
+          return RC::SQL_SYNTAX;
+        } else {
+          const FieldMeta *field_meta = table->table_meta().field(field_name);
+          if (nullptr == field_meta) {
+            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+
+          order_by.emplace_back(Field(table, field_meta), is_asc);
+        }
+      }
+    } else {                     // 表名为空，但不是查询所有属性
+      if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
+        LOG_WARN("invalid. I do not know the attr's table. attr=%s", order_attr.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      Table           *table      = tables[0];
+      const FieldMeta *field_meta = table->table_meta().field(order_attr.attribute_name.c_str());
+      if (nullptr == field_meta) {
+        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), order_attr.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      order_by.emplace_back(Field(table, field_meta), is_asc);
+    }
+  }
+
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
@@ -189,6 +244,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->aggregation_func_.swap(aggregation_func);
+  select_stmt->order_by_.swap(order_by);
   stmt = select_stmt;
   // remove table_map_
   for (auto table : table_map) {

@@ -77,11 +77,12 @@ QUOTE            [\'\"]
 {WHITE_SAPCE}                                        // ignore whitespace
 \n                                                   ;
 
-[\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
-[\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
+{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
 
-";"                                     RETURN_TOKEN(SEMICOLON);    
+";"                                     RETURN_TOKEN(SEMICOLON);   
 {DOT}                                   RETURN_TOKEN(DOT);
+ASC                                     RETURN_TOKEN(ASC);
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
 DESC                                    RETURN_TOKEN(DESC);
@@ -129,11 +130,12 @@ IS{WHITE_SAPCE}+NOT                     RETURN_TOKEN(IS_NOT);
 IS                                      RETURN_TOKEN(IS);
 NOT{WHITE_SAPCE}+LIKE                   RETURN_TOKEN(NOT_LIKE); 
 LIKE                                    RETURN_TOKEN(LIKE);
-EXISTS                                  RETURN_TOKEN(EXISTS);
 NOT{WHITE_SAPCE}+EXISTS                 RETURN_TOKEN(NOT_EXISTS);
+EXISTS                                  RETURN_TOKEN(EXISTS);
 INNER{WHITE_SAPCE}+JOIN                 RETURN_TOKEN(INNER_JOIN);
 NOT{WHITE_SAPCE}+IN                     RETURN_TOKEN(NOT_IN); 
 IN                                      RETURN_TOKEN(IN);     
+ORDER{WHITE_SAPCE}+BY                   RETURN_TOKEN(ORDER_BY);
 {ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);

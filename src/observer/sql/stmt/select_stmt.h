@@ -14,8 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 #include "common/rc.h"
 #include "sql/stmt/stmt.h"
@@ -46,6 +46,7 @@ public:
   const std::vector<Field>                         &query_fields() const { return query_fields_; }
   FilterStmt                                       *filter_stmt() const { return filter_stmt_; }
   const std::vector<std::pair<std::string, Field>> &aggregation_func() const { return aggregation_func_; }
+  const std::vector<std::pair<Field, bool>>        &order_by() const { return order_by_; }
 
 private:
   std::vector<Field>                         query_fields_;
@@ -55,4 +56,5 @@ private:
 
 private:
   inline static std::unordered_map<std::string, Table *> table_map_;
+  std::vector<std::pair<Field, bool>>                    order_by_;  // (Field, is_asc)
 };

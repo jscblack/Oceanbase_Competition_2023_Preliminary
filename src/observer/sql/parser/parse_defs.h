@@ -99,6 +99,12 @@ struct ConditionSqlNode
   // Expression *right_expr;  // 右表达式
 };
 
+struct OrderSqlNode
+{
+  bool           is_asc;  // TRUE if asc （升序）
+  RelAttrSqlNode attr;    // 需要排序的属性
+};
+
 /**
  * @brief 描述一个select语句
  * @ingroup SQLParser
@@ -115,6 +121,7 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>   attributes;  ///< attributes in select clause
   std::vector<std::string>      relations;   ///< 查询的表
   std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件
+  std::vector<OrderSqlNode>     orders;      // 排序条件，可能有多列需求
 };
 
 /**
