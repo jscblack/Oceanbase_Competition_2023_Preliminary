@@ -190,7 +190,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   // like的语法检测, 必须左边是属性(字符串field), 右边是字符串
   // 目前应该不需要支持右边是非字符串转成字符串???
   if (LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) {
-    if (condition.left_type == 1 && condition.right_type == 2) {
+    if (condition.left_type == 1 && condition.right_type == 0) {
       if (type_left != CHARS || type_right != CHARS) {
         delete filter_unit;
         LOG_WARN("attr LIKE/NOT LIKE value, attr and value must be CHARS");
