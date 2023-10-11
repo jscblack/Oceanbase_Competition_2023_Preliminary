@@ -271,18 +271,7 @@ class ComparisonExpr : public Expression
 public:
   ComparisonExpr(CompOp comp, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
   ComparisonExpr(const ComparisonExpr &expr) = delete;
-  // {
-  //   comp_  = expr.comp_;
-  //   left_  = new decltype(*expr.left_)(*expr.left_);
-  //   right_ = new decltype(*expr.right_)(*expr.right_);
-  // }
   ComparisonExpr &operator=(const ComparisonExpr &expr) = delete;
-  // {
-  //   comp_  = expr.comp_;
-  //   left_  = new decltype(*expr.left_)(*expr.left_);
-  //   right_ = new decltype(*expr.right_)(*expr.right_);
-  //   return *this;
-  // }
 
   virtual ~ComparisonExpr();
 
@@ -384,20 +373,8 @@ public:
 public:
   ConjunctionExpr(Type type, std::vector<std::unique_ptr<Expression>> &children);
   ConjunctionExpr(const ConjunctionExpr &expr) = delete;
-  // {
-  //   conjunction_type_ = expr.conjunction_type_;
-  //   for (auto &child : expr.children_) {
-  //     children_.push_back(std::unique_ptr<Expression>(new decltype (*child)(*child)));
-  //   }
-  // }
   ConjunctionExpr &operator=(const ConjunctionExpr &expr) = delete;
-  // {
-  //   conjunction_type_ = expr.conjunction_type_;
-  //   for (auto &child : expr.children_) {
-  //     children_.push_back(std::unique_ptr<Expression>(new decltype (*child)(*child)));
-  //   }
-  //   return *this;
-  // }
+
   virtual ~ConjunctionExpr(){};
 
   ExprType type() const override { return ExprType::CONJUNCTION; }
