@@ -123,7 +123,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC  rc = RC::SUCCESS;
+  RC rc = RC::SUCCESS;
   int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
   result = false;
   if (left.is_null() || right.is_null()) {
@@ -203,22 +203,18 @@ RC ComparisonExpr::compare_value(const Value &left, const std::vector<Value> &ri
     return RC::SUCCESS;
   }
   assert(comp_ == IN_ENUM || comp_ == NOT_IN_ENUM);  // 目前只处理in和not in
+  bool in_right = false;
   for (int i = 0; i < right.size(); i++) {
     int result = left.compare(right[i]);
     if (result == 0) {
-      if (comp_ == IN_ENUM) {
-        value = true;
-        return RC::SUCCESS;
-      } else {
-        value = false;
-        return RC::SUCCESS;
-      }
+      in_right = true;
+      break;
     }
   }
   if (comp_ == IN_ENUM) {
-    value = false;
+    value = in_right;
   } else {
-    value = true;
+    value = !in_right;
   }
   return RC::SUCCESS;
 }
