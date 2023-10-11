@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/aggregate_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
 
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/delete_stmt.h"
@@ -116,17 +117,34 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     return rc;
   }
 
+  auto                        order_by = select_stmt->order_by();
+  unique_ptr<LogicalOperator> sort_oper;
+  if (!order_by.empty()) {
+    sort_oper = unique_ptr<LogicalOperator>(new SortLogicalOperator(order_by));
+  }
+
   unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
   if (predicate_oper) {
     if (table_oper) {
       predicate_oper->add_child(std::move(table_oper));
     }
-    project_oper->add_child(std::move(predicate_oper));
+    if (sort_oper) {
+      sort_oper->add_child(std::move(predicate_oper));
+      project_oper->add_child(std::move(sort_oper));
+    } else {
+      project_oper->add_child(std::move(predicate_oper));
+    }
   } else {
     if (table_oper) {
-      project_oper->add_child(std::move(table_oper));
+      if (sort_oper) {
+        sort_oper->add_child(std::move(table_oper));
+        project_oper->add_child(std::move(sort_oper));
+      } else {
+        project_oper->add_child(std::move(table_oper));
+      }
     }
   }
+  //
 
   const std::vector<std::pair<std::string, Field>> &all_aggregations = select_stmt->aggregation_func();
   if (!all_aggregations.empty()) {  // 存在聚合操作

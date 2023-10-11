@@ -116,6 +116,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         IS
         IS_NOT
         INNER_JOIN
+        ORDER_BY
+        ASC
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -131,6 +133,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<std::vector<Value>> * insert_list;
   std::vector<Value> *              value_list;
   std::vector<ConditionSqlNode> *   condition_list;
+  std::vector<OrderSqlNode> *       order_by_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * join_list; // relateion_list + condition_list
@@ -161,6 +164,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <insert_list>         insert_list
 %type <value_list>          value_list
 %type <boolean>             unique_marker
+%type <boolean>             asc_or_desc
 %type <boolean>             nullable_marker
 %type <condition_list>      where
 %type <condition_list>      condition_list
@@ -174,6 +178,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <join_list>           join_list
 %type <join_list>           join
 %type <rel_attr_list>       attr_list
+%type <order_by_list>       order
+%type <order_by_list>       order_list
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -613,7 +619,7 @@ update_expr_list:
     ;
 
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where group_by having
+    SELECT select_attr FROM ID rel_list where order group_by having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -631,21 +637,25 @@ select_stmt:        /*  select 语句的语法解析树*/
         $$->selection.conditions.swap(*$6);
         delete $6;
       }
-
       if ($7 != nullptr) {
-        $$->selection.groups.swap(*$7);
-        std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
+        $$->selection.orders.swap(*$7);
         delete $7;
       }
 
       if ($8 != nullptr) {
-        $$->selection.havings.swap(*$8);
+        $$->selection.groups.swap(*$8);
+        std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
+        delete $7;
+      }
+
+      if ($9 != nullptr) {
+        $$->selection.havings.swap(*$9);
         delete $8;
       }
 
       free($4);
     }
-    | SELECT select_attr FROM join where group_by having
+    | SELECT select_attr FROM join where order group_by having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -665,15 +675,19 @@ select_stmt:        /*  select 语句的语法解析树*/
         // }
         delete $5;
       }
+      if ($6 != nullptr) {
+        $$->selection.orders.swap(*$6);
+        delete $6;
+      }
 
-      if($6 != nullptr) {
-        $$->selection.groups.swap(*$6);
+      if($7 != nullptr) {
+        $$->selection.groups.swap(*$7);
         std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
         delete $6;
       }
 
-      if ($7 != nullptr) {
-        $$->selection.havings.swap(*$7);
+      if ($8 != nullptr) {
+        $$->selection.havings.swap(*$8);
         delete $7;
       }
     }
@@ -778,8 +792,6 @@ expression:
       $$ = new ValueExpr(*$1);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
-      LOG_INFO("===============================LOG BY LOSK===============================\n"
-      "===============================看看位置信息输出了什么：%d===============================\n", @1);
     }
     ;
 
@@ -962,6 +974,53 @@ having:
     }
     ;
 
+order:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ORDER_BY rel_attr asc_or_desc order_list {
+      if($4 != nullptr) {
+        $$ = $4;
+      } else{
+        $$ = new std::vector<OrderSqlNode>;
+      }
+      OrderSqlNode tmp;
+      tmp.is_asc = $3;
+      tmp.attr = *$2;
+      $$->emplace_back(tmp);
+      delete $2;
+    }
+    ;
+order_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA rel_attr asc_or_desc order_list {
+      if($4 != nullptr) {
+        $$ = $4;
+      } else{
+        $$ = new std::vector<OrderSqlNode>;
+      }
+      OrderSqlNode tmp;
+      tmp.is_asc = $3;
+      tmp.attr = *$2;
+      $$->emplace_back(tmp);
+      delete $2;
+    }
+    ;
+asc_or_desc:
+    /* empty */ 
+    {
+      $$ = true;
+    } 
+    | ASC {
+      $$ = true;
+    }
+    | DESC {
+      $$ = false;
+    }
 where:
     /* empty */
     {
