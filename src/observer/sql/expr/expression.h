@@ -299,7 +299,6 @@ private:
   std::unique_ptr<Expression> right_;
 };
 
-
 /**
  * @brief 聚合表达式
  * @ingroup Expression
@@ -308,27 +307,35 @@ class AggregationExpr : public Expression
 {
 public:
   AggregationExpr() = default;
-  AggregationExpr(const Table *table, const FieldMeta *field, const std::string &aggregation_func) : field_(table, field), aggregation_func_(aggregation_func) {}
-  AggregationExpr(const Field &field, const std::string &aggregation_func) : field_(field), aggregation_func_(aggregation_func) {}
+  AggregationExpr(const Table *table, const FieldMeta *field, const std::string &aggregation_func)
+      : field_(table, field), aggregation_func_(aggregation_func)
+  {}
+  AggregationExpr(const Field &field, const std::string &aggregation_func)
+      : field_(field), aggregation_func_(aggregation_func)
+  {}
 
   virtual ~AggregationExpr() = default;
 
   ExprType type() const override { return ExprType::AGGREGATION; }
   AttrType value_type() const override { return field_.attr_type(); }
 
-  Field &field() { return field_; }
+  Field       &field() { return field_; }
   std::string &aggregation_func() { return aggregation_func_; }
 
-  const Field &field() const { return field_; }
+  const Field       &field() const { return field_; }
   const std::string &aggregation_func() const { return aggregation_func_; }
 
   const char *table_name() const { return field_.table_name(); }
 
   const char *field_name() const { return field_.field_name(); }
 
-  RC get_value(const Tuple &tuple, Value &value) const override { return RC::INTERNAL; }  //  AggregationExpr cannot use this
+  RC get_value(const Tuple &tuple, Value &value) const override
+  {
+    return RC::INTERNAL;
+  }  //  AggregationExpr cannot use this
 
-  RC aggregate_value(const std::vector<Tuple> &tuples, Value &value) const ;  // 传入分组的所有tuples，返回聚合运算之后的Value
+  RC aggregate_value(
+      const std::vector<Tuple> &tuples, Value &value) const;  // 传入分组的所有tuples，返回聚合运算之后的Value
 
 private:
   Field       field_;

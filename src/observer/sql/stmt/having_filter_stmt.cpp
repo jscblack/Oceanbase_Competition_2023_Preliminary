@@ -67,7 +67,7 @@ RC hfs_get_table_and_field(Db *db, Table *default_table, std::unordered_map<std:
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  if (attr.attribute_name == "*" && attr.aggregation_func == "COUNT") { // 特殊处理count(*)
+  if (attr.attribute_name == "*" && attr.aggregation_func == "COUNT") {  // 特殊处理count(*)
     field = nullptr;
     return RC::SUCCESS;
   }

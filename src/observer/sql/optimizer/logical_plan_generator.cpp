@@ -165,14 +165,14 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         const HavingFilterObj &filter_obj_right = filter_unit->right();
 
         unique_ptr<Expression> left(
-            filter_obj_left.is_attr
-                ? static_cast<Expression *>(new AggregationExpr(filter_obj_left.field, filter_obj_left.aggregation_func_))
-                : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+            filter_obj_left.is_attr ? static_cast<Expression *>(
+                                          new AggregationExpr(filter_obj_left.field, filter_obj_left.aggregation_func_))
+                                    : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
 
-        unique_ptr<Expression> right(
-            filter_obj_right.is_attr
-                ? static_cast<Expression *>(new AggregationExpr(filter_obj_right.field, filter_obj_right.aggregation_func_))
-                : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+        unique_ptr<Expression> right(filter_obj_right.is_attr
+                                         ? static_cast<Expression *>(new AggregationExpr(
+                                               filter_obj_right.field, filter_obj_right.aggregation_func_))
+                                         : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
 
         ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
         cmp_exprs.emplace_back(cmp_expr);

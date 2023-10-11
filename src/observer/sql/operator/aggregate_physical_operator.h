@@ -63,7 +63,10 @@ public:
 
   void set_group_by_fields(const std::vector<Field> &group_by_fields) { group_by_fields_ = group_by_fields; }
   void set_having_filters(std::unique_ptr<Expression> expression) { having_filters_ = std::move(expression); }
-  void set_having_filter_units(const std::vector<HavingFilterUnit *> &having_filter_units) { having_filter_units_ = having_filter_units; }
+  void set_having_filter_units(const std::vector<HavingFilterUnit *> &having_filter_units)
+  {
+    having_filter_units_ = having_filter_units;
+  }
 
   RC open(Trx *trx) override;
   RC next() override;
@@ -92,7 +95,5 @@ private:
   std::vector<int>                                         group_by_fields_idx_;
   std::map<GroupByValues, std::vector<std::vector<Value>>> group_tuples_values_;
 
-
-  
-  std::map<GroupByValues, std::vector<Tuple*>>             group_tuples_;
+  std::map<GroupByValues, std::vector<Tuple *>> group_tuples_;
 };

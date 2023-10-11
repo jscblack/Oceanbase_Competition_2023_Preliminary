@@ -58,5 +58,5 @@ private:
   std::vector<std::pair<std::string, Field>> aggregation_func_;  // (aggregation_function_type, Field)
   std::vector<Field>                         group_by_fields_;
   HavingFilterStmt                          *having_filter_stmt_ = nullptr;
-  std::vector<std::pair<Field, bool>>        order_by_;          // (Field, is_asc)
+  std::vector<std::pair<Field, bool>>        order_by_;  // (Field, is_asc)
 };

@@ -43,12 +43,15 @@ public:
   void set_group_by_fields(const std::vector<Field> &group_by_fields) { group_by_fields_ = group_by_fields; }
   // LogicalOperator基类中的 expressions_ 作为 having 子句包含的分组筛选条件
   void add_having_filters(std::unique_ptr<Expression> expression) { expressions_.emplace_back(std::move(expression)); }
-  void set_having_filter_units(const std::vector<HavingFilterUnit *> &having_filter_units) { having_filter_units_ = having_filter_units; }
+  void set_having_filter_units(const std::vector<HavingFilterUnit *> &having_filter_units)
+  {
+    having_filter_units_ = having_filter_units;
+  }
 
 private:
   std::vector<std::pair<std::string, Field>> aggregations_;     //! 聚合的字段 - 聚合类型
   std::vector<Field>                         fields_;           //! 投影映射的字段名称
   std::vector<Field>                         group_by_fields_;  //! 分组的字段
   // std::vector<Expression>                    having_filters_;   //! 分组筛选条件
-  std::vector<HavingFilterUnit *>            having_filter_units_; // 分组筛选条件中的聚合属性
+  std::vector<HavingFilterUnit *> having_filter_units_;  // 分组筛选条件中的聚合属性
 };

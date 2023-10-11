@@ -27,7 +27,7 @@ class FieldMeta;
 struct HavingFilterObj
 {
   bool        is_attr;
-  Field       field;              // 根据table()!=nullptr和meta()==nullptr特殊标记count(*)
+  Field       field;  // 根据table()!=nullptr和meta()==nullptr特殊标记count(*)
   Value       value;
   std::string aggregation_func_;
 

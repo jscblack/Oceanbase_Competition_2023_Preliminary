@@ -385,9 +385,4 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   return calc_value(left_value, right_value, value);
 }
 
-RC AggregationExpr::aggregate_value(const std::vector<Tuple> &tuples, Value &value) const {
-  
-  
-  
-  return RC::SUCCESS;
-}
+RC AggregationExpr::aggregate_value(const std::vector<Tuple> &tuples, Value &value) const { return RC::SUCCESS; }

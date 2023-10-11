@@ -72,7 +72,6 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     }
   }
 
-
   // 聚集
   //
   // // 以下为feat-aggregation-func的实现
@@ -103,9 +102,6 @@ RC AggregatePhysicalOperator::open(Trx *trx)
 
   // 以下为分组聚集的实现
 
-
-
-
   // 筛选
   // 1. 取出筛选having子句的属性---应该已经做过了，直接筛选即可
 
@@ -115,24 +111,20 @@ RC AggregatePhysicalOperator::open(Trx *trx)
   //   if (filter_obj_left.is_attr) {
 
   //   }
-    
+
   // }
 
   // 2. 做having子句中的聚集操作，并构建
 
-
   // 3. 通过expression判断是否条件满足
 
-
-
-  // 以下代码被废弃，尽管使用了类型转换，但无法判断出comparison expression的left和right哪个是field expression哪个是value expression
-  // ConjunctionExpr *having_filters_cast = dynamic_cast<ConjunctionExpr *>(having_filters_.get());
+  // 以下代码被废弃，尽管使用了类型转换，但无法判断出comparison expression的left和right哪个是field expression哪个是value
+  // expression ConjunctionExpr *having_filters_cast = dynamic_cast<ConjunctionExpr *>(having_filters_.get());
   // std::vector<std::unique_ptr<Expression>> &children_expressions = having_filters_cast->children();
   // for (int i = 0; i < children_expressions.size(); i++) {
   //   ComparisonExpr *child_comparison = dynamic_cast<ComparisonExpr *>(children_expressions[i].get());
   //   child_comparison->left();
   // }
-
 
   return RC::SUCCESS;
 }
