@@ -81,7 +81,6 @@ struct ConditionSqlNode
   // // and / or
   // right_expr_sql_node
 
-
   int left_type;  ///< TRUE if left-hand side is an attribute
                   ///< 2时，操作符左边是子查询，1时，操作符左边是属性名，0时，是属性值
   // 现阶段 expression里面只包含value

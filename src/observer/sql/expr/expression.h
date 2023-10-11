@@ -270,7 +270,7 @@ class ComparisonExpr : public Expression
 {
 public:
   ComparisonExpr(CompOp comp, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
-  ComparisonExpr(const ComparisonExpr &expr) = delete;
+  ComparisonExpr(const ComparisonExpr &expr)            = delete;
   ComparisonExpr &operator=(const ComparisonExpr &expr) = delete;
 
   virtual ~ComparisonExpr();
@@ -372,7 +372,7 @@ public:
 
 public:
   ConjunctionExpr(Type type, std::vector<std::unique_ptr<Expression>> &children);
-  ConjunctionExpr(const ConjunctionExpr &expr) = delete;
+  ConjunctionExpr(const ConjunctionExpr &expr)            = delete;
   ConjunctionExpr &operator=(const ConjunctionExpr &expr) = delete;
 
   virtual ~ConjunctionExpr(){};
