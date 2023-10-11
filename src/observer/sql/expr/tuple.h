@@ -268,8 +268,13 @@ public:
 
   RC clone(Tuple *&tuple) const override
   {
-    tuple = nullptr;
-    return RC::INTERNAL;
+    ProjectTuple *project_tuple = new ProjectTuple();
+    tuple_->clone(project_tuple->tuple_);
+    for (auto s : speces_) {
+      project_tuple->speces_.push_back(new TupleCellSpec(s->table_name(), s->field_name()));
+    }
+    tuple = project_tuple;
+    return RC::SUCCESS;
   }
 
 #if 0
