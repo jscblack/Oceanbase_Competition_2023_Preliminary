@@ -26,28 +26,30 @@ class FieldMeta;
 
 struct FilterObj
 {
-  int   obj_type;  ///< 0: value, 1: attr, 2: select_stmt
-  Value value;
-  Field field;
-  Stmt *select_stmt;  ///< select clause
+  // int   obj_type;  ///< 0: value, 1: attr, 2: select_stmt
+  // Value value;
+  // Field field;
+  // Stmt *select_stmt;  ///< select clause
 
-  void init_value(const Value &value)
-  {
-    obj_type    = 0;
-    this->value = value;
-  }
+  // void init_value(const Value &value)
+  // {
+  //   obj_type    = 0;
+  //   this->value = value;
+  // }
 
-  void init_attr(const Field &field)
-  {
-    obj_type    = 1;
-    this->field = field;
-  }
+  // void init_attr(const Field &field)
+  // {
+  //   obj_type    = 1;
+  //   this->field = field;
+  // }
 
-  void init_select_stmt(Stmt *stmt)
-  {
-    obj_type    = 2;
-    select_stmt = stmt;
-  }
+  // void init_select_stmt(Stmt *stmt)
+  // {
+  //   obj_type    = 2;
+  //   select_stmt = stmt;
+  // }
+  Expression *expr = nullptr;
+  void        init_expr(Expression *expr) { this->expr = expr; }
 };
 
 class FilterUnit

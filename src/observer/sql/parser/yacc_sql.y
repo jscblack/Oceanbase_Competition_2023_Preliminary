@@ -744,20 +744,60 @@ expression:
     | expression '/' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
     }
-    | LBRACE expression RBRACE {
-      $$ = $2;
-      $$->set_name(token_name(sql_string, &@$));
+    | LBRACE expression_list RBRACE {
+      if($2->size()==1) {
+        $$ = $2->at(0);
+        $$->set_name(token_name(sql_string, &@$));
+      } else {
+        // 这个时候应该处理ValueListExpr
+        std::vector<Value> values;
+        values.resize($2->size());
+        for (int i = 0; i < $2->size(); i++) {
+          // assert($2->at(i)->type() == ExprType::VALUE)
+          $2->at(i)->try_get_value(values[i]);
+        }
+        $$ = new ValueListExpr(values);
+        $$->set_name(token_name(sql_string, &@$));
+      }
     }
     | '-' expression %prec UMINUS {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
     }
+    /* | select_stmt{
+      $$ = new SelectExpr(&($1->selection));
+      $$->set_name(token_name(sql_string, &@$));
+    } */
+    /* | rel_attr{
+      assert(rel_attr->aggregation_func.empty());// 这里暂时先没法处理聚合函数
+      if(rel_attr->relation_name.empty()){
+        $$ = new FieldExpr(attribute_name);
+      }else{
+        $$ = new FieldExpr(rel_attr->relation_name,rel_attr->attribute_name);
+      }
+      $$->set_name(token_name(sql_string, &@$));
+      delete $1;
+    } */
     | value {
+      // single value
       $$ = new ValueExpr(*$1);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
-      LOG_INFO("===============================LOG BY LOSK===============================\n"
-      "===============================看看位置信息输出了什么：%d===============================\n", @1);
     }
+    /* | LBRACE value value_list RBRACE {
+      if ($3 != nullptr) {
+        // value list
+        $3->emplace_back(*$2);
+        std::reverse($3->begin(), $3->end());
+        $$ = new ValueListExpr(*$3);
+        $$->set_name(token_name(sql_string, &@$));
+        delete $3;
+      } else {
+        // single value
+        $$ = new ValueExpr(*$2);
+        $$->set_name(token_name(sql_string, &@$));
+        delete $2;
+      }
+    } */
     ;
 
 select_attr:
@@ -943,8 +983,7 @@ condition:
       // TODO
       $$ = new ConditionSqlNode;
       $$->left_type = 0;
-      $$->left_value = Value();
-      $$->left_value.set_type(AttrType::NONE);
+      $$->left_expr=new ValueExpr();
       $$->right_type = 2;
       $$->right_select = &($3->selection);
       $$->comp = EXISTS_ENUM;
@@ -953,8 +992,7 @@ condition:
       // TODO
       $$ = new ConditionSqlNode;
       $$->left_type = 0;
-      $$->left_value = Value();
-      $$->left_value.set_type(AttrType::NONE);
+      $$->left_expr = new ValueExpr();
       $$->right_type = 2;
       $$->right_select = &($3->selection);
       $$->comp = NOT_EXISTS_ENUM;
@@ -993,53 +1031,45 @@ condition:
 
       delete $5;
     }
-    | value comp_op LBRACE select_stmt RBRACE
+    | expression comp_op LBRACE select_stmt RBRACE
     {
       // TODO
       $$ = new ConditionSqlNode;
       $$->left_type = 0;
-      $$->left_value = *$1;
+      $$->left_expr = $1;
       $$->right_type = 2;
       $$->right_select = &($4->selection);
       $$->comp = $2;
-
-      delete $1;
     }
-    | LBRACE select_stmt RBRACE comp_op value
+    | LBRACE select_stmt RBRACE comp_op expression
     {
       // TODO
       $$ = new ConditionSqlNode;
       $$->left_type = 2;
       $$->left_select = &($2->selection);
       $$->right_type = 0;
-      $$->right_value = *$5;
+      $$->right_expr = $5;
       $$->comp = $4;
-
-      delete $5;
     }
-    | rel_attr comp_op value
+    | rel_attr comp_op expression
     {
       $$ = new ConditionSqlNode;
       $$->left_type = 1;
       $$->left_attr = *$1;
       $$->right_type = 0;
-      $$->right_value = *$3;
+      $$->right_expr = $3;
       $$->comp = $2;
 
       delete $1;
-      delete $3;
     }
-    | value comp_op value 
+    | expression comp_op expression 
     {
       $$ = new ConditionSqlNode;
       $$->left_type = 0;
-      $$->left_value = *$1;
+      $$->left_expr = $1;
       $$->right_type = 0;
-      $$->right_value = *$3;
+      $$->right_expr = $3;
       $$->comp = $2;
-
-      delete $1;
-      delete $3;
     }
     | rel_attr comp_op rel_attr
     {
@@ -1053,16 +1083,15 @@ condition:
       delete $1;
       delete $3;
     }
-    | value comp_op rel_attr
+    | expression comp_op rel_attr
     {
       $$ = new ConditionSqlNode;
       $$->left_type = 0;
-      $$->left_value = *$1;
+      $$->left_expr = $1;
       $$->right_type = 1;
       $$->right_attr = *$3;
       $$->comp = $2;
 
-      delete $1;
       delete $3;
     }
 

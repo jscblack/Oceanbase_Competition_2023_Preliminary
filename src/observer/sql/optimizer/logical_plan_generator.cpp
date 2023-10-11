@@ -146,46 +146,32 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
   for (const FilterUnit *filter_unit : filter_units) {
     const FilterObj &filter_obj_left  = filter_unit->left();
     const FilterObj &filter_obj_right = filter_unit->right();
+    // switch (filter_obj_left.obj_type) {
+    //   case 0: {
+    //     left = unique_ptr<Expression>(new ValueExpr(filter_obj_left.value));
+    //   } break;
+    //   case 1: {
+    //     left = unique_ptr<Expression>(new FieldExpr(filter_obj_left.field));
+    //   } break;
+    //   case 2: {
+    //     left = unique_ptr<Expression>(new SelectExpr(filter_obj_left.select_stmt));
+    //   } break;
+    //   default: {
+    //     LOG_WARN("invalid filter_obj_left.obj_type=%d", filter_obj_left.obj_type);
+    //     return RC::INVALID_ARGUMENT;
+    //   } break;
+    // }
 
-    // unique_ptr<Expression> left(filter_obj_left.is_attr
-    //                                 ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
-    //                                 : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+    // unique_ptr<Expression> left, right;
+    // Expression            *left_expr;
+    // Expression            *right_expr;
+    // *left_expr  = *filter_obj_left.expr;
+    // *right_expr = *filter_obj_right.expr;
+    // left        = unique_ptr<Expression>(left_expr);
+    // right       = unique_ptr<Expression>(right_expr);
 
-    // unique_ptr<Expression> right(filter_obj_right.is_attr
-    //                                  ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
-    //                                  : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
-    unique_ptr<Expression> left, right;
-    switch (filter_obj_left.obj_type) {
-      case 0: {
-        left = unique_ptr<Expression>(new ValueExpr(filter_obj_left.value));
-      } break;
-      case 1: {
-        left = unique_ptr<Expression>(new FieldExpr(filter_obj_left.field));
-      } break;
-      case 2: {
-        left = unique_ptr<Expression>(new SelectExpr(filter_obj_left.select_stmt));
-      } break;
-      default: {
-        LOG_WARN("invalid filter_obj_left.obj_type=%d", filter_obj_left.obj_type);
-        return RC::INVALID_ARGUMENT;
-      } break;
-    }
-
-    switch (filter_obj_right.obj_type) {
-      case 0: {
-        right = unique_ptr<Expression>(new ValueExpr(filter_obj_right.value));
-      } break;
-      case 1: {
-        right = unique_ptr<Expression>(new FieldExpr(filter_obj_right.field));
-      } break;
-      case 2: {
-        right = unique_ptr<Expression>(new SelectExpr(filter_obj_right.select_stmt));
-      } break;
-      default: {
-        LOG_WARN("invalid filter_obj_right.obj_type=%d", filter_obj_right.obj_type);
-        return RC::INVALID_ARGUMENT;
-      } break;
-    }
+    unique_ptr<Expression> left  = unique_ptr<Expression>(filter_obj_left.expr->clone());
+    unique_ptr<Expression> right = unique_ptr<Expression>(filter_obj_right.expr->clone());
 
     ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
     cmp_exprs.emplace_back(cmp_expr);

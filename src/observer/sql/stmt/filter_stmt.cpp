@@ -95,11 +95,11 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   // TODO: 实现exist
   switch (condition.left_type) {
     case 0: {
-      // value
+      // value (expr)
       FilterObj filter_obj;
-      filter_obj.init_value(condition.left_value);
+      filter_obj.init_expr(condition.left_expr);
       filter_unit->set_left(filter_obj);
-      type_left = filter_obj.value.attr_type();
+      type_left = filter_obj.expr->value_type();
     } break;
     case 1: {
       // attr
@@ -111,7 +111,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
         return rc;
       }
       FilterObj filter_obj;
-      filter_obj.init_attr(Field(table, field));
+      filter_obj.init_expr(new FieldExpr(table, field));
       filter_unit->set_left(filter_obj);
       type_left = field->type();
     } break;
@@ -127,9 +127,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
         LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
         return RC::INVALID_ARGUMENT;
       }
-      // FilterObj *filter_obj = new FilterObj();
-      // filter_obj->init_select_stmt(select_stmt);
-      filter_unit->left().init_select_stmt(select_stmt);
+      filter_unit->left().init_expr(new SelectExpr(select_stmt));
       type_left = reinterpret_cast<SelectStmt *>(select_stmt)->query_fields()[0].attr_type();
     } break;
     default: {
@@ -141,11 +139,11 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
 
   switch (condition.right_type) {
     case 0: {
-      // value
+      // value (expr)
       FilterObj filter_obj;
-      filter_obj.init_value(condition.right_value);
+      filter_obj.init_expr(condition.right_expr);
       filter_unit->set_right(filter_obj);
-      type_right = filter_obj.value.attr_type();
+      type_right = filter_obj.expr->value_type();
     } break;
     case 1: {
       // attr
@@ -157,7 +155,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
         return rc;
       }
       FilterObj filter_obj;
-      filter_obj.init_attr(Field(table, field));
+      filter_obj.init_expr(new FieldExpr(table, field));
       filter_unit->set_right(filter_obj);
       type_right = field->type();
     } break;
@@ -173,9 +171,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
         LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
         return RC::INVALID_ARGUMENT;
       }
-      // FilterObj *filter_obj = new FilterObj();
-      // filter_obj->init_select_stmt(select_stmt);
-      filter_unit->right().init_select_stmt(select_stmt);
+      filter_unit->right().init_expr(new SelectExpr(select_stmt));
       type_right = reinterpret_cast<SelectStmt *>(select_stmt)->query_fields()[0].attr_type();
     } break;
     default: {
@@ -209,22 +205,24 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     if (type_left == DATES || type_right == DATES) {
       // date conversation
       // advance check for date
-      if (filter_unit->left().obj_type == 0 && filter_unit->right().obj_type == 1) {  // left:value, right:attr
+      if (filter_unit->left().expr->type() == ExprType::VALUE &&
+          filter_unit->right().expr->type() == ExprType::FIELD) {  // left:value, right:attr
         if (type_right == DATES) {
           // the attr is date type, so we need to convert the value to date type
-          if (filter_unit->left().value.attr_type() == CHARS) {
-            rc = filter_unit->left().value.auto_cast(DATES);
+          if (filter_unit->left().expr->value_type() == CHARS) {
+            rc = dynamic_cast<ValueExpr *>(filter_unit->left().expr)->get_value().auto_cast(DATES);
             if (rc != RC::SUCCESS) {
               delete filter_unit;
               return rc;
             }
           }
         }
-      } else if (filter_unit->left().obj_type == 1 && filter_unit->right().obj_type == 0) {  // left:attr, right:value
+      } else if (filter_unit->left().expr->type() == ExprType::FIELD &&
+                 filter_unit->right().expr->type() == ExprType::VALUE) {  // left:attr, right:value
         if (type_left == DATES) {
           // the attr is date type, so we need to convert the value to date type
-          if (filter_unit->right().value.attr_type() == CHARS) {
-            rc = filter_unit->right().value.auto_cast(DATES);
+          if (filter_unit->right().expr->value_type() == CHARS) {
+            rc = dynamic_cast<ValueExpr *>(filter_unit->right().expr)->get_value().auto_cast(DATES);
             if (rc != RC::SUCCESS) {
               delete filter_unit;
               return rc;
@@ -235,9 +233,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     } else if (type_left == CHARS && (type_right == FLOATS || type_right == INTS)) {
       // left is a string, and right is s a number
       // convert the string to number
-      if (filter_unit->left().obj_type == 0) {
+      if (filter_unit->left().expr->type() == ExprType::VALUE) {
         // left is a value
-        rc = filter_unit->left().value.str_to_number();
+        rc = dynamic_cast<ValueExpr *>(filter_unit->left().expr)->get_value().str_to_number();
+
         if (rc != RC::SUCCESS) {
           delete filter_unit;
           return rc;
@@ -246,9 +245,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     } else if ((type_left == FLOATS || type_left == INTS) && type_right == CHARS) {
       // left is a number, and right is a string
       // convert the string to number
-      if (filter_unit->right().obj_type == 0) {
+      if (filter_unit->right().expr->type() == ExprType::VALUE) {
         // right is a value
-        rc = filter_unit->right().value.str_to_number();
+        rc = dynamic_cast<ValueExpr *>(filter_unit->right().expr)->get_value().str_to_number();
+
         if (rc != RC::SUCCESS) {
           delete filter_unit;
           return rc;

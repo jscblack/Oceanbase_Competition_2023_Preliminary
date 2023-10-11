@@ -78,15 +78,20 @@ struct ConditionSqlNode
 {
   int left_type;  ///< TRUE if left-hand side is an attribute
                   ///< 2时，操作符左边是子查询，1时，操作符左边是属性名，0时，是属性值
-  Value          left_value;    ///< left-hand side value if left_is_attr = FALSE
+  // 现阶段 expression里面只包含value
+  Expression    *left_expr;     ///< left-hand side value if left_is_attr = FALSE
   RelAttrSqlNode left_attr;     ///< left-hand side attribute
   SelectSqlNode *left_select;   ///< left-hand side select
   CompOp         comp;          ///< comparison operator
   int            right_type;    ///< TRUE if right-hand side is an attribute
                                 ///< 1时，操作符右边是属性名，0时，是属性值
+  Expression    *right_expr;    ///< right-hand side value if right_is_attr = FALSE
   RelAttrSqlNode right_attr;    ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
-  Value          right_value;   ///< right-hand side value if right_is_attr = FALSE
   SelectSqlNode *right_select;  ///< right-hand side select
+
+  // Expression *left_expr;   // 左表达式
+  // CompOp      comp;        ///< comparison operator
+  // Expression *right_expr;  // 右表达式
 };
 
 /**

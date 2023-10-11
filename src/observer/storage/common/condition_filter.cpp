@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "condition_filter.h"
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/value.h"
 #include "storage/record/record_manager.h"
 #include "storage/table/table.h"
@@ -91,8 +92,8 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
     type_left = field_left->type();
   } else if (0 == condition.left_type) {
     left.is_attr = false;
-    left.value   = condition.left_value;  // 校验type 或者转换类型
-    type_left    = condition.left_value.attr_type();
+    left.value   = dynamic_cast<ValueExpr *>(condition.left_expr)->get_value();  // 校验type 或者转换类型
+    type_left    = condition.left_expr->value_type();
 
     left.attr_length = 0;
     left.attr_offset = 0;
@@ -110,8 +111,8 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
     type_right        = field_right->type();
   } else if (0 == condition.right_type) {
     right.is_attr = false;
-    right.value   = condition.right_value;
-    type_right    = condition.right_value.attr_type();
+    right.value   = dynamic_cast<ValueExpr *>(condition.right_expr)->get_value();
+    type_right    = condition.right_expr->value_type();
 
     right.attr_length = 0;
     right.attr_offset = 0;

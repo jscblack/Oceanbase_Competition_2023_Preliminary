@@ -84,6 +84,8 @@ RC CastExpr::try_get_value(Value &value) const
   return cast(value, value);
 }
 
+Expression *CastExpr::clone() const { return new CastExpr(unique_ptr<Expression>(child_->clone()), cast_type_); }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_ptr<Expression> right)
@@ -242,30 +244,6 @@ RC ComparisonExpr::try_get_value(Value &cell) const
   return RC::INVALID_ARGUMENT;
 }
 
-// RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
-// {
-//   Value left_value;
-//   Value right_value;
-
-//   RC rc = left_->get_value(tuple, left_value);
-//   if (rc != RC::SUCCESS) {
-//     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-//     return rc;
-//   }
-//   rc = right_->get_value(tuple, right_value);
-//   if (rc != RC::SUCCESS) {
-//     LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-//     return rc;
-//   }
-
-//   bool bool_value = false;
-//   rc              = compare_value(left_value, right_value, bool_value);
-//   if (rc == RC::SUCCESS) {
-//     value.set_boolean(bool_value);
-//   }
-//   return rc;
-// }
-
 RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   // 只有在有子查询的情况下，才会调用这个函数
@@ -274,7 +252,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   std::vector<Value> left_values;
   std::vector<Value> right_values;
   RC                 rc = RC::SUCCESS;
-  if (left_->type() == ExprType::SELECT) {
+  if (left_ != nullptr && left_->type() == ExprType::SELECT) {
     rc = dynamic_cast<SelectExpr *>(left_.get())->get_value(tuple, left_values, trx);
     if (!left_values.empty()) {
       left_value = left_values[0];
@@ -283,6 +261,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
       // 这是个null
       left_value.set_type(AttrType::NONE);
     }
+  } else if (left_ != nullptr && left_->type() == ExprType::VALUELIST) {
+    rc = dynamic_cast<ValueListExpr *>(left_.get())->get_values(left_values);
   } else {
     rc = left_->get_value(tuple, left_value);
   }
@@ -299,6 +279,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
       // 这是个null
       right_value.set_type(AttrType::NONE);
     }
+  } else if (right_->type() == ExprType::VALUELIST) {
+    rc = dynamic_cast<ValueListExpr *>(right_.get())->get_values(right_values);
   } else {
     rc = right_->get_value(tuple, right_value);
   }
@@ -328,6 +310,11 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   return rc;
 }
 
+Expression *ComparisonExpr::clone() const
+{
+  return new ComparisonExpr(comp_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>(right_->clone()));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 SelectExpr::SelectExpr(Stmt *stmt) : select_stmt_(stmt) {}
@@ -348,9 +335,9 @@ RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *tr
   SelectExpr::tuples_.insert(std::pair<std::string, const Tuple *>(tuple.to_string(), &tuple));
   // 这里得把stmt真正执行一下，然后把结果放到value里面
   // 从stmt开始，手动处理他的生命周期
-
+  RC rc = RC::SUCCESS;
   // 在这里就是重写一下stmt，把在tuples_里面已知的attr信息给他变成value
-  RC rc = rewrite_stmt(select_stmt_, &tuple);
+  rc = rewrite_stmt(select_stmt_, &tuple);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to rewrite stmt. rc=%s", strrc(rc));
     return rc;
@@ -412,51 +399,57 @@ RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
   // 只要还有filter_unit，就一直处理
   // 因为就是要把filter_unit里面的filter obj修改
   for (auto filter_unit : select_stmt->filter_stmt()->filter_units()) {
-    if (filter_unit->left().obj_type == 2) {
+    if (filter_unit->left().expr != nullptr && filter_unit->left().expr->type() == ExprType::SELECT) {
       // 是一个select_stmt，那就递归重写
-      Stmt *rewrited_sub_stmt = filter_unit->left().select_stmt;
+      Stmt *rewrited_sub_stmt = dynamic_cast<SelectExpr *>(filter_unit->left().expr)->select_stmt_;
       rc                      = rewrite_stmt(rewrited_sub_stmt, tuple);
       if (rc != RC::SUCCESS) {
         LOG_WARN("failed to rewrite sub stmt. rc=%s", strrc(rc));
         return rc;
       }
-      filter_unit->left().select_stmt = rewrited_sub_stmt;
+      dynamic_cast<SelectExpr *>(filter_unit->left().expr)->select_stmt_ = rewrited_sub_stmt;
     }
-    if (filter_unit->right().obj_type == 2) {
+    if (filter_unit->right().expr != nullptr && filter_unit->right().expr->type() == ExprType::SELECT) {
       // 是一个select_stmt，那就递归重写
-      Stmt *rewrited_sub_stmt = filter_unit->right().select_stmt;
+      Stmt *rewrited_sub_stmt = dynamic_cast<SelectExpr *>(filter_unit->right().expr)->select_stmt_;
       rc                      = rewrite_stmt(rewrited_sub_stmt, tuple);
       if (rc != RC::SUCCESS) {
         LOG_WARN("failed to rewrite sub stmt. rc=%s", strrc(rc));
         return rc;
       }
-      filter_unit->right().select_stmt = rewrited_sub_stmt;
+      dynamic_cast<SelectExpr *>(filter_unit->right().expr)->select_stmt_ = rewrited_sub_stmt;
     }
-    if (filter_unit->left().field.table() != nullptr &&
-        strcmp(filter_unit->left().field.table_name(), row_tuple->table().name()) == 0) {
+    if (filter_unit->left().expr != nullptr && filter_unit->left().expr->type() == ExprType::FIELD &&
+        strcmp(dynamic_cast<FieldExpr *>(filter_unit->left().expr)->table_name(), row_tuple->table().name()) == 0) {
       // 这是需要被替换的东西
       // 从tuples_里面找到这个tuple
-      rc = row_tuple->find_cell(
-          TupleCellSpec(filter_unit->left().field.table_name(), filter_unit->left().field.field_name()),
-          filter_unit->left().value);
+      Value tmp_value;
+      rc = row_tuple->find_cell(TupleCellSpec(dynamic_cast<FieldExpr *>(filter_unit->left().expr)->table_name(),
+                                    dynamic_cast<FieldExpr *>(filter_unit->left().expr)->field_name()),
+          tmp_value);
       if (rc != RC::SUCCESS) {
         LOG_WARN("failed to find cell. rc=%s", strrc(rc));
         return rc;
       }
-      filter_unit->left().obj_type = 0;
+      ValueExpr *value_expr = new ValueExpr(tmp_value);
+      recover_table[value_expr] = filter_unit->left().expr;  // 用现在存的expr保存下来信息，recover的时候把指针给回去
+      filter_unit->left().init_expr(value_expr);
     }
-    if (filter_unit->right().field.table() != nullptr &&
-        strcmp(filter_unit->right().field.table_name(), row_tuple->table().name()) == 0) {
+    if (filter_unit->right().expr != nullptr && filter_unit->right().expr->type() == ExprType::FIELD &&
+        strcmp(dynamic_cast<FieldExpr *>(filter_unit->right().expr)->table_name(), row_tuple->table().name()) == 0) {
       // 这是需要被替换的东西
       // 从tuples_里面找到这个tuple
-      rc = row_tuple->find_cell(
-          TupleCellSpec(filter_unit->right().field.table_name(), filter_unit->right().field.field_name()),
-          filter_unit->right().value);
+      Value tmp_value;
+      rc = row_tuple->find_cell(TupleCellSpec(dynamic_cast<FieldExpr *>(filter_unit->right().expr)->table_name(),
+                                    dynamic_cast<FieldExpr *>(filter_unit->right().expr)->field_name()),
+          tmp_value);
       if (rc != RC::SUCCESS) {
         LOG_WARN("failed to find cell. rc=%s", strrc(rc));
         return rc;
       }
-      filter_unit->right().obj_type = 0;
+      ValueExpr *value_expr = new ValueExpr(tmp_value);
+      recover_table[value_expr] = filter_unit->right().expr;  // 用现在存的expr保存下来信息，recover的时候把指针给回去
+      filter_unit->right().init_expr(value_expr);
     }
   }
 
@@ -471,37 +464,41 @@ RC SelectExpr::recover_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
   // 只要还有filter_unit，就一直处理
   // 因为就是要把filter_unit里面的filter obj修改
   for (auto filter_unit : select_stmt->filter_stmt()->filter_units()) {
-    if (filter_unit->left().obj_type == 2) {
-      // 是一个select_stmt，那就递归重写
-      Stmt *rewrited_sub_stmt = filter_unit->left().select_stmt;
+    if (filter_unit->left().expr->type() == ExprType::SELECT) {
+      // 是一个select_stmt，那就递归还原
+      Stmt *rewrited_sub_stmt = dynamic_cast<SelectExpr *>(filter_unit->left().expr)->select_stmt_;
       rc                      = recover_stmt(rewrited_sub_stmt, row_tuple);
       if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to rewrite sub stmt. rc=%s", strrc(rc));
+        LOG_WARN("failed to recover sub stmt. rc=%s", strrc(rc));
         return rc;
       }
-      filter_unit->left().select_stmt = rewrited_sub_stmt;
+      dynamic_cast<SelectExpr *>(filter_unit->left().expr)->select_stmt_ = rewrited_sub_stmt;
     }
-    if (filter_unit->right().obj_type == 2) {
-      // 是一个select_stmt，那就递归重写
-      Stmt *rewrited_sub_stmt = filter_unit->right().select_stmt;
+    if (filter_unit->right().expr->type() == ExprType::SELECT) {
+      // 是一个select_stmt，那就递归还原
+      Stmt *rewrited_sub_stmt = dynamic_cast<SelectExpr *>(filter_unit->right().expr)->select_stmt_;
       rc                      = recover_stmt(rewrited_sub_stmt, row_tuple);
       if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to rewrite sub stmt. rc=%s", strrc(rc));
+        LOG_WARN("failed to recover sub stmt. rc=%s", strrc(rc));
         return rc;
       }
-      filter_unit->right().select_stmt = rewrited_sub_stmt;
+      dynamic_cast<SelectExpr *>(filter_unit->right().expr)->select_stmt_ = rewrited_sub_stmt;
     }
-    if (filter_unit->left().field.table() != nullptr &&
-        strcmp(filter_unit->left().field.table_name(), row_tuple->table().name()) == 0) {
+    if (filter_unit->left().expr->type() == ExprType::VALUE &&
+        recover_table.find(filter_unit->left().expr) != recover_table.end()) {
       // 这是需要被替换的东西
       // 从tuples_里面找到这个tuple
-      filter_unit->left().obj_type = 1;
+      auto *tmp_ptr = filter_unit->left().expr;
+      filter_unit->left().init_expr(recover_table[filter_unit->left().expr]);
+      recover_table.erase(tmp_ptr);
     }
-    if (filter_unit->right().field.table() != nullptr &&
-        strcmp(filter_unit->right().field.table_name(), row_tuple->table().name()) == 0) {
+    if (filter_unit->right().expr->type() == ExprType::VALUE &&
+        recover_table.find(filter_unit->right().expr) != recover_table.end()) {
       // 这是需要被替换的东西
       // 从tuples_里面找到这个tuple
-      filter_unit->right().obj_type = 1;
+      auto *tmp_ptr = filter_unit->right().expr;
+      filter_unit->right().init_expr(recover_table[filter_unit->right().expr]);
+      recover_table.erase(tmp_ptr);
     }
   }
   return rc;
@@ -538,6 +535,15 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   bool default_value = (conjunction_type_ == Type::AND);
   value.set_boolean(default_value);
   return rc;
+}
+
+Expression *ConjunctionExpr::clone() const
+{
+  vector<unique_ptr<Expression>> children;
+  for (const unique_ptr<Expression> &expr : children_) {
+    children.push_back(unique_ptr<Expression>(expr->clone()));
+  }
+  return new ConjunctionExpr(conjunction_type_, children);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,4 +678,10 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   }
 
   return calc_value(left_value, right_value, value);
+}
+
+Expression *ArithmeticExpr::clone() const
+{
+  return new ArithmeticExpr(
+      arithmetic_type_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>(right_->clone()));
 }
