@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/stmt/having_filter_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "storage/db/db.h"
@@ -123,7 +124,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           query_fields.push_back(Field(table, field_meta));
 
           // 记录field的聚合信息：这里可能存在5种类型的聚合
-          if (0 != strcmp(aggregation_function, "")) {
+          // if (0 != strcmp(aggregation_function, "")) {
+          if (!common::is_blank(aggregation_function)) {
             aggregation_func.emplace_back(std::string(aggregation_function), Field(table, field_meta));
           }
         }
@@ -144,7 +146,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       query_fields.push_back(Field(table, field_meta));
 
       // 记录field的聚合信息：这里可能存在5种类型的聚合
-      if (0 != strcmp(relation_attr.aggregation_func.c_str(), "")) {
+      // if (0 != strcmp(relation_attr.aggregation_func.c_str(), "")) {
+      if (!common::is_blank(relation_attr.aggregation_func.c_str())) {
         aggregation_func.emplace_back(std::string(relation_attr.aggregation_func.c_str()), Field(table, field_meta));
       }
     }
@@ -171,12 +174,89 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
-  if (!aggregation_func.empty()) {
-    for (auto attr : select_sql.attributes) {
-      if (attr.aggregation_func == "") {
-        return RC::SQL_SYNTAX;
+  if (select_sql.groups.empty()) {
+    if (!aggregation_func.empty()) {
+      for (auto attr : select_sql.attributes) {
+        if (common::is_blank(attr.aggregation_func.c_str())) {
+          return RC::SQL_SYNTAX;
+        }
       }
     }
+  } else {  // FIXME: 在有group by语句时，如果有聚合，则非聚合的属性一定要作为group by的属性，不能出现未被group
+            // by使用的非聚合的属性
+            // FIXME: haing子句可能也需要一些判断
+  }
+
+  // collect group by fields
+  std::vector<Field> group_by_fields;
+  for (int i = 0; i < static_cast<int>(select_sql.groups.size()); i++) {
+    const RelAttrSqlNode &group_attr = select_sql.groups[i];
+
+    if (common::is_blank(group_attr.relation_name.c_str()) &&
+        0 == strcmp(group_attr.attribute_name.c_str(), "*")) {  // 表名为空且分组所有属性(*)
+      // 不需要处理这种分组，没有分组的意义
+      LOG_WARN("group by * have no meaning");
+      return RC::SQL_SYNTAX;
+    } else if (!common::is_blank(group_attr.relation_name.c_str())) {  // 表名非空
+      const char *table_name = group_attr.relation_name.c_str();
+      const char *field_name = group_attr.attribute_name.c_str();
+
+      if (0 == strcmp(table_name, "*")) {  // table_name == "*"
+        if (0 != strcmp(field_name, "*")) {
+          LOG_WARN("invalid field name while table is *. attr=%s", field_name);
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+        // 不需要处理这种分组，没有分组的意义
+        LOG_WARN("group by *.* have no meaning");
+        return RC::SQL_SYNTAX;
+      } else {  // table_name != "*"
+        auto iter = table_map.find(table_name);
+        if (iter == table_map.end()) {
+          LOG_WARN("no such table in from list: %s", table_name);
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+
+        Table *table = iter->second;
+        if (0 == strcmp(field_name, "*")) {
+          wildcard_fields(table, group_by_fields);
+        } else {
+          const FieldMeta *field_meta = table->table_meta().field(field_name);
+          if (nullptr == field_meta) {
+            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+
+          group_by_fields.push_back(Field(table, field_meta));
+        }
+      }
+    } else {  // 表名为空，但不是分组所有属性
+      if (tables.size() != 1) {
+        LOG_WARN("invalid. I do not know the attr's table. attr=%s", group_attr.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      Table           *table      = tables[0];
+      const FieldMeta *field_meta = table->table_meta().field(group_attr.attribute_name.c_str());
+      if (nullptr == field_meta) {
+        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), group_attr.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      group_by_fields.push_back(Field(table, field_meta));
+    }
+  }
+
+  // collect filter conditions in 'having' statement
+  HavingFilterStmt *having_filter_stmt = nullptr;
+  rc                                   = HavingFilterStmt::create(db,
+      default_table,
+      &table_map,
+      select_sql.havings.data(),
+      static_cast<int>(select_sql.havings.size()),
+      having_filter_stmt);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("cannot construct having filter stmt");
+    return rc;
   }
 
   // everything alright
@@ -186,6 +266,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->aggregation_func_.swap(aggregation_func);
-  stmt = select_stmt;
+  select_stmt->group_by_fields_.swap(group_by_fields);
+  select_stmt->having_filter_stmt_ = having_filter_stmt;
+  stmt                             = select_stmt;
   return RC::SUCCESS;
 }

@@ -233,6 +233,17 @@ RC PhysicalPlanGenerator::create_plan(AggregateLogicalOperator &aggregate_oper, 
   AggregatePhysicalOperator *aggregate_operator =
       new AggregatePhysicalOperator(aggregate_oper.aggregations(), aggregate_oper.fields());
 
+  if (!aggregate_oper.group_by_fields().empty()) {
+    aggregate_operator->set_group_by_fields(aggregate_oper.group_by_fields());
+  }
+
+  if (!aggregate_oper.expressions().empty()) {
+    vector<unique_ptr<Expression>> &expressions = aggregate_oper.expressions();
+    unique_ptr<Expression>          expression  = std::move(expressions.front());
+    aggregate_operator->set_having_filter_units(aggregate_oper.having_filter_units());
+    aggregate_operator->set_having_filters(std::move(expression));
+  }
+
   if (child_phy_oper) {
     aggregate_operator->add_child(std::move(child_phy_oper));
   }

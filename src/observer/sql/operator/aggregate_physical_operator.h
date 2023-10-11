@@ -15,6 +15,33 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "sql/operator/physical_operator.h"
+#include "sql/stmt/having_filter_stmt.h"
+
+struct GroupByValues
+{
+  std::vector<Value> data;
+  bool               operator<(const GroupByValues &that) const
+  {
+    for (int i = 0; i < data.size(); i++) {
+      const Value &this_value = data[i];
+      const Value &that_value = that.data[i];
+      if (this_value.compare(that_value) != 0) {
+        return this_value.compare(that_value) < 0;
+      }
+    }
+  }
+
+  // bool operator == (GroupByValues &that) {
+  //   for (int i = 0; i < data.size(); i++) {
+  //     Value& this_value = data[i];
+  //     Value& that_value = that.data[i];
+  //     if (this_value.compare(that_value) != 0) {
+  //       return false;
+  //     }
+  //   }
+  //   return true;
+  // }
+};
 
 /**
  * @brief 聚合物理算子
@@ -33,6 +60,10 @@ public:
   //   void add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions) {}
 
   PhysicalOperatorType type() const override { return PhysicalOperatorType::AGGREGATE; }
+
+  void set_group_by_fields(const std::vector<Field> &group_by_fields) { group_by_fields_ = group_by_fields; }
+  void set_having_filters(std::unique_ptr<Expression> expression) { having_filters_ = std::move(expression); }
+  void set_having_filter_units(const std::vector<HavingFilterUnit *> &having_filter_units) { having_filter_units_ = having_filter_units; }
 
   RC open(Trx *trx) override;
   RC next() override;
@@ -54,4 +85,14 @@ private:
   void do_count_aggregate(Field &field);
   void do_avg_aggregate(Field &field);
   void do_sum_aggregate(Field &field);
+
+  std::vector<Field>                                       group_by_fields_;
+  std::vector<HavingFilterUnit *>                          having_filter_units_;
+  std::unique_ptr<Expression>                              having_filters_;
+  std::vector<int>                                         group_by_fields_idx_;
+  std::map<GroupByValues, std::vector<std::vector<Value>>> group_tuples_values_;
+
+
+  
+  std::map<GroupByValues, std::vector<Tuple*>>             group_tuples_;
 };

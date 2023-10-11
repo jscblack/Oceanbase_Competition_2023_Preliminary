@@ -44,30 +44,95 @@ RC AggregatePhysicalOperator::open(Trx *trx)
   // LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
   // LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());
 
-  for (auto &agg : aggregations_) {
-    if (agg.first == "MAX") {
-      do_max_aggregate(agg.second);
-    } else if (agg.first == "MIN") {
-      do_min_aggregate(agg.second);
-    } else if (agg.first == "COUNT") {
-      do_count_aggregate(agg.second);
-    } else if (agg.first == "AVG") {
-      do_avg_aggregate(agg.second);
-    } else if (agg.first == "SUM") {
-      do_sum_aggregate(agg.second);
+  // 分组
+  // 1. 首先找到分组属性在每行tuple的位置
+  for (auto group_by_field : group_by_fields_) {
+    for (int idx = 0; idx < fields_.size(); idx++) {
+      if (strcmp(group_by_field.table_name(), fields_[idx].table_name()) == 0 &&
+          strcmp(group_by_field.field_name(), fields_[idx].field_name()) == 0) {
+        group_by_fields_idx_.emplace_back(idx);
+        break;
+      }
+    }
+  }
+  // 2. 根据分组属性将tuples_values填充到映射group_tuples_values中
+  for (auto tuple_values : tuples_values_) {
+    GroupByValues group_by_values;
+    for (auto idx : group_by_fields_idx_) {
+      group_by_values.data.emplace_back(tuple_values[idx]);
+    }
+
+    auto it = group_tuples_values_.find(group_by_values);
+    if (it != group_tuples_values_.end()) {
+      it->second.emplace_back(tuple_values);
     } else {
-      return RC::INVALID_ARGUMENT;
+      std::vector<std::vector<Value>> tmp;
+      tmp.emplace_back(tuple_values);
+      group_tuples_values_.insert({group_by_values, tmp});
     }
   }
 
-  // 构造返回的value list tuple
-  std::vector<Value> result_value;
-  for (int i = 0; i < aggregate_results_.size(); i++) {
-    result_value.emplace_back(aggregate_results_[i]);
-  }
-  ValueListTuple vlt;
-  vlt.set_cells(result_value);
-  return_results_.emplace_back(vlt);
+
+  // 聚集
+  //
+  // // 以下为feat-aggregation-func的实现
+  // for (auto &agg : aggregations_) {
+  //   if (agg.first == "MAX") {
+  //     do_max_aggregate(agg.second);
+  //   } else if (agg.first == "MIN") {
+  //     do_min_aggregate(agg.second);
+  //   } else if (agg.first == "COUNT") {
+  //     do_count_aggregate(agg.second);
+  //   } else if (agg.first == "AVG") {
+  //     do_avg_aggregate(agg.second);
+  //   } else if (agg.first == "SUM") {
+  //     do_sum_aggregate(agg.second);
+  //   } else {
+  //     return RC::INVALID_ARGUMENT;
+  //   }
+  // }
+
+  // // 构造返回的value list tuple
+  // std::vector<Value> result_value;
+  // for (int i = 0; i < aggregate_results_.size(); i++) {
+  //   result_value.emplace_back(aggregate_results_[i]);
+  // }
+  // ValueListTuple vlt;
+  // vlt.set_cells(result_value);
+  // return_results_.emplace_back(vlt);
+
+  // 以下为分组聚集的实现
+
+
+
+
+  // 筛选
+  // 1. 取出筛选having子句的属性---应该已经做过了，直接筛选即可
+
+  // for (int i = 0; i < having_filter_units_.size(); i++) {
+  //   const HavingFilterObj &filter_obj_left = having_filter_units_[i]->left();
+  //   const HavingFilterObj &filter_obj_right = having_filter_units_[i]->right();
+  //   if (filter_obj_left.is_attr) {
+
+  //   }
+    
+  // }
+
+  // 2. 做having子句中的聚集操作，并构建
+
+
+  // 3. 通过expression判断是否条件满足
+
+
+
+  // 以下代码被废弃，尽管使用了类型转换，但无法判断出comparison expression的left和right哪个是field expression哪个是value expression
+  // ConjunctionExpr *having_filters_cast = dynamic_cast<ConjunctionExpr *>(having_filters_.get());
+  // std::vector<std::unique_ptr<Expression>> &children_expressions = having_filters_cast->children();
+  // for (int i = 0; i < children_expressions.size(); i++) {
+  //   ComparisonExpr *child_comparison = dynamic_cast<ComparisonExpr *>(children_expressions[i].get());
+  //   child_comparison->left();
+  // }
+
 
   return RC::SUCCESS;
 }

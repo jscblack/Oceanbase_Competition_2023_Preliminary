@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 
 class FieldMeta;
 class FilterStmt;
+class HavingFilterStmt;
 class Db;
 class Table;
 
@@ -46,10 +47,14 @@ public:
   const std::vector<Field>                         &query_fields() const { return query_fields_; }
   FilterStmt                                       *filter_stmt() const { return filter_stmt_; }
   const std::vector<std::pair<std::string, Field>> &aggregation_func() const { return aggregation_func_; }
+  const std::vector<Field>                         &group_by_fields() const { return group_by_fields_; }
+  HavingFilterStmt                                 *having_filter_stmt() const { return having_filter_stmt_; }
 
 private:
   std::vector<Field>                         query_fields_;
   std::vector<Table *>                       tables_;
   FilterStmt                                *filter_stmt_ = nullptr;
   std::vector<std::pair<std::string, Field>> aggregation_func_;  // (aggregation_function_type, Field)
+  std::vector<Field>                         group_by_fields_;
+  HavingFilterStmt                          *having_filter_stmt_ = nullptr;
 };

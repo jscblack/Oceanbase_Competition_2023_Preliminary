@@ -36,9 +36,9 @@ class Expression;
  */
 struct RelAttrSqlNode
 {
-  std::string relation_name;          ///< relation name (may be NULL) 表名
-  std::string attribute_name;         ///< attribute name              属性名
-  std::string aggregation_func = "";  ///< aggregation function       聚合函数类型 max/min/count/avg/sum
+  std::string relation_name;     ///< relation name (may be NULL) 表名
+  std::string attribute_name;    ///< attribute name              属性名
+  std::string aggregation_func;  ///< aggregation function        聚合函数类型 max/min/count/avg/sum
 };
 
 /**
@@ -97,6 +97,8 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>   attributes;  ///< attributes in select clause
   std::vector<std::string>      relations;   ///< 查询的表
   std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件
+  std::vector<RelAttrSqlNode>   groups;      ///< 分组的属性
+  std::vector<ConditionSqlNode> havings;     ///< 分组筛选条件，同样是使用AND串联起来多个条件
 };
 
 /**
