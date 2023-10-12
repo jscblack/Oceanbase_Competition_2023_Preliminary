@@ -391,6 +391,9 @@ RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *tr
 
 RC SelectExpr::rewrite_stmt(FilterStmt *&rewrited_stmt, const Tuple *tuple)
 {
+  if (rewrited_stmt == nullptr) {
+    return RC::SUCCESS;
+  }
   const RowTuple *row_tuple = static_cast<const RowTuple *>(tuple);
   RC              rc        = RC::SUCCESS;
   if (rewrited_stmt->is_filter_unit()) {
@@ -431,6 +434,7 @@ RC SelectExpr::rewrite_stmt(FilterStmt *&rewrited_stmt, const Tuple *tuple)
       }
       ValueExpr *value_expr     = new ValueExpr(tmp_value);
       recover_table[value_expr] = filter_unit->left().expr;
+      filter_unit->left().init_expr(value_expr);
     }
     if (filter_unit->right().expr != nullptr && filter_unit->right().expr->type() == ExprType::FIELD &&
         strcmp(dynamic_cast<FieldExpr *>(filter_unit->right().expr)->table_name(), row_tuple->table().name()) == 0) {
@@ -446,6 +450,7 @@ RC SelectExpr::rewrite_stmt(FilterStmt *&rewrited_stmt, const Tuple *tuple)
       }
       ValueExpr *value_expr     = new ValueExpr(tmp_value);
       recover_table[value_expr] = filter_unit->right().expr;
+      filter_unit->right().init_expr(value_expr);
     }
   } else {
     // 非叶子节点
@@ -491,6 +496,9 @@ RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
 
 RC SelectExpr::recover_stmt(FilterStmt *&rewrited_stmt, const Tuple *tuple)
 {
+  if (rewrited_stmt == nullptr) {
+    return RC::SUCCESS;
+  }
   const RowTuple *row_tuple = static_cast<const RowTuple *>(tuple);
   RC              rc        = RC::SUCCESS;
   if (rewrited_stmt->is_filter_unit()) {

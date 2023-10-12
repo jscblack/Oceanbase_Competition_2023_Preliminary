@@ -30,6 +30,7 @@ RC LogicalCalcSimplificationRule::rewrite(std::unique_ptr<Expression> &expr, boo
 {
   // TODO 修复bug
   return RC::SUCCESS;
+
   RC rc = RC::SUCCESS;
   if (expr != nullptr && expr->type() != ExprType::LOGICALCALC) {
     return rc;
