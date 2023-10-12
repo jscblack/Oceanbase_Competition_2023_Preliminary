@@ -106,6 +106,10 @@ struct ConditionSqlNode
   ConditionSqlNode *left_cond  = nullptr;
   LogiOp            logi_op;
   ConditionSqlNode *right_cond = nullptr;
+
+  ConditionSqlNode() = default;
+  ConditionSqlNode(ConditionSqlNode *left, LogiOp op, ConditionSqlNode *right)
+      : inner_node(true), left_cond(left), logi_op(op), right_cond(right){};
 };
 
 struct OrderSqlNode

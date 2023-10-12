@@ -652,14 +652,25 @@ select_stmt:        /*  select 语句的语法解析树*/
         $$->selection.attributes.swap(*$2);
         delete $2;
       }
-
-      $$->selection.relations.swap($4->first);
-      // $$->selection.conditions.swap($4->second);
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-      delete $4;
+      if ($4 != nullptr) {
+        $$->selection.relations.swap($4->first);
+        // $$->selection.conditions.swap($4->second);
+        if($4->second.size()==1){
+          $$->selection.conditions = &($4->second[0]);
+        }else{
+          $$->selection.conditions= new ConditionSqlNode(&($4->second[0]),LogiOp::AND_ENUM,&($4->second[1]));
+            for (int i=2;i<$4->second.size();i++){
+            $$->selection.conditions = new ConditionSqlNode($$->selection.conditions,LogiOp::AND_ENUM,&($4->second[i]));
+          }
+        }
+      }
 
       if($5 != nullptr) {
-        $$->selection.conditions = $5;
+        if($$->selection.conditions==nullptr){
+          $$->selection.conditions = $5;
+        }else{
+          $$->selection.conditions = new ConditionSqlNode( $$->selection.conditions, LogiOp::AND_ENUM,$5);
+        }
       }
       if ($6 != nullptr) {
         $$->selection.orders.swap(*$6);
