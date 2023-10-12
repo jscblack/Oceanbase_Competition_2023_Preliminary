@@ -13,9 +13,9 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/select_stmt.h"
-#include "sql/stmt/filter_stmt.h"
-#include "common/log/log.h"
 #include "common/lang/string.h"
+#include "common/log/log.h"
+#include "sql/stmt/filter_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
@@ -61,6 +61,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
     tables.push_back(table);
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
+  }
+  for (auto table : table_map) {
+    table_map_.insert(table);
   }
 
   // collect query fields in `select` statement
@@ -162,7 +165,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   FilterStmt *filter_stmt = nullptr;
   RC          rc          = FilterStmt::create(db,
       default_table,
-      &table_map,
+      &table_map_,
       select_sql.conditions.data(),
       static_cast<int>(select_sql.conditions.size()),
       filter_stmt);
@@ -243,5 +246,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->aggregation_func_.swap(aggregation_func);
   select_stmt->order_by_.swap(order_by);
   stmt = select_stmt;
+  // remove table_map_
+  for (auto table : table_map) {
+    table_map_.erase(table.first);
+  }
   return RC::SUCCESS;
 }

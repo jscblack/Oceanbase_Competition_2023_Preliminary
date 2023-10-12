@@ -116,7 +116,7 @@ void AggregatePhysicalOperator::do_max_aggregate(Field &field)
   // 检查是否为空
   if (tuples_values_.empty()) {
     Value empty_value;
-    empty_value.set_type(field.attr_type());
+    empty_value.set_type(AttrType::NONE);
     aggregate_results_.emplace_back(empty_value);
     return;
   }
@@ -173,7 +173,7 @@ void AggregatePhysicalOperator::do_min_aggregate(Field &field)
   // 检查是否为空
   if (tuples_values_.empty()) {
     Value empty_value;
-    empty_value.set_type(field.attr_type());
+    empty_value.set_type(AttrType::NONE);
     aggregate_results_.emplace_back(empty_value);
     return;
   }
@@ -273,7 +273,7 @@ void AggregatePhysicalOperator::do_avg_aggregate(Field &field)
   // 检查是否为空
   if (tuples_values_.empty()) {
     Value empty_value;
-    empty_value.set_type(field.attr_type());
+    empty_value.set_type(AttrType::NONE);
     aggregate_results_.emplace_back(empty_value);
     return;
   }
@@ -305,7 +305,11 @@ void AggregatePhysicalOperator::do_avg_aggregate(Field &field)
         cnt++;
       }
     }
-    avg_value.set_int(sum / cnt);
+    if (sum % cnt == 0) {
+      avg_value.set_int(sum / cnt);
+    } else {
+      avg_value.set_float((float)sum / (float)cnt);
+    }
   } else if (attr_type == FLOATS) {
     float sum = 0;
     for (auto t : tuples_values_) {
@@ -386,7 +390,7 @@ void AggregatePhysicalOperator::do_sum_aggregate(Field &field)
   // 检查是否为空
   if (tuples_values_.empty()) {
     Value empty_value;
-    empty_value.set_type(field.attr_type());
+    empty_value.set_type(AttrType::NONE);
     aggregate_results_.emplace_back(empty_value);
     return;
   }

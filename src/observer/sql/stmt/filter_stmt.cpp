@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include "common/rc.h"
+#include "sql/stmt/select_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
@@ -91,43 +92,93 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   filter_unit         = new FilterUnit;
   AttrType type_left  = UNDEFINED;
   AttrType type_right = UNDEFINED;
-
-  if (condition.left_is_attr) {
-    Table           *table = nullptr;
-    const FieldMeta *field = nullptr;
-    rc                     = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
+  // TODO: 实现exist
+  switch (condition.left_type) {
+    case 0: {
+      // value (expr)
+      FilterObj filter_obj;
+      filter_obj.init_expr(condition.left_expr);
+      filter_unit->set_left(filter_obj);
+      type_left = filter_obj.expr->value_type();
+    } break;
+    case 1: {
+      // attr
+      Table           *table = nullptr;
+      const FieldMeta *field = nullptr;
+      rc                     = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
+      FilterObj filter_obj;
+      filter_obj.init_expr(new FieldExpr(table, field));
+      filter_unit->set_left(filter_obj);
+      type_left = field->type();
+    } break;
+    case 2: {
+      // sub select
+      Stmt *select_stmt = nullptr;
+      rc                = SelectStmt::create(db, *condition.left_select, select_stmt);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
+        return rc;
+      }
+      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
+        LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
+        return RC::INVALID_ARGUMENT;
+      }
+      filter_unit->left().init_expr(new SelectExpr(select_stmt));
+      type_left = reinterpret_cast<SelectStmt *>(select_stmt)->query_fields()[0].attr_type();
+    } break;
+    default: {
+      delete filter_unit;
+      LOG_WARN("invalid left_type: %d", condition.left_type);
+      return RC::INVALID_ARGUMENT;
     }
-    FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_left(filter_obj);
-    type_left = field->type();
-  } else {
-    FilterObj filter_obj;
-    filter_obj.init_value(condition.left_value);
-    filter_unit->set_left(filter_obj);
-    type_left = filter_obj.value.attr_type();
   }
 
-  if (condition.right_is_attr) {
-    Table           *table = nullptr;
-    const FieldMeta *field = nullptr;
-    rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
+  switch (condition.right_type) {
+    case 0: {
+      // value (expr)
+      FilterObj filter_obj;
+      filter_obj.init_expr(condition.right_expr);
+      filter_unit->set_right(filter_obj);
+      type_right = filter_obj.expr->value_type();
+    } break;
+    case 1: {
+      // attr
+      Table           *table = nullptr;
+      const FieldMeta *field = nullptr;
+      rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
+      FilterObj filter_obj;
+      filter_obj.init_expr(new FieldExpr(table, field));
+      filter_unit->set_right(filter_obj);
+      type_right = field->type();
+    } break;
+    case 2: {
+      // sub select
+      Stmt *select_stmt = nullptr;
+      rc                = SelectStmt::create(db, *condition.right_select, select_stmt);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
+        return rc;
+      }
+      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
+        LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
+        return RC::INVALID_ARGUMENT;
+      }
+      filter_unit->right().init_expr(new SelectExpr(select_stmt));
+      type_right = reinterpret_cast<SelectStmt *>(select_stmt)->query_fields()[0].attr_type();
+    } break;
+    default: {
+      delete filter_unit;
+      LOG_WARN("invalid right_type: %d", condition.right_type);
+      return RC::INVALID_ARGUMENT;
     }
-    FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_right(filter_obj);
-    type_right = field->type();
-  } else {
-    FilterObj filter_obj;
-    filter_obj.init_value(condition.right_value);
-    filter_unit->set_right(filter_obj);
-    type_right = filter_obj.value.attr_type();
   }
 
   filter_unit->set_comp(comp);
@@ -135,7 +186,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   // like的语法检测, 必须左边是属性(字符串field), 右边是字符串
   // 目前应该不需要支持右边是非字符串转成字符串???
   if (LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) {
-    if (condition.left_is_attr && !condition.right_is_attr) {
+    if (condition.left_type == 1 && condition.right_type == 0) {
       if (type_left != CHARS || type_right != CHARS) {
         delete filter_unit;
         LOG_WARN("attr LIKE/NOT LIKE value, attr and value must be CHARS");
@@ -154,22 +205,24 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     if (type_left == DATES || type_right == DATES) {
       // date conversation
       // advance check for date
-      if (!filter_unit->left().is_attr && filter_unit->right().is_attr) {  // left:value, right:attr
+      if (filter_unit->left().expr->type() == ExprType::VALUE &&
+          filter_unit->right().expr->type() == ExprType::FIELD) {  // left:value, right:attr
         if (type_right == DATES) {
           // the attr is date type, so we need to convert the value to date type
-          if (filter_unit->left().value.attr_type() == CHARS) {
-            rc = filter_unit->left().value.auto_cast(DATES);
+          if (filter_unit->left().expr->value_type() == CHARS) {
+            rc = dynamic_cast<ValueExpr *>(filter_unit->left().expr)->get_value().auto_cast(DATES);
             if (rc != RC::SUCCESS) {
               delete filter_unit;
               return rc;
             }
           }
         }
-      } else if (filter_unit->left().is_attr && !filter_unit->right().is_attr) {  // left:attr, right:value
+      } else if (filter_unit->left().expr->type() == ExprType::FIELD &&
+                 filter_unit->right().expr->type() == ExprType::VALUE) {  // left:attr, right:value
         if (type_left == DATES) {
           // the attr is date type, so we need to convert the value to date type
-          if (filter_unit->right().value.attr_type() == CHARS) {
-            rc = filter_unit->right().value.auto_cast(DATES);
+          if (filter_unit->right().expr->value_type() == CHARS) {
+            rc = dynamic_cast<ValueExpr *>(filter_unit->right().expr)->get_value().auto_cast(DATES);
             if (rc != RC::SUCCESS) {
               delete filter_unit;
               return rc;
@@ -180,9 +233,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     } else if (type_left == CHARS && (type_right == FLOATS || type_right == INTS)) {
       // left is a string, and right is s a number
       // convert the string to number
-      if (!filter_unit->left().is_attr) {
+      if (filter_unit->left().expr->type() == ExprType::VALUE) {
         // left is a value
-        rc = filter_unit->left().value.str_to_number();
+        rc = dynamic_cast<ValueExpr *>(filter_unit->left().expr)->get_value().str_to_number();
+
         if (rc != RC::SUCCESS) {
           delete filter_unit;
           return rc;
@@ -191,9 +245,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     } else if ((type_left == FLOATS || type_left == INTS) && type_right == CHARS) {
       // left is a number, and right is a string
       // convert the string to number
-      if (!filter_unit->right().is_attr) {
+      if (filter_unit->right().expr->type() == ExprType::VALUE) {
         // right is a value
-        rc = filter_unit->right().value.str_to_number();
+        rc = dynamic_cast<ValueExpr *>(filter_unit->right().expr)->get_value().str_to_number();
+
         if (rc != RC::SUCCESS) {
           delete filter_unit;
           return rc;

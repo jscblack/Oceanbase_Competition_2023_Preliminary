@@ -12,9 +12,9 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2023/06/16.
 //
 
+#include <algorithm>
 #include <sys/errno.h>
 #include <unistd.h>
-#include <algorithm>
 
 #include "net/buffered_writer.h"
 
@@ -89,6 +89,16 @@ RC BufferedWriter::flush()
     rc = flush_internal(buffer_.size());
   }
   return rc;
+}
+
+RC BufferedWriter::clear()
+{
+  if (fd_ < 0) {
+    return RC::INVALID_ARGUMENT;
+  }
+
+  buffer_.forward(buffer_.size());
+  return RC::SUCCESS;
 }
 
 RC BufferedWriter::flush_internal(int32_t size)

@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "condition_filter.h"
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/value.h"
 #include "storage/record/record_manager.h"
 #include "storage/table/table.h"
@@ -37,7 +38,7 @@ RC field_type_compare_compatible_table(AttrType type_left, AttrType type_right)
 }
 
 ConditionFilter::~ConditionFilter() {}
-
+// 这里应该是给算子下推用的，子查询不会将过滤放到table scan的操作中
 DefaultConditionFilter::DefaultConditionFilter()
 {
   left_.is_attr     = false;
@@ -78,7 +79,7 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
   AttrType type_left  = UNDEFINED;
   AttrType type_right = UNDEFINED;
 
-  if (1 == condition.left_is_attr) {
+  if (1 == condition.left_type) {
     left.is_attr                = true;
     const FieldMeta *field_left = table_meta.field(condition.left_attr.attribute_name.c_str());
     if (nullptr == field_left) {
@@ -89,16 +90,16 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
     left.attr_offset = field_left->offset();
 
     type_left = field_left->type();
-  } else {
+  } else if (0 == condition.left_type) {
     left.is_attr = false;
-    left.value   = condition.left_value;  // 校验type 或者转换类型
-    type_left    = condition.left_value.attr_type();
+    left.value   = dynamic_cast<ValueExpr *>(condition.left_expr)->get_value();  // 校验type 或者转换类型
+    type_left    = condition.left_expr->value_type();
 
     left.attr_length = 0;
     left.attr_offset = 0;
   }
 
-  if (1 == condition.right_is_attr) {
+  if (1 == condition.right_type) {
     right.is_attr                = true;
     const FieldMeta *field_right = table_meta.field(condition.right_attr.attribute_name.c_str());
     if (nullptr == field_right) {
@@ -108,10 +109,10 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
     right.attr_length = field_right->len();
     right.attr_offset = field_right->offset();
     type_right        = field_right->type();
-  } else {
+  } else if (0 == condition.right_type) {
     right.is_attr = false;
-    right.value   = condition.right_value;
-    type_right    = condition.right_value.attr_type();
+    right.value   = dynamic_cast<ValueExpr *>(condition.right_expr)->get_value();
+    type_right    = condition.right_expr->value_type();
 
     right.attr_length = 0;
     right.attr_offset = 0;

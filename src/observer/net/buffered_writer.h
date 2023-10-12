@@ -57,6 +57,12 @@ public:
    */
   RC flush();
 
+  /**
+   * @brief 清空缓存
+   * @details 放弃缓存中的数据，不写入文件/socket
+   */
+  RC clear();
+
 private:
   /**
    * @brief 刷新缓存

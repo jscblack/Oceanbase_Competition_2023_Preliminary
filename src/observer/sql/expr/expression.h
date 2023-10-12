@@ -14,13 +14,14 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <string.h>
 #include <memory>
+#include <string.h>
 #include <string>
 
-#include "storage/field/field.h"
-#include "sql/parser/value.h"
 #include "common/log/log.h"
+#include "sql/parser/value.h"
+#include "sql/stmt/stmt.h"
+#include "storage/field/field.h"
 
 class Tuple;
 
@@ -39,9 +40,11 @@ enum class ExprType
   STAR,         ///< 星号，表示所有字段
   FIELD,        ///< 字段。在实际执行时，根据行数据内容提取对应字段的值
   VALUE,        ///< 常量值
+  VALUELIST,    ///< 常量列表
   CAST,         ///< 需要做类型转换的表达式
   COMPARISON,   ///< 需要做比较的表达式
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
+  SELECT,       ///< select子查询
   ARITHMETIC,   ///< 算术运算
 };
 
@@ -59,13 +62,23 @@ enum class ExprType
 class Expression
 {
 public:
-  Expression()          = default;
-  virtual ~Expression() = default;
+  Expression() = default;
+  virtual ~Expression(){};
+
+  /**
+   * @brief 拷贝构造函数
+   */
+  Expression(const Expression &expr) = default;
+
+  /**
+   * @brief 赋值运算符
+   */
+  Expression &operator=(const Expression &expr) = default;
 
   /**
    * @brief 根据具体的tuple，来计算当前表达式的值。tuple有可能是一个具体某个表的行数据
    */
-  virtual RC get_value(const Tuple &tuple, Value &value) const = 0;
+  virtual RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const = 0;
 
   /**
    * @brief 在没有实际运行的情况下，也就是无法获取tuple的情况下，尝试获取表达式的值
@@ -91,6 +104,11 @@ public:
   virtual std::string name() const { return name_; }
   virtual void        set_name(std::string name) { name_ = name; }
 
+  /**
+   * @brief 克隆一个表达式，新的内存拷贝
+   */
+  virtual Expression *clone() const = 0;
+
 private:
   std::string name_;
 };
@@ -105,8 +123,14 @@ public:
   FieldExpr() = default;
   FieldExpr(const Table *table, const FieldMeta *field) : field_(table, field) {}
   FieldExpr(const Field &field) : field_(field) {}
+  FieldExpr(const FieldExpr &expr) : field_(expr.field_) {}
+  FieldExpr &operator=(const FieldExpr &expr)
+  {
+    field_ = expr.field_;
+    return *this;
+  }
 
-  virtual ~FieldExpr() = default;
+  virtual ~FieldExpr(){};
 
   ExprType type() const override { return ExprType::FIELD; }
   AttrType value_type() const override { return field_.attr_type(); }
@@ -119,7 +143,9 @@ public:
 
   const char *field_name() const { return field_.field_name(); }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
+
+  Expression *clone() const override { return new FieldExpr(*this); }
 
 private:
   Field field_;
@@ -132,12 +158,18 @@ private:
 class ValueExpr : public Expression
 {
 public:
-  ValueExpr() = default;
+  ValueExpr() { value_.set_type(AttrType::NONE); };
   explicit ValueExpr(const Value &value) : value_(value) {}
+  explicit ValueExpr(const ValueExpr &expr) : value_(expr.value_) {}
+  ValueExpr &operator=(const ValueExpr &expr)
+  {
+    value_ = expr.value_;
+    return *this;
+  }
 
-  virtual ~ValueExpr() = default;
+  virtual ~ValueExpr(){};
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
   RC try_get_value(Value &value) const override
   {
     value = value_;
@@ -152,9 +184,51 @@ public:
 
   const Value &get_value() const { return value_; }
 
+  Expression *clone() const override { return new ValueExpr(*this); }
+
 private:
   Value value_;
 };
+
+/**
+ * @brief 常量列表表达式
+ * @ingroup Expression
+ */
+class ValueListExpr : public Expression
+{
+public:
+  ValueListExpr() = default;
+  explicit ValueListExpr(const std::vector<Value> &value_list) : value_list_(value_list) {}
+  explicit ValueListExpr(const ValueListExpr &expr) : value_list_(expr.value_list_) {}
+  ValueListExpr &operator=(const ValueListExpr &expr)
+  {
+    value_list_ = expr.value_list_;
+    return *this;
+  }
+
+  virtual ~ValueListExpr(){};
+
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override { return RC::UNIMPLENMENT; };
+
+  ExprType type() const override { return ExprType::VALUELIST; }
+
+  AttrType value_type() const override { return value_list_[0].attr_type(); }
+
+  RC get_values(std::vector<Value> &value_list) const
+  {
+    value_list = value_list_;
+    return RC::SUCCESS;
+  }
+
+  const std::vector<Value> &get_values() const { return value_list_; }
+
+  Expression *clone() const override { return new ValueListExpr(*this); }
+
+private:
+  std::vector<Value> value_list_;
+};
+
+// TODO 这个后面会是一个expression
 
 /**
  * @brief 类型转换表达式
@@ -164,16 +238,21 @@ class CastExpr : public Expression
 {
 public:
   CastExpr(std::unique_ptr<Expression> child, AttrType cast_type);
+  CastExpr(const CastExpr &expr)            = delete;
+  CastExpr &operator=(const CastExpr &expr) = delete;
+
   virtual ~CastExpr();
 
   ExprType type() const override { return ExprType::CAST; }
-  RC       get_value(const Tuple &tuple, Value &value) const override;
+  RC       get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
   RC try_get_value(Value &value) const override;
 
   AttrType value_type() const override { return cast_type_; }
 
   std::unique_ptr<Expression> &child() { return child_; }
+
+  Expression *clone() const override;
 
 private:
   RC cast(const Value &value, Value &cast_value) const;
@@ -191,11 +270,14 @@ class ComparisonExpr : public Expression
 {
 public:
   ComparisonExpr(CompOp comp, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
+  ComparisonExpr(const ComparisonExpr &expr)            = delete;
+  ComparisonExpr &operator=(const ComparisonExpr &expr) = delete;
+
   virtual ~ComparisonExpr();
 
   ExprType type() const override { return ExprType::COMPARISON; }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
   AttrType value_type() const override { return BOOLEANS; }
 
@@ -216,10 +298,61 @@ public:
    */
   RC compare_value(const Value &left, const Value &right, bool &value) const;
 
+  /**
+   * to handle in and not in
+   * @param value the result of comparison
+   */
+  RC compare_value(const Value &left, const std::vector<Value> &right, bool &value) const;
+
+  Expression *clone() const override;
+
 private:
   CompOp                      comp_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
+};
+
+/**
+ * @brief select子查询表达式，这其中需要处理子查询完整的生命周期
+ * @ingroup Expression
+ */
+class SelectExpr : public Expression
+{
+  inline static std::unordered_map<std::string, const Tuple *>
+      tuples_;  // 外层tuple的缓存，key是record所在的table的名字
+  inline static std::unordered_map<Expression *, Expression *> recover_table;
+
+public:
+  SelectExpr(Stmt *select_stmt);
+  SelectExpr(const SelectExpr &expr) { select_stmt_ = expr.select_stmt_; }
+  SelectExpr &operator=(const SelectExpr &expr)
+  {
+    select_stmt_ = expr.select_stmt_;
+    return *this;
+  }
+  virtual ~SelectExpr(){};
+
+  // 会递归调用get_value，即外层的tuple传给子查询，子查询再传给子查询的子查询
+  // 2023年10月9日20:17:12 得想清楚这玩意儿的逻辑，事实上pred的意义在于判断一个record是否应该被放进结果集
+  // 然后判断的过程就依赖于expression本身
+  // 比如外层一个record，这个时候他需要去得到内层的结果集才能判断是否应该留下
+  // 而内层需要知道外层才能得到结果集
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
+  RC get_value(const Tuple &tuple, std::vector<Value> &values, Trx *trx);
+
+  ExprType type() const override { return ExprType::SELECT; }
+  AttrType value_type() const override
+  {
+    // 在select真正执行之前，是无法知道select的结果集的类型的
+    return AttrType::UNDEFINED;
+  }
+  RC rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
+  RC recover_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
+
+  Expression *clone() const override { return new SelectExpr(*this); }
+
+private:
+  Stmt *select_stmt_;  // select子查询的语句
 };
 
 /**
@@ -239,17 +372,22 @@ public:
 
 public:
   ConjunctionExpr(Type type, std::vector<std::unique_ptr<Expression>> &children);
-  virtual ~ConjunctionExpr() = default;
+  ConjunctionExpr(const ConjunctionExpr &expr)            = delete;
+  ConjunctionExpr &operator=(const ConjunctionExpr &expr) = delete;
+
+  virtual ~ConjunctionExpr(){};
 
   ExprType type() const override { return ExprType::CONJUNCTION; }
 
   AttrType value_type() const override { return BOOLEANS; }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
   Type conjunction_type() const { return conjunction_type_; }
 
   std::vector<std::unique_ptr<Expression>> &children() { return children_; }
+
+  Expression *clone() const override;
 
 private:
   Type                                     conjunction_type_;
@@ -275,19 +413,29 @@ public:
 public:
   ArithmeticExpr(Type type, Expression *left, Expression *right);
   ArithmeticExpr(Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
-  virtual ~ArithmeticExpr() = default;
+  ArithmeticExpr(const ArithmeticExpr &expr) = delete;
+  // {
+  //   arithmetic_type_ = expr.arithmetic_type_;
+  //   left_            = std::unique_ptr<Expression>(new decltype (*expr.left_)(*expr.left_));
+  //   right_           = std::unique_ptr<Expression>(new decltype (*expr.right_)(*expr.right_));
+  // }
+  ArithmeticExpr &operator=(const ArithmeticExpr &expr) = delete;
+
+  virtual ~ArithmeticExpr(){};
 
   ExprType type() const override { return ExprType::ARITHMETIC; }
 
   AttrType value_type() const override;
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
   RC try_get_value(Value &value) const override;
 
   Type arithmetic_type() const { return arithmetic_type_; }
 
   std::unique_ptr<Expression> &left() { return left_; }
   std::unique_ptr<Expression> &right() { return right_; }
+
+  Expression *clone() const override;
 
 private:
   RC calc_value(const Value &left_value, const Value &right_value, Value &value) const;
