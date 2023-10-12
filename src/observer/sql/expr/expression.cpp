@@ -219,6 +219,30 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   return rc;
 }
 
+RC ComparisonExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
+{
+  Value left_value;
+  Value right_value;
+
+  RC rc = left_->get_value(tuples, left_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  rc = right_->get_value(tuples, right_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+    return rc;
+  }
+
+  bool bool_value = false;
+  rc              = compare_value(left_value, right_value, bool_value);
+  if (rc == RC::SUCCESS) {
+    value.set_boolean(bool_value);
+  }
+  return rc;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &children)
     : conjunction_type_(type), children_(std::move(children))
@@ -235,6 +259,33 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
   Value tmp_value;
   for (const unique_ptr<Expression> &expr : children_) {
     rc = expr->get_value(tuple, tmp_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value by child expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    bool bool_value = tmp_value.get_boolean();
+    if ((conjunction_type_ == Type::AND && !bool_value) || (conjunction_type_ == Type::OR && bool_value)) {
+      value.set_boolean(bool_value);
+      return rc;
+    }
+  }
+
+  bool default_value = (conjunction_type_ == Type::AND);
+  value.set_boolean(default_value);
+  return rc;
+}
+
+RC ConjunctionExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
+{
+  RC rc = RC::SUCCESS;
+  if (children_.empty()) {
+    value.set_boolean(true);
+    return rc;
+  }
+
+  Value tmp_value;
+  for (const unique_ptr<Expression> &expr : children_) {
+    rc = expr->get_value(tuples, tmp_value);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value by child expression. rc=%s", strrc(rc));
       return rc;
@@ -361,6 +412,26 @@ RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value) const
   return calc_value(left_value, right_value, value);
 }
 
+RC ArithmeticExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
+{
+  RC rc = RC::SUCCESS;
+
+  Value left_value;
+  Value right_value;
+
+  rc = left_->get_value(tuples, left_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  rc = right_->get_value(tuples, right_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  return calc_value(left_value, right_value, value);
+}
+
 RC ArithmeticExpr::try_get_value(Value &value) const
 {
   RC rc = RC::SUCCESS;
@@ -385,4 +456,305 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   return calc_value(left_value, right_value, value);
 }
 
-RC AggregationExpr::aggregate_value(const std::vector<Tuple> &tuples, Value &value) const { return RC::SUCCESS; }
+RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
+{
+  if (tuples.empty()) {
+    LOG_WARN("get value of tuples empty");
+    return RC::INTERNAL;
+  }
+
+  Tuple        *tpl      = tuples.front();
+  ProjectTuple *tpl_cast = dynamic_cast<ProjectTuple *>(tpl);
+
+  if (field_.table() != nullptr && field_.meta() == nullptr) {  // 特殊判断count(*)
+    do_count_aggregate(tuples, value, -1);
+    return RC::SUCCESS;
+  }
+
+  int                                 idx    = 0;
+  const std::vector<TupleCellSpec *> &speces = tpl_cast->get_speces();
+  for (idx = 0; idx < speces.size(); idx++) {
+    LOG_DEBUG("========== field_.table_name() = %s ==========",field_.table_name());
+    LOG_DEBUG("========== fields_[idx].table_name() = %s ==========",speces[idx]->table_name());
+    LOG_DEBUG("========== field_.field_name() = %s ==========",field_.field_name());
+    LOG_DEBUG("========== fields_[idx].field_name() = %s ==========",speces[idx]->field_name());
+    if (strcmp(field_.table_name(), speces[idx]->table_name()) == 0 &&
+        strcmp(field_.field_name(), speces[idx]->field_name()) == 0) {
+      // potential bug: field_.field_name()不一定是直接返回field_meta.field_name()
+      // 基本确认目前不是bug，field_meta()如果为nullptr只是为了标记tuple schema的 '*'
+      break;
+    }
+  }
+
+  LOG_DEBUG("========== idx = %d ==========", idx);
+
+  RC rc = RC::SUCCESS;
+  if (aggregation_func_ == "MAX") {
+    rc = do_max_aggregate(tuples, value, idx);
+  } else if (aggregation_func_ == "MIN") {
+    rc = do_min_aggregate(tuples, value, idx);
+  } else if (aggregation_func_ == "COUNT") {
+    rc = do_count_aggregate(tuples, value, idx);
+  } else if (aggregation_func_ == "AVG") {
+    rc = do_avg_aggregate(tuples, value, idx);
+  } else if (aggregation_func_ == "SUM") {
+    rc = do_sum_aggregate(tuples, value, idx);
+  } else {
+    rc = RC::INVALID_ARGUMENT;
+  }
+  return rc;
+}
+
+// RC AggregationExpr::aggregate_value(const std::vector<Tuple*> &tuples, Value &value) const
+// {
+//   return RC::SUCCESS;
+// }
+
+RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+{
+  LOG_DEBUG("========== In AggregationExpr::do_max_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+  // 检查是否为空
+  if (tuples.empty()) {
+    value.set_type(field_.attr_type());
+    return RC::SUCCESS;
+  }
+
+  // 检查是否均为null
+  bool all_null = true;
+  for (auto t : tuples) {
+    Value cur_value;
+    RC    rc = t->cell_at(idx, cur_value);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+    if (!cur_value.is_null()) {
+      all_null = false;
+      break;
+    }
+  }
+  if (all_null) {
+    value.set_type(AttrType::NONE);
+    return RC::SUCCESS;
+  }
+
+  tuples[0]->cell_at(idx, value);
+
+  for (auto t : tuples) {
+    Value cur_value;
+    t->cell_at(idx, cur_value);
+    if (cur_value.compare(value) > 0) {
+      value = cur_value;
+    }
+  }
+}
+
+RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+{
+  LOG_DEBUG("========== In AggregationExpr::do_min_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+  // 检查是否为空
+  if (tuples.empty()) {
+    value.set_type(field_.attr_type());
+    return RC::SUCCESS;
+  }
+
+  // 检查是否均为null
+  bool all_null = true;
+  for (auto t : tuples) {
+    Value cur_value;
+    RC    rc = t->cell_at(idx, cur_value);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+    if (!cur_value.is_null()) {
+      all_null = false;
+      break;
+    }
+  }
+  if (all_null) {
+    value.set_type(AttrType::NONE);
+    return RC::SUCCESS;
+  }
+
+  tuples[0]->cell_at(idx, value);
+
+  for (auto t : tuples) {
+    Value cur_value;
+    t->cell_at(idx, cur_value);
+    if (cur_value.compare(value) < 0) {
+      value = cur_value;
+    }
+  }
+}
+
+RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+{
+  LOG_DEBUG("========== In AggregationExpr::do_count_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+  int count = 0;
+
+  if (idx == -1) {  // count(*)
+    LOG_DEBUG("========== do_count(*) ==========");
+    count = tuples.size();
+  } else {
+    // 检查是否为空
+    if (!tuples.empty()) {
+      for (auto t : tuples) {
+        Value cur_value;
+        t->cell_at(idx, cur_value);
+        if (!cur_value.is_null()) {
+          count++;
+        }
+      }
+    }
+  }
+
+  value.set_int(count);
+  return RC::SUCCESS;
+}
+
+RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+{
+  LOG_DEBUG("========== In AggregationExpr::do_avg_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+  // 检查是否为空
+  if (tuples.empty()) {
+    value.set_type(field_.attr_type());
+    return RC::SUCCESS;
+  }
+
+  // 检查是否均为null
+  bool all_null = true;
+  for (auto t : tuples) {
+    Value cur_value;
+    t->cell_at(idx, cur_value);
+    if (!cur_value.is_null()) {
+      all_null = false;
+      break;
+    }
+  }
+  if (all_null) {
+    value.set_type(AttrType::NONE);
+    return RC::SUCCESS;
+  }
+
+  int   cnt = 0;
+  Value attr_value;
+  tuples[0]->cell_at(idx, attr_value);
+  AttrType attr_type = attr_value.attr_type();
+  if (attr_type == INTS) {
+    int sum = 0;
+    for (auto t : tuples) {
+      Value cur_value;
+      t->cell_at(idx, cur_value);
+      if (!cur_value.is_null()) {
+        sum += cur_value.get_int();
+        cnt++;
+      }
+    }
+    value.set_int(sum / cnt);
+  } else if (attr_type == FLOATS) {
+    float sum = 0;
+    for (auto t : tuples) {
+      Value cur_value;
+      t->cell_at(idx, cur_value);
+      if (!cur_value.is_null()) {
+        sum += cur_value.get_float();
+        cnt++;
+      }
+    }
+    value.set_float(sum / cnt);
+  } else if (attr_type == CHARS) {
+    for (auto t : tuples) {
+      float sum = 0;
+      Value cur_value;
+      t->cell_at(idx, cur_value);
+      if (!cur_value.is_null()) {
+        cur_value.str_to_number();
+        if (cur_value.attr_type() == INTS) {
+          sum += cur_value.get_int();
+          cnt++;
+        } else {
+          sum += cur_value.get_float();
+          cnt++;
+        }
+      }
+      value.set_float(sum / cnt);
+    }
+  } else {  // 其余类型无法求和
+    return RC::INVALID_ARGUMENT;
+  }
+
+  return RC::SUCCESS;
+}
+
+RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+{
+  LOG_DEBUG("========== In AggregationExpr::do_sum_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+  // 检查是否为空
+  if (tuples.empty()) {
+    value.set_type(field_.attr_type());
+    return RC::SUCCESS;
+  }
+
+  // 检查是否均为null
+  bool all_null = true;
+  for (auto t : tuples) {
+    Value cur_value;
+    t->cell_at(idx, cur_value);
+    if (!cur_value.is_null()) {
+      all_null = false;
+      break;
+    }
+  }
+  if (all_null) {
+    value.set_type(AttrType::NONE);
+    return RC::SUCCESS;
+  }
+
+  Value attr_value;
+  tuples[0]->cell_at(idx, attr_value);
+  AttrType attr_type = attr_value.attr_type();
+  if (attr_type == INTS) {
+    int sum = 0;
+    for (auto t : tuples) {
+      Value cur_value;
+      t->cell_at(idx, cur_value);
+      if (!cur_value.is_null()) {
+        sum += cur_value.get_int();
+      }
+    }
+    value.set_int(sum);
+  } else if (attr_type == FLOATS) {
+    float sum = 0;
+    for (auto t : tuples) {
+      Value cur_value;
+      t->cell_at(idx, cur_value);
+      if (!cur_value.is_null()) {
+        sum += cur_value.get_float();
+      }
+    }
+    value.set_float(sum);
+  } else if (attr_type == CHARS) {
+    for (auto t : tuples) {
+      float sum = 0;
+      Value cur_value;
+      t->cell_at(idx, cur_value);
+      if (!cur_value.is_null()) {
+        cur_value.str_to_number();
+        if (cur_value.attr_type() == INTS) {
+          sum += cur_value.get_int();
+        } else {
+          sum += cur_value.get_float();
+        }
+      }
+      value.set_float(sum);
+    }
+  } else {  // 其余类型无法求和
+    return RC::INVALID_ARGUMENT;
+  }
+
+  return RC::SUCCESS;
+}

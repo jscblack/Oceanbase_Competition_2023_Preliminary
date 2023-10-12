@@ -75,6 +75,11 @@ public:
   virtual RC try_get_value(Value &value) const { return RC::UNIMPLENMENT; }
 
   /**
+   * @brief 根据分组的tuples，来计算当前和聚合表达式相关的值
+   */
+  virtual RC get_value(const std::vector<Tuple *> &tuples, Value &value) const = 0;
+
+  /**
    * @brief 表达式的类型
    * 可以根据表达式类型来转换为具体的子类
    */
@@ -122,6 +127,8 @@ public:
 
   RC get_value(const Tuple &tuple, Value &value) const override;
 
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override { return RC::INTERNAL; }
+
 private:
   Field field_;
 };
@@ -139,6 +146,11 @@ public:
   virtual ~ValueExpr() = default;
 
   RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override
+  {
+    value = value_;
+    return RC::SUCCESS;
+  }
   RC try_get_value(Value &value) const override
   {
     value = value_;
@@ -170,6 +182,8 @@ public:
   ExprType type() const override { return ExprType::CAST; }
   RC       get_value(const Tuple &tuple, Value &value) const override;
 
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override { return RC::INTERNAL; }
+
   RC try_get_value(Value &value) const override;
 
   AttrType value_type() const override { return cast_type_; }
@@ -197,6 +211,8 @@ public:
   ExprType type() const override { return ExprType::COMPARISON; }
 
   RC get_value(const Tuple &tuple, Value &value) const override;
+
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override;
 
   AttrType value_type() const override { return BOOLEANS; }
 
@@ -248,6 +264,8 @@ public:
 
   RC get_value(const Tuple &tuple, Value &value) const override;
 
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override;
+
   Type conjunction_type() const { return conjunction_type_; }
 
   std::vector<std::unique_ptr<Expression>> &children() { return children_; }
@@ -283,6 +301,7 @@ public:
   AttrType value_type() const override;
 
   RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override;
   RC try_get_value(Value &value) const override;
 
   Type arithmetic_type() const { return arithmetic_type_; }
@@ -330,14 +349,23 @@ public:
   const char *field_name() const { return field_.field_name(); }
 
   RC get_value(const Tuple &tuple, Value &value) const override
-  {
+  {  //  AggregationExpr cannot use this
     return RC::INTERNAL;
-  }  //  AggregationExpr cannot use this
+  }
 
-  RC aggregate_value(
-      const std::vector<Tuple> &tuples, Value &value) const;  // 传入分组的所有tuples，返回聚合运算之后的Value
+  RC get_value(const std::vector<Tuple *> &tuples,
+      Value &value) const override;  // 传入分组的所有tuples，返回聚合运算之后的Value
+
+  // RC aggregate_value(
+  //     const std::vector<Tuple*> &tuples, Value &value) const;
 
 private:
   Field       field_;
   std::string aggregation_func_;
+
+  RC do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
 };
