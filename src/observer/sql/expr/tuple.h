@@ -248,6 +248,8 @@ public:
 
   void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
 
+  const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
+
   void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
   int  cell_num() const override { return speces_.size(); }
 

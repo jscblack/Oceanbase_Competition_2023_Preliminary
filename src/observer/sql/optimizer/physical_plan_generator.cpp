@@ -236,8 +236,8 @@ RC PhysicalPlanGenerator::create_plan(AggregateLogicalOperator &aggregate_oper, 
     }
   }
 
-  AggregatePhysicalOperator *aggregate_operator =
-      new AggregatePhysicalOperator(aggregate_oper.aggregations(), aggregate_oper.fields());
+  AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
+      aggregate_oper.aggregations(), aggregate_oper.fields(), aggregate_oper.fields_expressions());
 
   if (!aggregate_oper.group_by_fields().empty()) {
     aggregate_operator->set_group_by_fields(aggregate_oper.group_by_fields());

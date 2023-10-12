@@ -50,9 +50,9 @@ struct GroupByValues
 class AggregatePhysicalOperator : public PhysicalOperator
 {
 public:
-  AggregatePhysicalOperator(
-      const std::vector<std::pair<std::string, Field>> &aggregations, const std::vector<Field> &fields)
-      : aggregations_(aggregations), fields_(fields)
+  AggregatePhysicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations,
+      const std::vector<Field> &fields, const std::vector<Expression *> &fields_expressions)
+      : aggregations_(aggregations), fields_(fields), fields_expressions_(fields_expressions)
   {}
 
   virtual ~AggregatePhysicalOperator() = default;
@@ -77,6 +77,7 @@ public:
 private:
   std::vector<std::pair<std::string, Field>> aggregations_;
   std::vector<Field>                         fields_;
+  std::vector<Expression *>                  fields_expressions_;
 
   std::vector<std::vector<Value>> tuples_values_;  // 保存所有可能需要聚合的tuple，每行为tuple的field value
   std::vector<Value> aggregate_results_;  // 保存所有聚合之后的结果，tuple类型统一为ValueListTuple
@@ -95,5 +96,6 @@ private:
   std::vector<int>                                         group_by_fields_idx_;
   std::map<GroupByValues, std::vector<std::vector<Value>>> group_tuples_values_;
 
+  std::vector<Tuple *>                          tuples_;  // 从project算子拿上来的tuples
   std::map<GroupByValues, std::vector<Tuple *>> group_tuples_;
 };

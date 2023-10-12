@@ -645,12 +645,12 @@ select_stmt:        /*  select 语句的语法解析树*/
       if ($8 != nullptr) {
         $$->selection.groups.swap(*$8);
         std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
-        delete $7;
+        delete $8;
       }
 
       if ($9 != nullptr) {
         $$->selection.havings.swap(*$9);
-        delete $8;
+        delete $9;
       }
 
       free($4);
@@ -683,12 +683,12 @@ select_stmt:        /*  select 语句的语法解析树*/
       if($7 != nullptr) {
         $$->selection.groups.swap(*$7);
         std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
-        delete $6;
+        delete $7;
       }
 
       if ($8 != nullptr) {
         $$->selection.havings.swap(*$8);
-        delete $7;
+        delete $8;
       }
     }
     ;

@@ -28,6 +28,30 @@ public:
   Field(const Table *table, const FieldMeta *field) : table_(table), field_(field) {}
   Field(const Field &) = default;
 
+  bool operator==(const Field &that) const
+  {
+    if (this->table_ == nullptr && this->field_ == nullptr) {
+      if (that.table_ == nullptr && that.field_ == nullptr) {
+        return true;
+      } else {
+        return false;
+      }
+    } else if (this->table_ != nullptr && this->field_ == nullptr) {
+      if (that.table_ != nullptr && that.field_ == nullptr && strcmp(this->table_name(), that.table_name()) == 0) {
+        return true;
+      } else {
+        return false;
+      }
+    } else {
+      if (that.table_ != nullptr && that.field_ != nullptr && strcmp(this->table_name(), that.table_name()) == 0 &&
+          strcmp(this->field_name(), that.field_name()) == 0) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+  }
+
   const Table     *table() const { return table_; }
   const FieldMeta *meta() const { return field_; }
 

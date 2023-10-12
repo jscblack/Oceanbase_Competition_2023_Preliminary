@@ -89,8 +89,9 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 {
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
-  const std::vector<Table *> &tables     = select_stmt->tables();
-  const std::vector<Field>   &all_fields = select_stmt->query_fields();
+  const std::vector<Table *>      &tables                 = select_stmt->tables();
+  const std::vector<Expression *> &all_fields_expressions = select_stmt->query_fields_expressions();
+  const std::vector<Field>        &all_fields             = select_stmt->query_fields();
   for (Table *table : tables) {
     std::vector<Field> fields;
     for (const Field &field : all_fields) {
@@ -98,6 +99,26 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         fields.push_back(field);
       }
     }
+
+    // for (auto expr : all_fields_expressions) {
+    //   if (expr->type() == ExprType::FIELD) {
+    //     FieldExpr *field_expr = dynamic_cast<FieldExpr *>(expr);
+    //     if (0 == strcmp(field_expr->table_name(), table->name())) {
+    //       fields.push_back(field_expr->field());
+    //     }
+    //   } else {  // expr->type() == ExprType::AGGREGATION
+    //     AggregationExpr *agg_expr = dynamic_cast<AggregationExpr *>(expr);
+    //     // 将count(*)展开
+    //     if (agg_expr->field().meta() ==
+    //         nullptr) {  // 其实不需要区分 *, *.* and t.* 因为tableget算子是以table为单位构建的
+    //       const TableMeta &table_meta = table->table_meta();
+    //       const int        field_num  = table_meta.field_num();
+    //       for (int i = table_meta.sys_field_num(); i < field_num; i++) {
+    //         fields.push_back(Field(table, table_meta.field(i)));
+    //       }
+    //     }
+    //   }
+    // }
 
     unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true /*readonly*/));
     if (table_oper == nullptr) {
@@ -148,7 +169,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   const std::vector<std::pair<std::string, Field>> &all_aggregations = select_stmt->aggregation_func();
   if (!all_aggregations.empty()) {  // 存在聚合操作
-    unique_ptr<LogicalOperator> aggregate_oper(new AggregateLogicalOperator(all_aggregations, all_fields));
+    unique_ptr<LogicalOperator> aggregate_oper(
+        new AggregateLogicalOperator(all_aggregations, all_fields, all_fields_expressions));
     aggregate_oper->add_child(std::move(project_oper));
     AggregateLogicalOperator *aggregate_oper_cast = dynamic_cast<AggregateLogicalOperator *>(aggregate_oper.get());
 

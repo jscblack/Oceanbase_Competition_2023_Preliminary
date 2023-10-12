@@ -37,6 +37,16 @@ static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
   }
 }
 
+static void wildcard_fields(Table *table, std::vector<Expression *> &field_metas)
+{
+  const TableMeta &table_meta = table->table_meta();
+  const int        field_num  = table_meta.field_num();
+  for (int i = table_meta.sys_field_num(); i < field_num; i++) {
+    Expression *field_expr = new FieldExpr(table, table_meta.field(i));
+    field_metas.emplace_back(field_expr);
+  }
+}
+
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
   if (nullptr == db) {
@@ -66,8 +76,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   std::vector<Field>                         query_fields;
+  std::vector<Expression *>                  query_fields_expressions;
   std::vector<std::pair<std::string, Field>> aggregation_func;
   std::vector<std::pair<Field, bool>>        order_by;
+
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
 
@@ -79,9 +91,23 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
       // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
       if (0 == strcmp(relation_attr.aggregation_func.c_str(), "COUNT")) {
-        aggregation_func.emplace_back("COUNT", Field(tables[0], nullptr));
+        aggregation_func.emplace_back("COUNT", Field(nullptr, nullptr));
       }
 
+      //-----------------------------------------------------
+      // 重构为expression的写法
+      // select * or select count(*)
+      if (0 == strcmp(relation_attr.aggregation_func.c_str(),
+                   "COUNT")) {  // select count(*) 在logical operator生成的时候才将 *
+                                // 拆分，目的是为了保证与用户查询的顺序对应，同时必须要在过程中拆分出 *
+        Expression *agg_expr =
+            new AggregationExpr(Field(nullptr, nullptr), "COUNT");  // (nullptr, nullptr)对应 * or *.*
+        query_fields_expressions.emplace_back(agg_expr);
+      } else {  // 普通 select * 在这里就可以拆分
+        for (Table *table : tables) {
+          wildcard_fields(table, query_fields_expressions);
+        }
+      }
     } else if (!common::is_blank(relation_attr.relation_name.c_str())) {  // 表名非空
       const char *table_name           = relation_attr.relation_name.c_str();
       const char *field_name           = relation_attr.attribute_name.c_str();
@@ -98,9 +124,18 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
         // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
         if (0 == strcmp(aggregation_function, "COUNT")) {
-          aggregation_func.emplace_back("COUNT", Field(tables[0], nullptr));
+          aggregation_func.emplace_back("COUNT", Field(nullptr, nullptr));
         }
 
+        // select *.* or select count(*.*)
+        if (0 == strcmp(aggregation_function, "COUNT")) {
+          Expression *agg_expr = new AggregationExpr(Field(nullptr, nullptr), "COUNT");
+          query_fields_expressions.emplace_back(agg_expr);
+        } else {
+          for (Table *table : tables) {
+            wildcard_fields(table, query_fields_expressions);
+          }
+        }
       } else {  // table_name != "*"
         auto iter = table_map.find(table_name);
         if (iter == table_map.end()) {
@@ -115,6 +150,13 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           if (0 == strcmp(aggregation_function, "COUNT")) {
             aggregation_func.emplace_back("COUNT", Field(table, nullptr));
           }
+          // select t.* or select count(t.*)
+          if (0 == strcmp(aggregation_function, "COUNT")) {
+            Expression *agg_expr = new AggregationExpr(Field(table, nullptr), "COUNT");  // (table, nullptr)对应table.*
+            query_fields_expressions.emplace_back(agg_expr);
+          } else {
+            wildcard_fields(table, query_fields_expressions);
+          }
         } else {
           const FieldMeta *field_meta = table->table_meta().field(field_name);
           if (nullptr == field_meta) {
@@ -128,6 +170,14 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           // if (0 != strcmp(aggregation_function, "")) {
           if (!common::is_blank(aggregation_function)) {
             aggregation_func.emplace_back(std::string(aggregation_function), Field(table, field_meta));
+          }
+          // need aggregate or not?
+          if (common::is_blank(aggregation_function)) {
+            Expression *field_expr = new FieldExpr(table, field_meta);
+            query_fields_expressions.emplace_back(field_expr);
+          } else {
+            Expression *agg_expr = new AggregationExpr(Field(table, field_meta), relation_attr.aggregation_func);
+            query_fields_expressions.emplace_back(agg_expr);
           }
         }
       }
@@ -151,10 +201,18 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       if (!common::is_blank(relation_attr.aggregation_func.c_str())) {
         aggregation_func.emplace_back(std::string(relation_attr.aggregation_func.c_str()), Field(table, field_meta));
       }
+      // need aggregate or not?
+      if (common::is_blank(relation_attr.aggregation_func.c_str())) {
+        Expression *field_expr = new FieldExpr(table, field_meta);
+        query_fields_expressions.emplace_back(field_expr);
+      } else {
+        Expression *agg_expr = new AggregationExpr(Field(table, field_meta), relation_attr.aggregation_func);
+        query_fields_expressions.emplace_back(agg_expr);
+      }
     }
   }
 
-  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
+  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields_expressions.size());
 
   Table *default_table = nullptr;
   if (tables.size() == 1) {
@@ -174,22 +232,45 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return rc;
   }
 
-  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
-  if (select_sql.groups.empty()) {
-    if (!aggregation_func.empty()) {
+  // group by or not?
+  if (select_sql.groups.empty()) {  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
+    Expression *expr = query_fields_expressions.front();
+    if (expr->type() == ExprType::AGGREGATION) {
       for (auto attr : select_sql.attributes) {
         if (common::is_blank(attr.aggregation_func.c_str())) {
           return RC::SQL_SYNTAX;
         }
       }
     }
-  } else {  // FIXME: 在有group by语句时，如果有聚合，则非聚合的属性一定要作为group by的属性，不能出现未被group
-            // by使用的非聚合的属性
-            // FIXME: haing子句可能也需要一些判断
+  } else {  // FIXME: 在有group by语句时，如果有聚合，则非聚合的属性一定要作为group by的属性，
+            // 不能出现未被group by使用的非聚合的属性
+    bool                     have_agg = false;
+    std::vector<FieldExpr *> not_agg_query_fields;
+    for (auto expr : query_fields_expressions) {
+      if (expr->type() == ExprType::AGGREGATION) {
+        have_agg = true;
+      } else {
+        not_agg_query_fields.emplace_back(dynamic_cast<FieldExpr *>(expr));
+      }
+    }
+    for (auto field_expr : not_agg_query_fields) {
+      bool found = false;
+      for (auto group : select_sql.groups) {
+        if (strcmp(field_expr->table_name(), group.relation_name.c_str()) == 0 &&
+            strcmp(field_expr->field_name(), group.attribute_name.c_str()) == 0) {
+          found = true;
+          break;
+        }
+      }
+      if (found == false) {
+        return RC::SQL_SYNTAX;
+      }
+    }
   }
 
   // collect group by fields
-  std::vector<Field> group_by_fields;
+  std::vector<Field>        group_by_fields;
+  std::vector<Expression *> group_by_fields_expressions;
   for (int i = 0; i < static_cast<int>(select_sql.groups.size()); i++) {
     const RelAttrSqlNode &group_attr = select_sql.groups[i];
 
@@ -220,6 +301,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         Table *table = iter->second;
         if (0 == strcmp(field_name, "*")) {
           wildcard_fields(table, group_by_fields);
+          wildcard_fields(table, group_by_fields_expressions);
         } else {
           const FieldMeta *field_meta = table->table_meta().field(field_name);
           if (nullptr == field_meta) {
@@ -228,6 +310,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           }
 
           group_by_fields.push_back(Field(table, field_meta));
+          Expression *field_expr = new FieldExpr(table, field_meta);
+          group_by_fields_expressions.emplace_back(field_expr);
         }
       }
     } else {  // 表名为空，但不是分组所有属性
@@ -244,8 +328,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       }
 
       group_by_fields.push_back(Field(table, field_meta));
+      Expression *field_expr = new FieldExpr(table, field_meta);
+      group_by_fields_expressions.emplace_back(field_expr);
     }
   }
+
+  // FIXME: haing子句可能也需要一些判断：having 子句中的每一个元素也必须出现在select列表中？
 
   // collect filter conditions in 'having' statement
   HavingFilterStmt *having_filter_stmt = nullptr;
@@ -318,9 +406,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
   select_stmt->tables_.swap(tables);
+  select_stmt->query_fields_expressions_.swap(query_fields_expressions);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->aggregation_func_.swap(aggregation_func);
+  select_stmt->group_by_fields_expressions_.swap(group_by_fields_expressions);
   select_stmt->group_by_fields_.swap(group_by_fields);
   select_stmt->having_filter_stmt_ = having_filter_stmt;
   select_stmt->order_by_.swap(order_by);

@@ -14,7 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/aggregate_logical_operator.h"
 
-AggregateLogicalOperator::AggregateLogicalOperator(
-    const std::vector<std::pair<std::string, Field>> &aggregations, const std::vector<Field> &fields)
-    : aggregations_(aggregations), fields_(fields)
+AggregateLogicalOperator::AggregateLogicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations,
+    const std::vector<Field> &fields, const std::vector<Expression *> &fields_expressions)
+    : aggregations_(aggregations), fields_(fields), fields_expressions_(fields_expressions)
 {}
