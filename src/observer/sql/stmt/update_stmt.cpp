@@ -118,8 +118,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
   FilterStmt *filter_stmt = nullptr;
-  rc                      = FilterStmt::create(
-      db, table, &table_map, update_sql.conditions.data(), static_cast<int>(update_sql.conditions.size()), filter_stmt);
+  rc                      = FilterStmt::create(db, table, &table_map, update_sql.conditions, filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;

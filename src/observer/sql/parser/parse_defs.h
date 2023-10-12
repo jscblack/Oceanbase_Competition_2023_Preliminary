@@ -63,6 +63,17 @@ enum CompOp
   IN_ENUM,          ///< "IN"
   NO_OP
 };
+/**
+ * @brief 描述逻辑运算符
+ * @ingroup SQLParser
+ */
+enum LogiOp
+{
+  AND_ENUM,  ///< "AND"
+  OR_ENUM,   ///< "OR"
+  NOT_ENUM,  ///< "NOT"
+  NO_LOGI_OP
+};
 
 /**
  * @brief 表示一个条件比较
@@ -73,30 +84,28 @@ enum CompOp
  * 这个结构中记录的仅仅支持字段和值。
  */
 struct SelectSqlNode;
+struct ConditionSqlNode;
 
 // where 1:1 condition
 struct ConditionSqlNode
 {
-  // left_expr_sql_node
-  // // and / or
-  // right_expr_sql_node
-
   int left_type;  ///< TRUE if left-hand side is an attribute
                   ///< 2时，操作符左边是子查询，1时，操作符左边是属性名，0时，是属性值
   // 现阶段 expression里面只包含value
-  Expression    *left_expr;     ///< left-hand side value if left_is_attr = FALSE
-  RelAttrSqlNode left_attr;     ///< left-hand side attribute
-  SelectSqlNode *left_select;   ///< left-hand side select
-  CompOp         comp;          ///< comparison operator
-  int            right_type;    ///< TRUE if right-hand side is an attribute
-                                ///< 1时，操作符右边是属性名，0时，是属性值
-  Expression    *right_expr;    ///< right-hand side value if right_is_attr = FALSE
-  RelAttrSqlNode right_attr;    ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
-  SelectSqlNode *right_select;  ///< right-hand side select
+  Expression    *left_expr = nullptr;     ///< left-hand side value if left_is_attr = FALSE
+  RelAttrSqlNode left_attr;               ///< left-hand side attribute
+  SelectSqlNode *left_select = nullptr;   ///< left-hand side select
+  CompOp         comp;                    ///< comparison operator
+  int            right_type;              ///< TRUE if right-hand side is an attribute
+                                          ///< 1时，操作符右边是属性名，0时，是属性值
+  Expression    *right_expr = nullptr;    ///< right-hand side value if right_is_attr = FALSE
+  RelAttrSqlNode right_attr;              ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
+  SelectSqlNode *right_select = nullptr;  ///< right-hand side select
 
-  // Expression *left_expr;   // 左表达式
-  // CompOp      comp;        ///< comparison operator
-  // Expression *right_expr;  // 右表达式
+  bool              inner_node = false;  ///< TRUE if this is an inner node of a condition tree
+  ConditionSqlNode *left_cond  = nullptr;
+  LogiOp            logi_op;
+  ConditionSqlNode *right_cond = nullptr;
 };
 
 struct OrderSqlNode
@@ -118,10 +127,10 @@ struct OrderSqlNode
 
 struct SelectSqlNode
 {
-  std::vector<RelAttrSqlNode>   attributes;  ///< attributes in select clause
-  std::vector<std::string>      relations;   ///< 查询的表
-  std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件
-  std::vector<OrderSqlNode>     orders;      // 排序条件，可能有多列需求
+  std::vector<RelAttrSqlNode> attributes;            ///< attributes in select clause
+  std::vector<std::string>    relations;             ///< 查询的表
+  ConditionSqlNode           *conditions = nullptr;  ///< 查询条件树
+  std::vector<OrderSqlNode>   orders;                // 排序条件，可能有多列需求
 };
 
 /**
@@ -152,8 +161,8 @@ struct InsertSqlNode
  */
 struct DeleteSqlNode
 {
-  std::string                   relation_name;  ///< Relation to delete from
-  std::vector<ConditionSqlNode> conditions;
+  std::string       relation_name;  ///< Relation to delete from
+  ConditionSqlNode *conditions;     ///< 查询条件树
 };
 
 /**
@@ -178,10 +187,10 @@ struct ComplexValue
  */
 struct UpdateSqlNode
 {
-  std::string                   relation_name;    ///< Relation to update
-  std::vector<std::string>      attribute_names;  ///< 更新的字段，支持多个字段
-  std::vector<ComplexValue>     values;  ///< 更新的值，支持多个字段，并且支持简单的子查询
-  std::vector<ConditionSqlNode> conditions;
+  std::string               relation_name;    ///< Relation to update
+  std::vector<std::string>  attribute_names;  ///< 更新的字段，支持多个字段
+  std::vector<ComplexValue> values;           ///< 更新的值，支持多个字段，并且支持简单的子查询
+  ConditionSqlNode         *conditions = nullptr;  ///< 查询条件树
 };
 
 /**

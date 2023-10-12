@@ -20,33 +20,45 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-FilterStmt::~FilterStmt()
-{
-  for (FilterUnit *unit : filter_units_) {
-    delete unit;
-  }
-  filter_units_.clear();
-}
-
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt)
+    const ConditionSqlNode *conditions, FilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt  = nullptr;
-
-  FilterStmt *tmp_stmt = new FilterStmt();
-  for (int i = 0; i < condition_num; i++) {
-    FilterUnit *filter_unit = nullptr;
-    rc                      = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
-    if (rc != RC::SUCCESS) {
-      delete tmp_stmt;
-      LOG_WARN("failed to create filter unit. condition index=%d", i);
-      return rc;
-    }
-    tmp_stmt->filter_units_.push_back(filter_unit);
+  if (conditions == nullptr) {
+    return rc;
   }
 
-  stmt = tmp_stmt;
+  FilterStmt *cur_stmt = new FilterStmt();
+  if (conditions->inner_node) {
+    FilterStmt *cur_left_stmt  = nullptr;
+    FilterStmt *cur_right_stmt = nullptr;
+    rc                         = create(db, default_table, tables, conditions->left_cond, cur_left_stmt);
+    if (rc != RC::SUCCESS) {
+      delete cur_stmt;
+      LOG_WARN("failed to create filter unit. condition index=%d", 0);
+      return rc;
+    }
+    rc = create(db, default_table, tables, conditions->right_cond, cur_right_stmt);
+    if (rc != RC::SUCCESS) {
+      delete cur_stmt;
+      LOG_WARN("failed to create filter unit. condition index=%d", 0);
+      return rc;
+    }
+    cur_stmt->left_  = cur_left_stmt;
+    cur_stmt->right_ = cur_right_stmt;
+    cur_stmt->logi_  = conditions->logi_op;
+  } else {
+    FilterUnit *filter_unit = nullptr;
+    rc                      = create_filter_unit(db, default_table, tables, *conditions, filter_unit);
+    if (rc != RC::SUCCESS) {
+      delete cur_stmt;
+      LOG_WARN("failed to create filter unit. condition index=%d", 0);
+      return rc;
+    }
+    cur_stmt->filter_unit_ = filter_unit;
+  }
+  stmt = cur_stmt;
   return rc;
 }
 

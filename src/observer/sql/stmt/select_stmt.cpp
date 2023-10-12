@@ -77,6 +77,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询所有属性(*)
       for (Table *table : tables) {
         wildcard_fields(table, query_fields);
+        // FieldExpr
       }
 
       // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
@@ -163,12 +164,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
-  RC          rc          = FilterStmt::create(db,
-      default_table,
-      &table_map_,
-      select_sql.conditions.data(),
-      static_cast<int>(select_sql.conditions.size()),
-      filter_stmt);
+  RC          rc          = FilterStmt::create(db, default_table, &table_map_, select_sql.conditions, filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
     return rc;

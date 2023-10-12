@@ -24,6 +24,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/field/field.h"
 
 class Tuple;
+class FilterStmt;
 
 /**
  * @defgroup Expression
@@ -43,7 +44,7 @@ enum class ExprType
   VALUELIST,    ///< 常量列表
   CAST,         ///< 需要做类型转换的表达式
   COMPARISON,   ///< 需要做比较的表达式
-  CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
+  LOGICALCALC,  ///< 多个表达式做逻辑运算
   SELECT,       ///< select子查询
   ARITHMETIC,   ///< 算术运算
 };
@@ -347,7 +348,9 @@ public:
     return AttrType::UNDEFINED;
   }
   RC rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
+  RC rewrite_stmt(FilterStmt *&rewrited_stmt, const Tuple *row_tuple);
   RC recover_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
+  RC recover_stmt(FilterStmt *&rewrited_stmt, const Tuple *row_tuple);
 
   Expression *clone() const override { return new SelectExpr(*this); }
 
@@ -356,42 +359,36 @@ private:
 };
 
 /**
- * @brief 联结表达式
+ * @brief 逻辑运算表达式
  * @ingroup Expression
  * 多个表达式使用同一种关系(AND或OR)来联结
  * 当前miniob仅有AND操作
  */
-class ConjunctionExpr : public Expression
+class LogicalCalcExpr : public Expression
 {
 public:
-  enum class Type
-  {
-    AND,
-    OR,
-  };
+  LogicalCalcExpr(LogiOp logi, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
+  LogicalCalcExpr(const LogicalCalcExpr &expr)            = delete;
+  LogicalCalcExpr &operator=(const LogicalCalcExpr &expr) = delete;
 
-public:
-  ConjunctionExpr(Type type, std::vector<std::unique_ptr<Expression>> &children);
-  ConjunctionExpr(const ConjunctionExpr &expr)            = delete;
-  ConjunctionExpr &operator=(const ConjunctionExpr &expr) = delete;
+  virtual ~LogicalCalcExpr(){};
 
-  virtual ~ConjunctionExpr(){};
-
-  ExprType type() const override { return ExprType::CONJUNCTION; }
+  ExprType type() const override { return ExprType::LOGICALCALC; }
 
   AttrType value_type() const override { return BOOLEANS; }
 
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
-  Type conjunction_type() const { return conjunction_type_; }
-
-  std::vector<std::unique_ptr<Expression>> &children() { return children_; }
+  LogiOp                       logical_calc_type() const { return logi_; }
+  std::unique_ptr<Expression> &left() { return left_; }
+  std::unique_ptr<Expression> &right() { return right_; }
 
   Expression *clone() const override;
 
 private:
-  Type                                     conjunction_type_;
-  std::vector<std::unique_ptr<Expression>> children_;
+  LogiOp                      logi_;
+  std::unique_ptr<Expression> left_  = nullptr;
+  std::unique_ptr<Expression> right_ = nullptr;
 };
 
 /**

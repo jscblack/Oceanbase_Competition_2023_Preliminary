@@ -389,17 +389,14 @@ RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *tr
   return RC::SUCCESS;
 }
 
-RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
+RC SelectExpr::rewrite_stmt(FilterStmt *&rewrited_stmt, const Tuple *tuple)
 {
-  // 基于select_stmt_和tuples_，重写select_stmt_，得到rewrited_stmt
-  // 需要注意的是，在这里把stmt里面的filter_stmt 与外部已知match的部分给他替换了
-  // todo 重写，现在先做无依赖的
-  const RowTuple *row_tuple   = static_cast<const RowTuple *>(tuple);
-  SelectStmt     *select_stmt = dynamic_cast<SelectStmt *>(rewrited_stmt);
-  RC              rc          = RC::SUCCESS;
-  // 只要还有filter_unit，就一直处理
-  // 因为就是要把filter_unit里面的filter obj修改
-  for (auto filter_unit : select_stmt->filter_stmt()->filter_units()) {
+  const RowTuple *row_tuple = static_cast<const RowTuple *>(tuple);
+  RC              rc        = RC::SUCCESS;
+  if (rewrited_stmt->is_filter_unit()) {
+    // 叶子节点
+    // 重写filter_unit
+    FilterUnit *filter_unit = rewrited_stmt->filter_unit();
     if (filter_unit->left().expr != nullptr && filter_unit->left().expr->type() == ExprType::SELECT) {
       // 是一个select_stmt，那就递归重写
       Stmt *rewrited_sub_stmt = dynamic_cast<SelectExpr *>(filter_unit->left().expr)->select_stmt_;
@@ -432,9 +429,8 @@ RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
         LOG_WARN("failed to find cell. rc=%s", strrc(rc));
         return rc;
       }
-      ValueExpr *value_expr = new ValueExpr(tmp_value);
-      recover_table[value_expr] = filter_unit->left().expr;  // 用现在存的expr保存下来信息，recover的时候把指针给回去
-      filter_unit->left().init_expr(value_expr);
+      ValueExpr *value_expr     = new ValueExpr(tmp_value);
+      recover_table[value_expr] = filter_unit->left().expr;
     }
     if (filter_unit->right().expr != nullptr && filter_unit->right().expr->type() == ExprType::FIELD &&
         strcmp(dynamic_cast<FieldExpr *>(filter_unit->right().expr)->table_name(), row_tuple->table().name()) == 0) {
@@ -448,23 +444,57 @@ RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
         LOG_WARN("failed to find cell. rc=%s", strrc(rc));
         return rc;
       }
-      ValueExpr *value_expr = new ValueExpr(tmp_value);
-      recover_table[value_expr] = filter_unit->right().expr;  // 用现在存的expr保存下来信息，recover的时候把指针给回去
-      filter_unit->right().init_expr(value_expr);
+      ValueExpr *value_expr     = new ValueExpr(tmp_value);
+      recover_table[value_expr] = filter_unit->right().expr;
+    }
+  } else {
+    // 非叶子节点
+    FilterStmt *left_stmt  = rewrited_stmt->left();
+    FilterStmt *right_stmt = rewrited_stmt->right();
+    if (left_stmt != nullptr) {
+      rc = rewrite_stmt(left_stmt, tuple);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewrite left stmt. rc=%s", strrc(rc));
+        return rc;
+      }
+    }
+    if (right_stmt != nullptr) {
+      rc = rewrite_stmt(right_stmt, tuple);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewrite right stmt. rc=%s", strrc(rc));
+        return rc;
+      }
     }
   }
-
-  return RC::SUCCESS;
+  return rc;
 }
 
-RC SelectExpr::recover_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
+RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
 {
+  // 基于select_stmt_和tuples_，重写select_stmt_，得到rewrited_stmt
+  // 需要注意的是，在这里把stmt里面的filter_stmt 与外部已知match的部分给他替换了
+  // todo 重写，现在先做无依赖的
   const RowTuple *row_tuple   = static_cast<const RowTuple *>(tuple);
   SelectStmt     *select_stmt = dynamic_cast<SelectStmt *>(rewrited_stmt);
   RC              rc          = RC::SUCCESS;
   // 只要还有filter_unit，就一直处理
   // 因为就是要把filter_unit里面的filter obj修改
-  for (auto filter_unit : select_stmt->filter_stmt()->filter_units()) {
+  FilterStmt *filter_stmt = select_stmt->filter_stmt();
+  // 递归重写filter_stmt
+  rc = rewrite_stmt(filter_stmt, tuple);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to rewrite filter stmt. rc=%s", strrc(rc));
+    return rc;
+  }
+  return RC::SUCCESS;
+}
+
+RC SelectExpr::recover_stmt(FilterStmt *&rewrited_stmt, const Tuple *tuple)
+{
+  const RowTuple *row_tuple = static_cast<const RowTuple *>(tuple);
+  RC              rc        = RC::SUCCESS;
+  if (rewrited_stmt->is_filter_unit()) {
+    FilterUnit *filter_unit = rewrited_stmt->filter_unit();
     if (filter_unit->left().expr->type() == ExprType::SELECT) {
       // 是一个select_stmt，那就递归还原
       Stmt *rewrited_sub_stmt = dynamic_cast<SelectExpr *>(filter_unit->left().expr)->select_stmt_;
@@ -501,50 +531,107 @@ RC SelectExpr::recover_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
       filter_unit->right().init_expr(recover_table[filter_unit->right().expr]);
       recover_table.erase(tmp_ptr);
     }
+  } else {
+    // 非叶子节点
+    FilterStmt *left_stmt  = rewrited_stmt->left();
+    FilterStmt *right_stmt = rewrited_stmt->right();
+    if (left_stmt != nullptr) {
+      rc = recover_stmt(left_stmt, tuple);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewrite left stmt. rc=%s", strrc(rc));
+        return rc;
+      }
+    }
+    if (right_stmt != nullptr) {
+      rc = recover_stmt(right_stmt, tuple);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewrite right stmt. rc=%s", strrc(rc));
+        return rc;
+      }
+    }
   }
   return rc;
+}
+
+RC SelectExpr::recover_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
+{
+  const RowTuple *row_tuple   = static_cast<const RowTuple *>(tuple);
+  SelectStmt     *select_stmt = dynamic_cast<SelectStmt *>(rewrited_stmt);
+  RC              rc          = RC::SUCCESS;
+  // 只要还有filter_unit，就一直处理
+  // 因为就是要把filter_unit里面的filter obj修改
+  FilterStmt *filter_stmt = select_stmt->filter_stmt();
+  // 递归重写filter_stmt
+  rc = recover_stmt(filter_stmt, tuple);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to recover filter stmt. rc=%s", strrc(rc));
+    return rc;
+  }
+  return RC::SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &children)
-    : conjunction_type_(type), children_(std::move(children))
+LogicalCalcExpr::LogicalCalcExpr(LogiOp logi, unique_ptr<Expression> left, unique_ptr<Expression> right)
+    : logi_(logi), left_(std::move(left)), right_(std::move(right))
 {}
 
-RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
+RC LogicalCalcExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   RC rc = RC::SUCCESS;
-  if (children_.empty()) {
-    value.set_boolean(true);
-    return rc;
+  switch (logi_) {
+    case AND_ENUM: {
+      Value left_value, right_value;
+      rc = left_->get_value(tuple, left_value, trx);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      rc = right_->get_value(tuple, right_value, trx);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      value.set_boolean(left_value.get_boolean() && right_value.get_boolean());
+    } break;
+    case OR_ENUM: {
+      Value left_value, right_value;
+      rc = left_->get_value(tuple, left_value, trx);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      rc = right_->get_value(tuple, right_value, trx);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      value.set_boolean(left_value.get_boolean() || right_value.get_boolean());
+    } break;
+    case NOT_ENUM: {
+      if (left_) {
+        // invalid not
+        LOG_WARN("invalid not");
+        return RC::INTERNAL;
+      }
+      Value right_value;
+      rc = right_->get_value(tuple, right_value, trx);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      value.set_boolean(!right_value.get_boolean());
+    } break;
+    default: {
+      rc = RC::INTERNAL;
+      LOG_WARN("unsupported logical type. %d", logi_);
+    } break;
   }
-
-  Value tmp_value;
-  for (const unique_ptr<Expression> &expr : children_) {
-    rc = expr->get_value(tuple, tmp_value, trx);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to get value by child expression. rc=%s", strrc(rc));
-      return rc;
-    }
-    bool bool_value = tmp_value.get_boolean();
-    if ((conjunction_type_ == Type::AND && !bool_value) || (conjunction_type_ == Type::OR && bool_value)) {
-      value.set_boolean(bool_value);
-      return rc;
-    }
-  }
-
-  bool default_value = (conjunction_type_ == Type::AND);
-  value.set_boolean(default_value);
-  return rc;
+  return RC::SUCCESS;
 }
 
-Expression *ConjunctionExpr::clone() const
+Expression *LogicalCalcExpr::clone() const
 {
-  vector<unique_ptr<Expression>> children;
-  for (const unique_ptr<Expression> &expr : children_) {
-    children.push_back(unique_ptr<Expression>(expr->clone()));
-  }
-  return new ConjunctionExpr(conjunction_type_, children);
+  return new LogicalCalcExpr(logi_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>(right_->clone()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

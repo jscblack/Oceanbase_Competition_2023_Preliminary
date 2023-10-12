@@ -29,7 +29,7 @@ public:
 
   RC rewrite(std::unique_ptr<LogicalOperator> &oper, bool &change_made) override;
 
-private:
+public:
   RC rewrite_expression(std::unique_ptr<Expression> &expr, bool &change_made);
 
 private:

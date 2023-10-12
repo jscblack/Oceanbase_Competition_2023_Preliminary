@@ -74,28 +74,37 @@ RC PredicatePushdownRewriter::get_exprs_can_pushdown(
     std::unique_ptr<Expression> &expr, std::vector<std::unique_ptr<Expression>> &pushdown_exprs)
 {
   RC rc = RC::SUCCESS;
-  if (expr->type() == ExprType::CONJUNCTION) {
-    ConjunctionExpr *conjunction_expr = static_cast<ConjunctionExpr *>(expr.get());
+  // 从下往上递归子表达式，如果某个叶子节点可以下放，那么就把它从当前节点中删除
+  if (expr->type() == ExprType::LOGICALCALC) {
+    LogicalCalcExpr *logical_calc_expr = static_cast<LogicalCalcExpr *>(expr.get());
     // 或 操作的比较，太复杂，现在不考虑
-    if (conjunction_expr->conjunction_type() == ConjunctionExpr::Type::OR) {
+    if (logical_calc_expr->logical_calc_type() != LogiOp::AND_ENUM) {
       return rc;
     }
+    // 尝试下放左右节点
+    rc = get_exprs_can_pushdown(logical_calc_expr->left(), pushdown_exprs);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get pushdown expressions. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = get_exprs_can_pushdown(logical_calc_expr->right(), pushdown_exprs);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get pushdown expressions. rc=%s", strrc(rc));
+      return rc;
+    }
+    if (!logical_calc_expr->left() && !logical_calc_expr->right()) {
+      // 全部下放成功
+      // 当前expr消失
+      expr.reset(nullptr);
 
-    std::vector<std::unique_ptr<Expression>> &child_exprs = conjunction_expr->children();
-    for (auto iter = child_exprs.begin(); iter != child_exprs.end();) {
-      // 对每个子表达式，判断是否可以下放到table get 算子
-      // 如果可以的话，就从当前孩子节点中删除他
-      rc = get_exprs_can_pushdown(*iter, pushdown_exprs);
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to get pushdown expressions. rc=%s", strrc(rc));
-        return rc;
-      }
-
-      if (!*iter) {
-        child_exprs.erase(iter);
-      } else {
-        ++iter;
-      }
+    } else if (!logical_calc_expr->left() && logical_calc_expr->right()) {
+      // 只有左边下放成功
+      // 左节点消失，当前expr变成右节点
+      expr = std::move(logical_calc_expr->right());
+    } else if (logical_calc_expr->left() && !logical_calc_expr->right()) {
+      // 只有右边下放成功
+      // 右节点消失，当前expr变成左节点
+      expr = std::move(logical_calc_expr->left());
     }
   } else if (expr->type() == ExprType::COMPARISON) {
     // 如果是比较操作，并且比较的左边或右边是表某个列值，那么就下推下去

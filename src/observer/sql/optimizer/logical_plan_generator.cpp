@@ -23,9 +23,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/predicate_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
-#include "sql/operator/sort_logical_operator.h"
 
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/delete_stmt.h"
@@ -90,8 +90,11 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   const std::vector<Table *> &tables     = select_stmt->tables();
   const std::vector<Field>   &all_fields = select_stmt->query_fields();
+  // exprs->field
+
   for (Table *table : tables) {
     std::vector<Field> fields;
+
     for (const Field &field : all_fields) {
       if (0 == strcmp(field.table_name(), table->name())) {
         fields.push_back(field);
@@ -159,23 +162,52 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
 RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
-  std::vector<unique_ptr<Expression>> cmp_exprs;
-  const std::vector<FilterUnit *>    &filter_units = filter_stmt->filter_units();
-  for (const FilterUnit *filter_unit : filter_units) {
-    const FilterObj &filter_obj_left  = filter_unit->left();
-    const FilterObj &filter_obj_right = filter_unit->right();
+  // 递归建立谓词树
+  // filter_stmt->left();
+  // filter_stmt->right();
+  // filter_stmt->is_filter_unit();
+  // filter_stmt->filter_unit();
+  unique_ptr<Expression> logical_calc_oper;
 
-    unique_ptr<Expression> left  = unique_ptr<Expression>(filter_obj_left.expr->clone());
-    unique_ptr<Expression> right = unique_ptr<Expression>(filter_obj_right.expr->clone());
+  using CreateLogicalCalcExprFunc = std::function<RC(FilterStmt *, std::unique_ptr<Expression> &)>;
 
-    ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
-    cmp_exprs.emplace_back(cmp_expr);
-  }
+  CreateLogicalCalcExprFunc create_logical_calc_expr;
+
+  create_logical_calc_expr = [&](FilterStmt *filter_stmt, std::unique_ptr<Expression> &create_expr) -> RC {
+    if (filter_stmt == nullptr) {
+      return RC::SUCCESS;
+    }
+    if (filter_stmt->is_filter_unit()) {
+      FilterUnit                     *filter_unit = filter_stmt->filter_unit();
+      std::unique_ptr<Expression>     left_expr(filter_unit->left().expr->clone());
+      std::unique_ptr<Expression>     right_expr(filter_unit->right().expr->clone());
+      std::unique_ptr<ComparisonExpr> comp_expr(
+          new ComparisonExpr(filter_unit->comp(), std::move(left_expr), std::move(right_expr)));
+      create_expr = std::move(comp_expr);
+      return RC::SUCCESS;
+    } else {
+      RC                          rc = RC::SUCCESS;
+      std::unique_ptr<Expression> left_expr, right_expr;
+      rc = create_logical_calc_expr(filter_stmt->left(), left_expr);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      rc = create_logical_calc_expr(filter_stmt->right(), right_expr);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      std::unique_ptr<LogicalCalcExpr> logi_expr(
+          new LogicalCalcExpr(filter_stmt->logi(), std::move(left_expr), std::move(right_expr)));
+      create_expr = std::move(logi_expr);
+    }
+    return RC::SUCCESS;
+  };
+
+  RC rc = create_logical_calc_expr(filter_stmt, logical_calc_oper);
 
   unique_ptr<PredicateLogicalOperator> predicate_oper;
-  if (!cmp_exprs.empty()) {
-    unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
-    predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));
+  if (logical_calc_oper) {
+    predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(logical_calc_oper)));
   }
 
   logical_operator = std::move(predicate_oper);

@@ -26,28 +26,6 @@ class FieldMeta;
 
 struct FilterObj
 {
-  // int   obj_type;  ///< 0: value, 1: attr, 2: select_stmt
-  // Value value;
-  // Field field;
-  // Stmt *select_stmt;  ///< select clause
-
-  // void init_value(const Value &value)
-  // {
-  //   obj_type    = 0;
-  //   this->value = value;
-  // }
-
-  // void init_attr(const Field &field)
-  // {
-  //   obj_type    = 1;
-  //   this->field = field;
-  // }
-
-  // void init_select_stmt(Stmt *stmt)
-  // {
-  //   obj_type    = 2;
-  //   select_stmt = stmt;
-  // }
   Expression *expr = nullptr;
   void        init_expr(Expression *expr) { this->expr = expr; }
 };
@@ -71,8 +49,8 @@ public:
   FilterObj       &right() { return right_; }
 
 private:
-  CompOp    comp_ = NO_OP;
   FilterObj left_;
+  CompOp    comp_ = NO_OP;
   FilterObj right_;
 };
 
@@ -83,19 +61,28 @@ private:
 class FilterStmt
 {
 public:
-  FilterStmt() = default;
-  virtual ~FilterStmt();
+  FilterStmt()  = default;
+  ~FilterStmt() = default;
 
 public:
-  const std::vector<FilterUnit *> &filter_units() const { return filter_units_; }
+  FilterUnit *filter_unit() const { return filter_unit_; }
+  FilterStmt *left() const { return left_; }
+  FilterStmt *right() const { return right_; }
+  LogiOp      logi() const { return logi_; }
+  bool        is_filter_unit() const { return left_ == nullptr && right_ == nullptr && filter_unit_ != nullptr; }
 
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt);
+      const ConditionSqlNode *conditions, FilterStmt *&stmt);
 
   static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const ConditionSqlNode &condition, FilterUnit *&filter_unit);
 
 private:
-  std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
+  FilterUnit *filter_unit_ = nullptr;
+
+private:
+  FilterStmt *left_  = nullptr;
+  LogiOp      logi_  = NO_LOGI_OP;
+  FilterStmt *right_ = nullptr;
 };

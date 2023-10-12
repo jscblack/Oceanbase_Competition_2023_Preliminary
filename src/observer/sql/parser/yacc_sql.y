@@ -97,6 +97,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         VALUES
         FROM
         WHERE
+        OR
         AND
         SET
         ON
@@ -135,6 +136,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<std::vector<Value>> * insert_list;
   std::vector<Value> *              value_list;
   std::vector<ConditionSqlNode> *   condition_list;
+  ConditionSqlNode *   condition_tree;
   std::vector<OrderSqlNode> *       order_by_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
@@ -168,8 +170,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <boolean>             unique_marker
 %type <boolean>             asc_or_desc
 %type <boolean>             nullable_marker
-%type <condition_list>      where
+%type <condition_tree>      where
 %type <condition_list>      condition_list
+%type <condition_tree>      condition_tree
 %type <rel_attr_list>       select_attr
 %type <update_expr>         update_expr
 %type <update_expr>         update_expr_list
@@ -207,6 +210,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 // commands should be a list but I use a single command instead
 %type <sql_node>            commands
 
+%left OR
+%left AND
 %left '+' '-'
 %left '*' '/'
 %nonassoc UMINUS
@@ -538,8 +543,7 @@ delete_stmt:    /*  delete 语句的语法解析树*/
       $$ = new ParsedSqlNode(SCF_DELETE);
       $$->deletion.relation_name = $3;
       if ($4 != nullptr) {
-        $$->deletion.conditions.swap(*$4);
-        delete $4;
+        $$->deletion.conditions = $4;
       }
       free($3);
     }
@@ -554,8 +558,7 @@ update_stmt:      /*  update 语句的语法解析树*/
       std::reverse($$->update.attribute_names.begin(), $$->update.attribute_names.end());
       std::reverse($$->update.values.begin(), $$->update.values.end());
       if ($5 != nullptr) {
-        $$->update.conditions.swap(*$5);
-        delete $5;
+        $$->update.conditions = $5;
       }
       free($2);
     }
@@ -634,8 +637,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
  
       if ($6 != nullptr) {
-        $$->selection.conditions.swap(*$6);
-        delete $6;
+        $$->selection.conditions = $6;
       }
       if ($7 != nullptr) {
         $$->selection.orders.swap(*$7);
@@ -652,16 +654,12 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
 
       $$->selection.relations.swap($4->first);
-      $$->selection.conditions.swap($4->second);
+      // $$->selection.conditions.swap($4->second);
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
       delete $4;
 
       if($5 != nullptr) {
-        $$->selection.conditions.insert($$->selection.conditions.end(),$5->begin(),$5->end());
-        // for(auto &ele : *$5) {
-        //   $$->selection.conditions.emplace_back(ele);
-        // }
-        delete $5;
+        $$->selection.conditions = $5;
       }
       if ($6 != nullptr) {
         $$->selection.orders.swap(*$6);
@@ -774,44 +772,15 @@ expression:
         $$->set_name(token_name(sql_string, &@$));
       }
     }
-    | '-' expression %prec UMINUS {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
-    }
-    /* | select_stmt{
-      $$ = new SelectExpr(&($1->selection));
-      $$->set_name(token_name(sql_string, &@$));
-    } */
-    /* | rel_attr{
-      assert(rel_attr->aggregation_func.empty());// 这里暂时先没法处理聚合函数
-      if(rel_attr->relation_name.empty()){
-        $$ = new FieldExpr(attribute_name);
-      }else{
-        $$ = new FieldExpr(rel_attr->relation_name,rel_attr->attribute_name);
-      }
-      $$->set_name(token_name(sql_string, &@$));
-      delete $1;
-    } */
     | value {
       // single value
       $$ = new ValueExpr(*$1);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
     }
-    /* | LBRACE value value_list RBRACE {
-      if ($3 != nullptr) {
-        // value list
-        $3->emplace_back(*$2);
-        std::reverse($3->begin(), $3->end());
-        $$ = new ValueListExpr(*$3);
-        $$->set_name(token_name(sql_string, &@$));
-        delete $3;
-      } else {
-        // single value
-        $$ = new ValueExpr(*$2);
-        $$->set_name(token_name(sql_string, &@$));
-        delete $2;
-      }
-    } */
+    | '-' expression %prec UMINUS {
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
+    }
     ;
 
 select_attr:
@@ -1019,7 +988,7 @@ where:
     {
       $$ = nullptr;
     }
-    | WHERE condition_list {
+    | WHERE condition_tree {
       $$ = $2;  
     }
     ;
@@ -1037,6 +1006,33 @@ condition_list:
       $$ = $3;
       $$->emplace_back(*$1);
       delete $1;
+    }
+    ;
+condition_tree:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | condition {
+      $$ = $1;
+    }
+    | condition_tree AND condition_tree {
+      $$ = new ConditionSqlNode;
+      $$->inner_node = true;
+      $$->left_type = 3;// 防御性编程，防止被认为是其他的类型
+      $$->left_cond = $1;
+      $$->right_type = 3;
+      $$->right_cond = $3;
+      $$->logi_op = AND_ENUM;
+    }
+    | condition_tree OR condition_tree {
+      $$ = new ConditionSqlNode;
+      $$->inner_node = true;
+      $$->left_type = 3;
+      $$->left_cond = $1;
+      $$->right_type = 3;
+      $$->right_cond = $3;
+      $$->logi_op = OR_ENUM;
     }
     ;
 condition:
