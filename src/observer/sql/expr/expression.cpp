@@ -524,7 +524,9 @@ RC SelectExpr::recover_stmt(FilterStmt *&rewrited_stmt, const Tuple *tuple)
       dynamic_cast<SelectExpr *>(filter_unit->right().expr)->select_stmt_ = rewrited_sub_stmt;
     }
     if (filter_unit->left().expr->type() == ExprType::VALUE &&
-        recover_table.find(filter_unit->left().expr) != recover_table.end()) {
+        recover_table.find(filter_unit->left().expr) != recover_table.end() &&
+        strcmp(dynamic_cast<FieldExpr *>(recover_table.at(filter_unit->left().expr))->table_name(),
+            row_tuple->table().name()) == 0) {
       // 这是需要被替换的东西
       // 从tuples_里面找到这个tuple
       auto *tmp_ptr = filter_unit->left().expr;
@@ -532,7 +534,9 @@ RC SelectExpr::recover_stmt(FilterStmt *&rewrited_stmt, const Tuple *tuple)
       recover_table.erase(tmp_ptr);
     }
     if (filter_unit->right().expr->type() == ExprType::VALUE &&
-        recover_table.find(filter_unit->right().expr) != recover_table.end()) {
+        recover_table.find(filter_unit->right().expr) != recover_table.end() &&
+        strcmp(dynamic_cast<FieldExpr *>(recover_table.at(filter_unit->right().expr))->table_name(),
+            row_tuple->table().name()) == 0) {
       // 这是需要被替换的东西
       // 从tuples_里面找到这个tuple
       auto *tmp_ptr = filter_unit->right().expr;

@@ -654,7 +654,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       if ($4 != nullptr) {
         $$->selection.relations.swap($4->first);
-        // $$->selection.conditions.swap($4->second);
+        std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
         if($4->second.size()==1){
           $$->selection.conditions = &($4->second[0]);
         }else{

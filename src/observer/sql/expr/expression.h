@@ -164,7 +164,7 @@ public:
   explicit ValueExpr(const ValueExpr &expr) : value_(expr.value_) {}
   ValueExpr &operator=(const ValueExpr &expr)
   {
-    value_ = expr.value_;
+    value_ = expr.value_.clone();
     return *this;
   }
 

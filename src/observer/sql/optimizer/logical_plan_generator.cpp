@@ -176,9 +176,12 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
       return RC::SUCCESS;
     }
     if (filter_stmt->is_filter_unit()) {
-      FilterUnit                     *filter_unit = filter_stmt->filter_unit();
-      std::unique_ptr<Expression>     left_expr(filter_unit->left().expr->clone());
-      std::unique_ptr<Expression>     right_expr(filter_unit->right().expr->clone());
+      FilterUnit                 *filter_unit = filter_stmt->filter_unit();
+      std::unique_ptr<Expression> left_expr(filter_unit->left().expr->clone());
+      std::unique_ptr<Expression> right_expr(filter_unit->right().expr->clone());
+      if (filter_unit->left().expr->type() == ExprType::VALUE) {
+        LOG_DEBUG("left_expr is value, value=%d", dynamic_cast<ValueExpr*>(left_expr.get())->get_value().get_int());
+      }
       std::unique_ptr<ComparisonExpr> comp_expr(
           new ComparisonExpr(filter_unit->comp(), std::move(left_expr), std::move(right_expr)));
       create_expr = std::move(comp_expr);
@@ -201,8 +204,7 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
     return RC::SUCCESS;
   };
 
-  RC rc = create_logical_calc_expr(filter_stmt, logical_calc_oper);
-
+  RC                                   rc = create_logical_calc_expr(filter_stmt, logical_calc_oper);
   unique_ptr<PredicateLogicalOperator> predicate_oper;
   if (logical_calc_oper) {
     predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(logical_calc_oper)));
