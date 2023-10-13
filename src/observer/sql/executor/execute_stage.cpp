@@ -69,20 +69,41 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
       SelectStmt *select_stmt     = static_cast<SelectStmt *>(stmt);
       bool        with_table_name = select_stmt->tables().size() > 1;
       // TODO: 临时fix aggregation 的表头输出，后续需要优化
-      if (select_stmt->aggregation_func().size() > 0) {
-        for (const auto &aggregation_func : select_stmt->aggregation_func()) {
-          std::string field_name = aggregation_func.first + "(" + aggregation_func.second.field_name() + ")";
-          char       *buf        = new char[field_name.size() + 1];
-          memcpy(buf, field_name.c_str(), field_name.size() + 1);
-          schema.append_cell(buf);
-        }
-      } else {
-        for (const Field &field : select_stmt->query_fields()) {
+      // if (select_stmt->aggregation_func().size() > 0) {
+      //   for (const auto &aggregation_func : select_stmt->aggregation_func()) {
+      //     std::string field_name = aggregation_func.first + "(" + aggregation_func.second.field_name() + ")";
+      //     char       *buf        = new char[field_name.size() + 1];
+      //     memcpy(buf, field_name.c_str(), field_name.size() + 1);
+      //     schema.append_cell(buf);
+      //   }
+      // } else {
+      //   for (const Field &field : select_stmt->query_fields()) {
+      //     if (with_table_name) {
+      //       schema.append_cell(field.table_name(), field.field_name());
+      //     } else {
+      //       schema.append_cell(field.field_name());
+      //     }
+      //   }
+      // }
+
+      for (auto query_field_expr : select_stmt->query_fields_expressions()) {
+        if (query_field_expr->type() == ExprType::FIELD) {
+          auto field = dynamic_cast<FieldExpr *>(query_field_expr);
           if (with_table_name) {
-            schema.append_cell(field.table_name(), field.field_name());
+            schema.append_cell(field->table_name(), field->field_name());
           } else {
-            schema.append_cell(field.field_name());
+            schema.append_cell(field->field_name());
           }
+        } else if (query_field_expr->type() == ExprType::AGGREGATION) {
+          auto agg = dynamic_cast<AggregationExpr *>(query_field_expr);
+          if (!with_table_name) {
+            schema.append_cell((agg->aggregation_func() + "(" + agg->field_name() + ")").c_str());
+          } else {
+            schema.append_cell(
+                (agg->aggregation_func() + "(" + agg->table_name() + "." + agg->field_name() + ")").c_str());
+          }
+        } else {
+          ASSERT(false, "ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *): Impossible!!!");
         }
       }
 

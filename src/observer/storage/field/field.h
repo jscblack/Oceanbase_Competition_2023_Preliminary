@@ -57,7 +57,13 @@ public:
 
   AttrType attr_type() const { return field_->type(); }
 
-  const char *table_name() const { return table_->name(); }
+  const char *table_name() const
+  {
+    if (table_ == nullptr) {
+      return "";
+    }
+    return table_->name();
+  }
   const char *field_name() const
   {
     if (field_ == nullptr) {

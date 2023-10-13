@@ -29,6 +29,8 @@ struct GroupByValues
         return this_value.compare(that_value) < 0;
       }
     }
+    ASSERT(false, "GroupByValues::operator<(const GroupByValues &that):  Unreachable!!!!!!!!!!!");
+    return false;
   }
 
   // bool operator == (GroupByValues &that) {

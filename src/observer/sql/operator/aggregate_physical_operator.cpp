@@ -36,7 +36,7 @@ RC AggregatePhysicalOperator::open(Trx *trx)
       LOG_WARN("failed to get tuple from operator");
       return RC::INTERNAL;
     }
-    
+
     // 拆分成value的写法 TODO: 为了aggregation-func的兼容，需要重构
     const int          cell_num = tuple->cell_num();
     std::vector<Value> values(cell_num);
@@ -44,7 +44,7 @@ RC AggregatePhysicalOperator::open(Trx *trx)
       tuple->cell_at(i, values[i]);
     }
     tuples_values_.emplace_back(values);
-    
+
     // clone tuple的写法
     Tuple *new_tuple = nullptr;
     tuple->clone(new_tuple);
@@ -56,8 +56,7 @@ RC AggregatePhysicalOperator::open(Trx *trx)
   // LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
   // LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());
 
-
-  if (group_by_fields_.empty()) { // TODO: 为了aggregation-func的兼容，需要重构
+  if (group_by_fields_.empty()) {  // TODO: 为了aggregation-func的兼容，需要重构
     for (auto &agg : aggregations_) {
       if (agg.first == "MAX") {
         do_max_aggregate(agg.second);
@@ -84,7 +83,6 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     return_results_.emplace_back(vlt);
     return RC::SUCCESS;
   }
-
 
   // 分组
   // 1. 首先找到分组属性在每行tuple的位置
@@ -128,7 +126,6 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     }
   }
 
-
   // 分组聚集
   // 1. 收集tuple schema信息
   std::vector<std::pair<Field, int>> result_field_idx;
@@ -154,7 +151,7 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     }
   }
 
-  // 2. 构造结果 
+  // 2. 构造结果
   // Require: 根据重构后的fields_expressions_
   for (auto it = group_tuples_.begin(); it != group_tuples_.end(); it++) {
     std::vector<Value> result_value;  // 该分组的结果

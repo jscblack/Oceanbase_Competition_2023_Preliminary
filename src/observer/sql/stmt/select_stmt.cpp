@@ -47,6 +47,20 @@ static void wildcard_fields(Table *table, std::vector<Expression *> &field_metas
   }
 }
 
+bool is_table_legal(
+    const std::unordered_map<std::string, Table *> &table_map, const std::string &table_name, Table *&table)
+{
+  auto iter = table_map.find(table_name);
+  if (iter == table_map.end()) {
+    LOG_WARN("no such table in from list: %s", table_name);
+    return false;
+  }
+  table = iter->second;
+  return true;
+}
+
+bool is_equal(const char *a, const char *b) { return 0 == strcmp(a, b); }
+
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
   if (nullptr == db) {
@@ -78,7 +92,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::vector<Field>                         query_fields;
   std::vector<Expression *>                  query_fields_expressions;
   std::vector<std::pair<std::string, Field>> aggregation_func;
-  std::vector<std::pair<Field, bool>>        order_by;
 
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
@@ -137,13 +150,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           }
         }
       } else {  // table_name != "*"
-        auto iter = table_map.find(table_name);
-        if (iter == table_map.end()) {
-          LOG_WARN("no such table in from list: %s", table_name);
+        Table *table;
+        if (!is_table_legal(table_map, table_name, table)) {
           return RC::SCHEMA_FIELD_MISSING;
         }
 
-        Table *table = iter->second;
         if (0 == strcmp(field_name, "*")) {
           wildcard_fields(table, query_fields);
           // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
@@ -221,18 +232,20 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
-  RC          rc          = FilterStmt::create(db,
-      default_table,
-      &table_map,
-      select_sql.conditions.data(),
-      static_cast<int>(select_sql.conditions.size()),
-      filter_stmt);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("cannot construct filter stmt");
-    return rc;
+  {
+    RC rc = FilterStmt::create(db,
+        default_table,
+        &table_map,
+        select_sql.conditions.data(),
+        static_cast<int>(select_sql.conditions.size()),
+        filter_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct filter stmt");
+      return rc;
+    }
   }
 
-  // group by or not?
+  // group_by + aggregate 相关的语法合法性检测
   if (select_sql.groups.empty()) {  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
     Expression *expr = query_fields_expressions.front();
     if (expr->type() == ExprType::AGGREGATION) {
@@ -242,10 +255,50 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         }
       }
     }
-  } else {  // FIXME: 在有group by语句时，如果有聚合，则非聚合的属性一定要作为group by的属性，
-            // 不能出现未被group by使用的非聚合的属性
+  } else {
     bool                     have_agg = false;
     std::vector<FieldExpr *> not_agg_query_fields;
+
+    // 先检查group by的表名列名的存在合法性 (不考虑上述特殊限制下的合法性)
+    for (auto group : select_sql.groups) {
+      if (group.relation_name.empty()) {  // group by属性的表名为空
+        if (tables.size() != 1) {         // table_name从from中获取，from的table必须唯一
+          LOG_WARN("invalid. I do not know the attr's table. attr=%s in group-by clause", group.attribute_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+        if (group.attribute_name == "*") {
+          LOG_WARN("invalid. ATTR in group-by clause cannot be *. attr=%s in group-by clause", group.attribute_name.c_str());
+          return RC::SQL_SYNTAX;
+        }
+      } else {  // group by属性的表名非空
+        auto table_name = group.relation_name;
+        auto field_name = group.attribute_name;
+
+        if (table_name == "*") {
+          LOG_WARN("invalid. Table-Name in group-by clause cannot be *");
+          return RC::SQL_SYNTAX;
+        } else {
+          // 检测表名是否存在
+          Table *table;
+          if (!is_table_legal(table_map, table_name, table)) {
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+          // 检测（表名，列名）是否合法
+          if (field_name == "*") {
+            LOG_WARN("invalid. ATTR in group-by clause cannot be *. attr=%s in group-by clause", group.attribute_name.c_str());
+            return RC::SQL_SYNTAX;
+          } else {  // 检测是否表有这个field
+            const FieldMeta *field_meta = table->table_meta().field(field_name.c_str());
+            if (nullptr == field_meta) {
+              LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name.c_str());
+              return RC::SCHEMA_FIELD_MISSING;
+            }
+          }
+        }
+      }
+    }
+
+    // 查看是否有聚集，并收集非聚合属性
     for (auto expr : query_fields_expressions) {
       if (expr->type() == ExprType::AGGREGATION) {
         have_agg = true;
@@ -253,17 +306,36 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         not_agg_query_fields.emplace_back(dynamic_cast<FieldExpr *>(expr));
       }
     }
-    for (auto field_expr : not_agg_query_fields) {
-      bool found = false;
-      for (auto group : select_sql.groups) {
-        if (strcmp(field_expr->table_name(), group.relation_name.c_str()) == 0 &&
-            strcmp(field_expr->field_name(), group.attribute_name.c_str()) == 0) {
-          found = true;
-          break;
+
+    if (have_agg) {  // 存在聚合时，非聚合属性必须∈{group by id}
+      // 在有group by语句时，如果有聚合，则非聚合的属性一定要作为group by的属性，
+      // 对于非聚合属性，确认是group by的属性
+      for (auto field_expr : not_agg_query_fields) {
+        bool found = false;
+        for (auto group : select_sql.groups) {
+          auto group_table_name = group.relation_name;
+          auto group_field_name = group.attribute_name;
+
+          if (group_table_name.empty()) {
+            // 肯定是只有一个表,才允许group-by不写table,
+            // 因为field_expr的tablename前面已经检测过了并填充为唯一表的名字
+            // 所以只需检查field
+            if (is_equal(field_expr->field_name(), group_field_name.c_str())) {
+              found = true;
+              break;
+            }
+          } else {
+            if (is_equal(field_expr->table_name(), group_table_name.c_str()) &&
+                is_equal(field_expr->field_name(), group_field_name.c_str())) {
+              found = true;
+              break;
+            }
+          }
         }
-      }
-      if (found == false) {
-        return RC::SQL_SYNTAX;
+
+        if (found == false) {
+          return RC::SQL_SYNTAX;
+        }
       }
     }
   }
@@ -271,65 +343,67 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // collect group by fields
   std::vector<Field>        group_by_fields;
   std::vector<Expression *> group_by_fields_expressions;
-  for (int i = 0; i < static_cast<int>(select_sql.groups.size()); i++) {
-    const RelAttrSqlNode &group_attr = select_sql.groups[i];
+  {
+    for (int i = 0; i < static_cast<int>(select_sql.groups.size()); i++) {
+      const RelAttrSqlNode &group_attr = select_sql.groups[i];
 
-    if (common::is_blank(group_attr.relation_name.c_str()) &&
-        0 == strcmp(group_attr.attribute_name.c_str(), "*")) {  // 表名为空且分组所有属性(*)
-      // 不需要处理这种分组，没有分组的意义
-      LOG_WARN("group by * have no meaning");
-      return RC::SQL_SYNTAX;
-    } else if (!common::is_blank(group_attr.relation_name.c_str())) {  // 表名非空
-      const char *table_name = group_attr.relation_name.c_str();
-      const char *field_name = group_attr.attribute_name.c_str();
-
-      if (0 == strcmp(table_name, "*")) {  // table_name == "*"
-        if (0 != strcmp(field_name, "*")) {
-          LOG_WARN("invalid field name while table is *. attr=%s", field_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
+      if (common::is_blank(group_attr.relation_name.c_str()) &&
+          0 == strcmp(group_attr.attribute_name.c_str(), "*")) {  // 表名为空且分组所有属性(*)
         // 不需要处理这种分组，没有分组的意义
-        LOG_WARN("group by *.* have no meaning");
+        LOG_WARN("group by * have no meaning");
         return RC::SQL_SYNTAX;
-      } else {  // table_name != "*"
-        auto iter = table_map.find(table_name);
-        if (iter == table_map.end()) {
-          LOG_WARN("no such table in from list: %s", table_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
+      } else if (!common::is_blank(group_attr.relation_name.c_str())) {  // 表名非空
+        const char *table_name = group_attr.relation_name.c_str();
+        const char *field_name = group_attr.attribute_name.c_str();
 
-        Table *table = iter->second;
-        if (0 == strcmp(field_name, "*")) {
-          wildcard_fields(table, group_by_fields);
-          wildcard_fields(table, group_by_fields_expressions);
-        } else {
-          const FieldMeta *field_meta = table->table_meta().field(field_name);
-          if (nullptr == field_meta) {
-            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+        if (0 == strcmp(table_name, "*")) {  // table_name == "*"
+          if (0 != strcmp(field_name, "*")) {
+            LOG_WARN("invalid field name while table is *. attr=%s", field_name);
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+          // 不需要处理这种分组，没有分组的意义
+          LOG_WARN("group by *.* have no meaning");
+          return RC::SQL_SYNTAX;
+        } else {  // table_name != "*"
+          auto iter = table_map.find(table_name);
+          if (iter == table_map.end()) {
+            LOG_WARN("no such table in from list: %s", table_name);
             return RC::SCHEMA_FIELD_MISSING;
           }
 
-          group_by_fields.push_back(Field(table, field_meta));
-          Expression *field_expr = new FieldExpr(table, field_meta);
-          group_by_fields_expressions.emplace_back(field_expr);
+          Table *table = iter->second;
+          if (0 == strcmp(field_name, "*")) {
+            wildcard_fields(table, group_by_fields);
+            wildcard_fields(table, group_by_fields_expressions);
+          } else {
+            const FieldMeta *field_meta = table->table_meta().field(field_name);
+            if (nullptr == field_meta) {
+              LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+              return RC::SCHEMA_FIELD_MISSING;
+            }
+
+            group_by_fields.push_back(Field(table, field_meta));
+            Expression *field_expr = new FieldExpr(table, field_meta);
+            group_by_fields_expressions.emplace_back(field_expr);
+          }
         }
-      }
-    } else {  // 表名为空，但不是分组所有属性
-      if (tables.size() != 1) {
-        LOG_WARN("invalid. I do not know the attr's table. attr=%s", group_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
+      } else {  // 表名为空，但不是分组所有属性
+        if (tables.size() != 1) {
+          LOG_WARN("invalid. I do not know the attr's table. attr=%s", group_attr.attribute_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
 
-      Table           *table      = tables[0];
-      const FieldMeta *field_meta = table->table_meta().field(group_attr.attribute_name.c_str());
-      if (nullptr == field_meta) {
-        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), group_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
+        Table           *table      = tables[0];
+        const FieldMeta *field_meta = table->table_meta().field(group_attr.attribute_name.c_str());
+        if (nullptr == field_meta) {
+          LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), group_attr.attribute_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
 
-      group_by_fields.push_back(Field(table, field_meta));
-      Expression *field_expr = new FieldExpr(table, field_meta);
-      group_by_fields_expressions.emplace_back(field_expr);
+        group_by_fields.push_back(Field(table, field_meta));
+        Expression *field_expr = new FieldExpr(table, field_meta);
+        group_by_fields_expressions.emplace_back(field_expr);
+      }
     }
   }
 
@@ -337,83 +411,91 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect filter conditions in 'having' statement
   HavingFilterStmt *having_filter_stmt = nullptr;
-  rc                                   = HavingFilterStmt::create(db,
-      default_table,
-      &table_map,
-      select_sql.havings.data(),
-      static_cast<int>(select_sql.havings.size()),
-      having_filter_stmt);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("cannot construct having filter stmt");
-    return rc;
+  {
+    RC rc = HavingFilterStmt::create(db,
+        default_table,
+        &table_map,
+        select_sql.havings.data(),
+        static_cast<int>(select_sql.havings.size()),
+        having_filter_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct having filter stmt");
+      return rc;
+    }
   }
 
   // 创造order by语句
-  for (int i = static_cast<int>(select_sql.orders.size()) - 1; i >= 0; i--) {
-    const RelAttrSqlNode &order_attr = select_sql.orders.at(i).attr;
-    bool                  is_asc     = select_sql.orders.at(i).is_asc;
+  std::vector<std::pair<Field, bool>> order_by;
+  {
+    for (int i = static_cast<int>(select_sql.orders.size()) - 1; i >= 0; i--) {
+      const RelAttrSqlNode &order_attr = select_sql.orders.at(i).attr;
+      bool                  is_asc     = select_sql.orders.at(i).is_asc;
 
-    if (0 != strcmp(order_attr.aggregation_func.c_str(), "")) {  // 处理一下aggregate的特殊场景
-      return RC::SQL_SYNTAX;
-    }
-
-    if (common::is_blank(order_attr.relation_name.c_str()) &&
-        0 == strcmp(order_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询*
-      return RC::SQL_SYNTAX;
-    } else if (!common::is_blank(order_attr.relation_name.c_str())) {  // 表名非空
-      const char *table_name = order_attr.relation_name.c_str();
-      const char *field_name = order_attr.attribute_name.c_str();
-      if (0 == strcmp(table_name, "*")) {  // table_name == "*"
+      if (0 != strcmp(order_attr.aggregation_func.c_str(), "")) {  // 处理一下aggregate的特殊场景
         return RC::SQL_SYNTAX;
-      } else {
-        auto iter = table_map.find(table_name);
-        if (iter == table_map.end()) {
-          LOG_WARN("no such table in from list: %s", table_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
+      }
 
-        Table *table = iter->second;
-        if (0 == strcmp(field_name, "*")) {
+      if (common::is_blank(order_attr.relation_name.c_str()) &&
+          0 == strcmp(order_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询*
+        return RC::SQL_SYNTAX;
+      } else if (!common::is_blank(order_attr.relation_name.c_str())) {  // 表名非空
+        const char *table_name = order_attr.relation_name.c_str();
+        const char *field_name = order_attr.attribute_name.c_str();
+        if (0 == strcmp(table_name, "*")) {  // table_name == "*"
           return RC::SQL_SYNTAX;
         } else {
-          const FieldMeta *field_meta = table->table_meta().field(field_name);
-          if (nullptr == field_meta) {
-            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+          auto iter = table_map.find(table_name);
+          if (iter == table_map.end()) {
+            LOG_WARN("no such table in from list: %s", table_name);
             return RC::SCHEMA_FIELD_MISSING;
           }
 
-          order_by.emplace_back(Field(table, field_meta), is_asc);
+          Table *table = iter->second;
+          if (0 == strcmp(field_name, "*")) {
+            return RC::SQL_SYNTAX;
+          } else {
+            const FieldMeta *field_meta = table->table_meta().field(field_name);
+            if (nullptr == field_meta) {
+              LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+              return RC::SCHEMA_FIELD_MISSING;
+            }
+
+            order_by.emplace_back(Field(table, field_meta), is_asc);
+          }
         }
-      }
-    } else {                     // 表名为空，但不是查询所有属性
-      if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
-        LOG_WARN("invalid. I do not know the attr's table. attr=%s", order_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
+      } else {                     // 表名为空，但不是查询所有属性
+        if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
+          LOG_WARN("invalid. I do not know the attr's table. attr=%s", order_attr.attribute_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
 
-      Table           *table      = tables[0];
-      const FieldMeta *field_meta = table->table_meta().field(order_attr.attribute_name.c_str());
-      if (nullptr == field_meta) {
-        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), order_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
+        Table           *table      = tables[0];
+        const FieldMeta *field_meta = table->table_meta().field(order_attr.attribute_name.c_str());
+        if (nullptr == field_meta) {
+          LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), order_attr.attribute_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
 
-      order_by.emplace_back(Field(table, field_meta), is_asc);
+        order_by.emplace_back(Field(table, field_meta), is_asc);
+      }
     }
   }
 
-  // everything alright
+  // everything alright, set select_stmt
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
-  select_stmt->tables_.swap(tables);
-  select_stmt->query_fields_expressions_.swap(query_fields_expressions);
-  select_stmt->query_fields_.swap(query_fields);
-  select_stmt->filter_stmt_ = filter_stmt;
-  select_stmt->aggregation_func_.swap(aggregation_func);
-  select_stmt->group_by_fields_expressions_.swap(group_by_fields_expressions);
-  select_stmt->group_by_fields_.swap(group_by_fields);
-  select_stmt->having_filter_stmt_ = having_filter_stmt;
-  select_stmt->order_by_.swap(order_by);
+  {
+    select_stmt->tables_.swap(tables);
+    select_stmt->query_fields_expressions_.swap(query_fields_expressions);
+    select_stmt->query_fields_.swap(query_fields);
+    select_stmt->filter_stmt_ = filter_stmt;
+    select_stmt->aggregation_func_.swap(aggregation_func);
+    select_stmt->group_by_fields_expressions_.swap(group_by_fields_expressions);
+    select_stmt->group_by_fields_.swap(group_by_fields);
+    select_stmt->having_filter_stmt_ = having_filter_stmt;
+    select_stmt->order_by_.swap(order_by);
+  }
+
   stmt = select_stmt;
   return RC::SUCCESS;
 }
