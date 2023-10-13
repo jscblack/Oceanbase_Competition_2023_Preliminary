@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include <algorithm>
 #include <sys/errno.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "net/buffered_writer.h"
 
@@ -93,12 +94,37 @@ RC BufferedWriter::flush()
 
 RC BufferedWriter::clear()
 {
-  if (fd_ < 0) {
-    return RC::INVALID_ARGUMENT;
-  }
+  // open dev/null
+  int     null_fd    = ::open("/dev/null", O_WRONLY);
+  int32_t size       = buffer_.size();
+  RC      rc         = RC::SUCCESS;
+  int32_t write_size = 0;
+  while (OB_SUCC(rc) && buffer_.size() > 0 && size > write_size) {
+    const char *buf       = nullptr;
+    int32_t     read_size = 0;
+    rc                    = buffer_.buffer(buf, read_size);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
 
-  buffer_.forward(buffer_.size());
-  return RC::SUCCESS;
+    ssize_t tmp_write_size = 0;
+    while (tmp_write_size == 0) {
+      tmp_write_size = ::write(null_fd, buf, read_size);
+      if (tmp_write_size < 0) {
+        if (errno == EAGAIN || errno == EINTR) {
+          tmp_write_size = 0;
+          continue;
+        } else {
+          return RC::IOERR_WRITE;
+        }
+      }
+    }
+
+    write_size += tmp_write_size;
+    buffer_.forward(tmp_write_size);
+  }
+  null_fd = ::close(null_fd);
+  return rc;
 }
 
 RC BufferedWriter::flush_internal(int32_t size)
