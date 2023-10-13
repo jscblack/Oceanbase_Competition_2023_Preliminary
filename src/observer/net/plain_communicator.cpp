@@ -271,7 +271,7 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
     // 可能是insert/delete等操作，不直接返回给客户端数据，这里把处理结果返回给客户端
     if (rc != RC::SUCCESS) {
       // 说明之前应该已经打出来过结果了
-      writer_->clear();
+      // writer_->clear();
     }
     RC rc_close = sql_result->close();
     if (rc == RC::SUCCESS) {

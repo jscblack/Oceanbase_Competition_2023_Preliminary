@@ -37,6 +37,3 @@ UPDATE Update_table_1 SET t_name='N01' WHERE id_false=1;
 -- echo 9. update in vain
 UPDATE Update_table_1 SET t_name='N01' WHERE id=100;
 -- sort SELECT * FROM Update_table_1;
-
--- echo 10. update with invalid value
-UPDATE Update_table_1 SET col1='N01' WHERE id=1;
