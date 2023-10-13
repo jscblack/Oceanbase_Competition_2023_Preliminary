@@ -97,6 +97,11 @@ public:
   virtual std::string name() const { return name_; }
   virtual void        set_name(std::string name) { name_ = name; }
 
+  /**
+   * @brief 表达式在表头的输出，根据with_table_name来决定是否返回表名（单表时忽略所有表名）
+   */
+  virtual const std::string alias(bool with_table_name) const = 0;
+
 private:
   std::string name_;
 };
@@ -128,6 +133,19 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override;
 
   RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override { return RC::INTERNAL; }
+
+  const std::string alias(bool with_table_name) const override
+  {
+    if (with_table_name) {
+      if (std::string(field_.table_name()) == "") {
+        return field_.table_name() + std::string(".") + field_.field_name();
+      } else {
+        return field_.field_name();
+      }
+    } else {
+      return field_.field_name();
+    }
+  }
 
 private:
   Field field_;
@@ -165,6 +183,8 @@ public:
 
   const Value &get_value() const { return value_; }
 
+  const std::string alias(bool with_table_name) const override { return value_.to_string(); }
+
 private:
   Value value_;
 };
@@ -189,6 +209,12 @@ public:
   AttrType value_type() const override { return cast_type_; }
 
   std::unique_ptr<Expression> &child() { return child_; }
+
+  const std::string alias(bool with_table_name) const override
+  {
+    ASSERT(false, "CastExpr::const std::string alias(bool with_table_name) const : UNREACHABLE !!");
+    return "";
+  }
 
 private:
   RC cast(const Value &value, Value &cast_value) const;
@@ -233,6 +259,12 @@ public:
    */
   RC compare_value(const Value &left, const Value &right, bool &value) const;
 
+  const std::string alias(bool with_table_name) const override
+  {
+    ASSERT(false, "ComparisonExpr::const std::string alias(bool with_table_name) const : UNREACHABLE !!");
+    return "";
+  }
+
 private:
   CompOp                      comp_;
   std::unique_ptr<Expression> left_;
@@ -270,6 +302,12 @@ public:
 
   std::vector<std::unique_ptr<Expression>> &children() { return children_; }
 
+  const std::string alias(bool with_table_name) const override
+  {
+    ASSERT(false, "ConjunctionExpr::const std::string alias(bool with_table_name) const : UNREACHABLE !!");
+    return "";
+  }
+
 private:
   Type                                     conjunction_type_;
   std::vector<std::unique_ptr<Expression>> children_;
@@ -289,6 +327,7 @@ public:
     MUL,
     DIV,
     NEGATIVE,
+    PAREN,  // 括号
   };
 
 public:
@@ -308,6 +347,37 @@ public:
 
   std::unique_ptr<Expression> &left() { return left_; }
   std::unique_ptr<Expression> &right() { return right_; }
+
+  const std::string alias(bool with_table_name) const override
+  {
+    std::string left_alias  = (left_ != nullptr) ? left_->alias(with_table_name) : "";
+    std::string right_alias = (right_ != nullptr) ? right_->alias(with_table_name) : "";
+
+    switch (arithmetic_type_) {
+      case Type::ADD: {
+        return left_alias + "+" + right_alias;
+      } break;
+      case Type::SUB: {
+        return left_alias + "-" + right_alias;
+      } break;
+      case Type::MUL: {
+        return left_alias + "*" + right_alias;
+      } break;
+      case Type::DIV: {
+        return left_alias + "/" + right_alias;
+      } break;
+      case Type::NEGATIVE: {
+        return "-" + left_alias;
+      } break;
+      case Type::PAREN: {
+        return "(" + left_alias + ")";
+      } break;
+      default: {
+        ASSERT(false, "ArithmeticExpr::const std::string alias(bool with_table_name) UNREACHABLE!!!");
+        return "";
+      } break;
+    }
+  }
 
 private:
   RC calc_value(const Value &left_value, const Value &right_value, Value &value) const;
@@ -345,8 +415,16 @@ public:
   const std::string &aggregation_func() const { return aggregation_func_; }
 
   const char *table_name() const { return field_.table_name(); }
-
   const char *field_name() const { return field_.field_name(); }
+
+  const std::string alias(bool with_table_name) const
+  {
+    if (!with_table_name) {
+      return (aggregation_func_ + "(" + field_.field_name() + ")");
+    } else {
+      return (aggregation_func_ + "(" + field_.table_name() + "." + field_.field_name() + ")");
+    }
+  }
 
   RC get_value(const Tuple &tuple, Value &value) const override
   {  //  AggregationExpr cannot use this

@@ -86,25 +86,31 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
       //   }
       // }
 
+      // 第一版FIX，修复了group-by + agg的表头输出
+      // for (auto query_field_expr : select_stmt->query_fields_expressions()) {
+      //   if (query_field_expr->type() == ExprType::FIELD) {
+      //     auto field = dynamic_cast<FieldExpr *>(query_field_expr);
+      //     if (with_table_name) {
+      //       schema.append_cell(field->table_name(), field->field_name());
+      //     } else {
+      //       schema.append_cell(field->field_name());
+      //     }
+      //   } else if (query_field_expr->type() == ExprType::AGGREGATION) {
+      //     auto agg = dynamic_cast<AggregationExpr *>(query_field_expr);
+      //     if (!with_table_name) {
+      //       schema.append_cell((agg->aggregation_func() + "(" + agg->field_name() + ")").c_str());
+      //     } else {
+      //       schema.append_cell(
+      //           (agg->aggregation_func() + "(" + agg->table_name() + "." + agg->field_name() + ")").c_str());
+      //     }
+      //   } else {
+      //     ASSERT(false, "ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *): Impossible!!!");
+      //   }
+      // }
+
+      // 第二版FIX，支持表达式表头
       for (auto query_field_expr : select_stmt->query_fields_expressions()) {
-        if (query_field_expr->type() == ExprType::FIELD) {
-          auto field = dynamic_cast<FieldExpr *>(query_field_expr);
-          if (with_table_name) {
-            schema.append_cell(field->table_name(), field->field_name());
-          } else {
-            schema.append_cell(field->field_name());
-          }
-        } else if (query_field_expr->type() == ExprType::AGGREGATION) {
-          auto agg = dynamic_cast<AggregationExpr *>(query_field_expr);
-          if (!with_table_name) {
-            schema.append_cell((agg->aggregation_func() + "(" + agg->field_name() + ")").c_str());
-          } else {
-            schema.append_cell(
-                (agg->aggregation_func() + "(" + agg->table_name() + "." + agg->field_name() + ")").c_str());
-          }
-        } else {
-          ASSERT(false, "ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *): Impossible!!!");
-        }
+        schema.append_cell(query_field_expr->alias(with_table_name).c_str());
       }
 
     } break;

@@ -113,7 +113,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC rc = RC::SUCCESS;
+  RC  rc = RC::SUCCESS;
   int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
   result = false;
   if (left.is_null() || right.is_null()) {
@@ -384,6 +384,13 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
       }
     } break;
 
+    case Type::PAREN: {
+      if (target_type == AttrType::INTS) {
+        value.set_int(left_value.get_int());
+      } else {
+        value.set_float(left_value.get_float());
+      }
+    } break;
     default: {
       rc = RC::INTERNAL;
       LOG_WARN("unsupported arithmetic type. %d", arithmetic_type_);
@@ -455,6 +462,8 @@ RC ArithmeticExpr::try_get_value(Value &value) const
 
   return calc_value(left_value, right_value, value);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
 {
