@@ -216,6 +216,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %left '*' '/'
 %nonassoc UMINUS
 %left INNER_JOIN
+%left '(' ')'
 %%
 
 commands: command_wrapper opt_semicolon  //commands or sqls. parser starts here.
@@ -1026,6 +1027,9 @@ condition_tree:
     }
     | condition {
       $$ = $1;
+    }
+    | LBRACE condition_tree RBRACE {
+      $$ = $2;
     }
     | condition_tree AND condition_tree {
       $$ = new ConditionSqlNode;
