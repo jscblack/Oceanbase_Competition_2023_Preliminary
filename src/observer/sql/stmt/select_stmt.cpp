@@ -247,13 +247,28 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // group_by + aggregate 相关的语法合法性检测
   if (select_sql.groups.empty()) {  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
-    Expression *expr = query_fields_expressions.front();
-    if (expr->type() == ExprType::AGGREGATION) {
-      for (auto attr : select_sql.attributes) {
-        if (common::is_blank(attr.aggregation_func.c_str())) {
-          return RC::SQL_SYNTAX;
-        }
+    // 旧版check
+    // Expression *expr = query_fields_expressions.front();
+    // if (expr->type() == ExprType::AGGREGATION) {
+    //   for (auto attr : select_sql.attributes) {
+    //     if (common::is_blank(attr.aggregation_func.c_str())) {
+    //       return RC::SQL_SYNTAX;
+    //     }
+    //   }
+    // }
+    bool has_normal_field = false;
+    bool has_agg_field    = false;
+    for (auto query_fields_expr : query_fields_expressions) {
+      if (query_fields_expr->type() == ExprType::FIELD) {
+        has_normal_field = true;
       }
+      if (query_fields_expr->type() == ExprType::AGGREGATION) {
+        has_agg_field = true;
+      }
+    }
+    if (has_agg_field && has_normal_field) {
+      LOG_WARN("Aggregated-attr cannot appear with normal-attr without group-by");
+      return RC::SQL_SYNTAX;
     }
   } else {
     bool                     have_agg = false;
