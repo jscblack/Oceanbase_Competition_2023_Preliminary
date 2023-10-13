@@ -269,7 +269,10 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
     // 除了select之外，其它的消息通常不会通过operator来返回结果，表头和行数据都是空的
     // 这里针对这种情况做特殊处理，当表头和行数据都是空的时候，就返回处理的结果
     // 可能是insert/delete等操作，不直接返回给客户端数据，这里把处理结果返回给客户端
-    writer_->clear();
+    if (rc != RC::SUCCESS) {
+      // 说明之前应该已经打出来过结果了
+      writer_->clear();
+    }
     RC rc_close = sql_result->close();
     if (rc == RC::SUCCESS) {
       rc = rc_close;
