@@ -92,142 +92,144 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::vector<Field>                         query_fields;
   std::vector<Expression *>                  query_fields_expressions;
   std::vector<std::pair<std::string, Field>> aggregation_func;
+  Table                                     *default_table = nullptr;
+  {
+    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+      const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
 
-  for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-    const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
-
-    if (common::is_blank(relation_attr.relation_name.c_str()) &&
-        0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询所有属性(*)
-      for (Table *table : tables) {
-        wildcard_fields(table, query_fields);
-      }
-
-      // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
-      if (0 == strcmp(relation_attr.aggregation_func.c_str(), "COUNT")) {
-        aggregation_func.emplace_back("COUNT", Field(nullptr, nullptr));
-      }
-
-      //-----------------------------------------------------
-      // 重构为expression的写法
-      // select * or select count(*)
-      if (0 == strcmp(relation_attr.aggregation_func.c_str(),
-                   "COUNT")) {  // select count(*) 在logical operator生成的时候才将 *
-                                // 拆分，目的是为了保证与用户查询的顺序对应，同时必须要在过程中拆分出 *
-        Expression *agg_expr =
-            new AggregationExpr(Field(nullptr, nullptr), "COUNT");  // (nullptr, nullptr)对应 * or *.*
-        query_fields_expressions.emplace_back(agg_expr);
-      } else {  // 普通 select * 在这里就可以拆分
-        for (Table *table : tables) {
-          wildcard_fields(table, query_fields_expressions);
-        }
-      }
-    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {  // 表名非空
-      const char *table_name           = relation_attr.relation_name.c_str();
-      const char *field_name           = relation_attr.attribute_name.c_str();
-      const char *aggregation_function = relation_attr.aggregation_func.c_str();
-
-      if (0 == strcmp(table_name, "*")) {  // table_name == "*"
-        if (0 != strcmp(field_name, "*")) {
-          LOG_WARN("invalid field name while table is *. attr=%s", field_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
+      if (common::is_blank(relation_attr.relation_name.c_str()) &&
+          0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询所有属性(*)
         for (Table *table : tables) {
           wildcard_fields(table, query_fields);
         }
 
         // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
-        if (0 == strcmp(aggregation_function, "COUNT")) {
+        if (0 == strcmp(relation_attr.aggregation_func.c_str(), "COUNT")) {
           aggregation_func.emplace_back("COUNT", Field(nullptr, nullptr));
         }
 
-        // select *.* or select count(*.*)
-        if (0 == strcmp(aggregation_function, "COUNT")) {
-          Expression *agg_expr = new AggregationExpr(Field(nullptr, nullptr), "COUNT");
+        //-----------------------------------------------------
+        // 重构为expression的写法
+        // select * or select count(*)
+        if (0 == strcmp(relation_attr.aggregation_func.c_str(),
+                     "COUNT")) {  // select count(*) 在logical operator生成的时候才将 *
+                                  // 拆分，目的是为了保证与用户查询的顺序对应，同时必须要在过程中拆分出 *
+          Expression *agg_expr =
+              new AggregationExpr(Field(nullptr, nullptr), "COUNT");  // (nullptr, nullptr)对应 * or *.*
           query_fields_expressions.emplace_back(agg_expr);
-        } else {
+        } else {  // 普通 select * 在这里就可以拆分
           for (Table *table : tables) {
             wildcard_fields(table, query_fields_expressions);
           }
         }
-      } else {  // table_name != "*"
-        Table *table;
-        if (!is_table_legal(table_map, table_name, table)) {
-          return RC::SCHEMA_FIELD_MISSING;
-        }
+      } else if (!common::is_blank(relation_attr.relation_name.c_str())) {  // 表名非空
+        const char *table_name           = relation_attr.relation_name.c_str();
+        const char *field_name           = relation_attr.attribute_name.c_str();
+        const char *aggregation_function = relation_attr.aggregation_func.c_str();
 
-        if (0 == strcmp(field_name, "*")) {
-          wildcard_fields(table, query_fields);
+        if (0 == strcmp(table_name, "*")) {  // table_name == "*"
+          if (0 != strcmp(field_name, "*")) {
+            LOG_WARN("invalid field name while table is *. attr=%s", field_name);
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+          for (Table *table : tables) {
+            wildcard_fields(table, query_fields);
+          }
+
           // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
           if (0 == strcmp(aggregation_function, "COUNT")) {
-            aggregation_func.emplace_back("COUNT", Field(table, nullptr));
+            aggregation_func.emplace_back("COUNT", Field(nullptr, nullptr));
           }
-          // select t.* or select count(t.*)
+
+          // select *.* or select count(*.*)
           if (0 == strcmp(aggregation_function, "COUNT")) {
-            Expression *agg_expr = new AggregationExpr(Field(table, nullptr), "COUNT");  // (table, nullptr)对应table.*
+            Expression *agg_expr = new AggregationExpr(Field(nullptr, nullptr), "COUNT");
             query_fields_expressions.emplace_back(agg_expr);
           } else {
-            wildcard_fields(table, query_fields_expressions);
+            for (Table *table : tables) {
+              wildcard_fields(table, query_fields_expressions);
+            }
           }
-        } else {
-          const FieldMeta *field_meta = table->table_meta().field(field_name);
-          if (nullptr == field_meta) {
-            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+        } else {  // table_name != "*"
+          Table *table;
+          if (!is_table_legal(table_map, table_name, table)) {
             return RC::SCHEMA_FIELD_MISSING;
           }
 
-          query_fields.push_back(Field(table, field_meta));
-
-          // 记录field的聚合信息：这里可能存在5种类型的聚合
-          // if (0 != strcmp(aggregation_function, "")) {
-          if (!common::is_blank(aggregation_function)) {
-            aggregation_func.emplace_back(std::string(aggregation_function), Field(table, field_meta));
-          }
-          // need aggregate or not?
-          if (common::is_blank(aggregation_function)) {
-            Expression *field_expr = new FieldExpr(table, field_meta);
-            query_fields_expressions.emplace_back(field_expr);
+          if (0 == strcmp(field_name, "*")) {
+            wildcard_fields(table, query_fields);
+            // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
+            if (0 == strcmp(aggregation_function, "COUNT")) {
+              aggregation_func.emplace_back("COUNT", Field(table, nullptr));
+            }
+            // select t.* or select count(t.*)
+            if (0 == strcmp(aggregation_function, "COUNT")) {
+              Expression *agg_expr =
+                  new AggregationExpr(Field(table, nullptr), "COUNT");  // (table, nullptr)对应table.*
+              query_fields_expressions.emplace_back(agg_expr);
+            } else {
+              wildcard_fields(table, query_fields_expressions);
+            }
           } else {
-            Expression *agg_expr = new AggregationExpr(Field(table, field_meta), relation_attr.aggregation_func);
-            query_fields_expressions.emplace_back(agg_expr);
+            const FieldMeta *field_meta = table->table_meta().field(field_name);
+            if (nullptr == field_meta) {
+              LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+              return RC::SCHEMA_FIELD_MISSING;
+            }
+
+            query_fields.push_back(Field(table, field_meta));
+
+            // 记录field的聚合信息：这里可能存在5种类型的聚合
+            // if (0 != strcmp(aggregation_function, "")) {
+            if (!common::is_blank(aggregation_function)) {
+              aggregation_func.emplace_back(std::string(aggregation_function), Field(table, field_meta));
+            }
+            // need aggregate or not?
+            if (common::is_blank(aggregation_function)) {
+              Expression *field_expr = new FieldExpr(table, field_meta);
+              query_fields_expressions.emplace_back(field_expr);
+            } else {
+              Expression *agg_expr = new AggregationExpr(Field(table, field_meta), relation_attr.aggregation_func);
+              query_fields_expressions.emplace_back(agg_expr);
+            }
           }
         }
-      }
-    } else {                     // 表名为空，但不是查询所有属性
-      if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
-        LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
+      } else {                     // 表名为空，但不是查询所有属性
+        if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
+          LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
 
-      Table           *table      = tables[0];
-      const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
-      if (nullptr == field_meta) {
-        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
+        Table           *table      = tables[0];
+        const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+        if (nullptr == field_meta) {
+          LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
 
-      query_fields.push_back(Field(table, field_meta));
+        query_fields.push_back(Field(table, field_meta));
 
-      // 记录field的聚合信息：这里可能存在5种类型的聚合
-      // if (0 != strcmp(relation_attr.aggregation_func.c_str(), "")) {
-      if (!common::is_blank(relation_attr.aggregation_func.c_str())) {
-        aggregation_func.emplace_back(std::string(relation_attr.aggregation_func.c_str()), Field(table, field_meta));
-      }
-      // need aggregate or not?
-      if (common::is_blank(relation_attr.aggregation_func.c_str())) {
-        Expression *field_expr = new FieldExpr(table, field_meta);
-        query_fields_expressions.emplace_back(field_expr);
-      } else {
-        Expression *agg_expr = new AggregationExpr(Field(table, field_meta), relation_attr.aggregation_func);
-        query_fields_expressions.emplace_back(agg_expr);
+        // 记录field的聚合信息：这里可能存在5种类型的聚合
+        // if (0 != strcmp(relation_attr.aggregation_func.c_str(), "")) {
+        if (!common::is_blank(relation_attr.aggregation_func.c_str())) {
+          aggregation_func.emplace_back(std::string(relation_attr.aggregation_func.c_str()), Field(table, field_meta));
+        }
+        // need aggregate or not?
+        if (common::is_blank(relation_attr.aggregation_func.c_str())) {
+          Expression *field_expr = new FieldExpr(table, field_meta);
+          query_fields_expressions.emplace_back(field_expr);
+        } else {
+          Expression *agg_expr = new AggregationExpr(Field(table, field_meta), relation_attr.aggregation_func);
+          query_fields_expressions.emplace_back(agg_expr);
+        }
       }
     }
-  }
 
-  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields_expressions.size());
+    LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields_expressions.size());
 
-  Table *default_table = nullptr;
-  if (tables.size() == 1) {
-    default_table = tables[0];
+    if (tables.size() == 1) {
+      default_table = tables[0];
+    }
   }
 
   // create filter statement in `where` statement
@@ -421,8 +423,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       }
     }
   }
-
-  // FIXME: haing子句可能也需要一些判断：having 子句中的每一个元素也必须出现在select列表中？
 
   // collect filter conditions in 'having' statement
   HavingFilterStmt *having_filter_stmt = nullptr;
