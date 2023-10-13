@@ -45,6 +45,7 @@ enum class ExprType
   CAST,         ///< 需要做类型转换的表达式
   COMPARISON,   ///< 需要做比较的表达式
   LOGICALCALC,  ///< 多个表达式做逻辑运算
+  FUNCTION,     ///< 多个表达式做函数运算，比如MAX，MIN
   SELECT,       ///< select子查询
   ARITHMETIC,   ///< 算术运算
 };
@@ -362,7 +363,6 @@ private:
  * @brief 逻辑运算表达式
  * @ingroup Expression
  * 多个表达式使用同一种关系(AND或OR)来联结
- * 当前miniob仅有AND操作
  */
 class LogicalCalcExpr : public Expression
 {
@@ -392,6 +392,49 @@ private:
 };
 
 /**
+ * @brief 函数运算表达式
+ * @ingroup Expression
+ * 多个表达式的值进行函数运算
+ * 如MAX，MIN
+ */
+class FunctionExpr : public Expression
+{
+public:
+  enum class FuncType
+  {
+    MAX,
+    MIN,
+  };
+
+public:
+  FunctionExpr(FuncType func_type, std::vector<std::unique_ptr<Expression>> &expr_list);
+  FunctionExpr(const FunctionExpr &expr)            = delete;
+  FunctionExpr &operator=(const FunctionExpr &expr) = delete;
+
+  virtual ~FunctionExpr(){};
+
+  ExprType type() const override { return ExprType::FUNCTION; }
+
+  AttrType value_type() const override
+  {
+    // 在子表达式真正执行之前，是无法知道select的结果集的类型的
+    return AttrType::UNDEFINED;
+  }
+
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
+
+  FuncType func_type() const { return func_type_; }
+
+  std::vector<std::unique_ptr<Expression>> &expr_list() { return expr_list_; }
+
+  Expression *clone() const override;
+
+private:
+  FuncType                                 func_type_;
+  std::vector<std::unique_ptr<Expression>> expr_list_;
+};
+
+/**
  * @brief 算术表达式
  * @ingroup Expression
  */
@@ -410,12 +453,7 @@ public:
 public:
   ArithmeticExpr(Type type, Expression *left, Expression *right);
   ArithmeticExpr(Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
-  ArithmeticExpr(const ArithmeticExpr &expr) = delete;
-  // {
-  //   arithmetic_type_ = expr.arithmetic_type_;
-  //   left_            = std::unique_ptr<Expression>(new decltype (*expr.left_)(*expr.left_));
-  //   right_           = std::unique_ptr<Expression>(new decltype (*expr.right_)(*expr.right_));
-  // }
+  ArithmeticExpr(const ArithmeticExpr &expr)            = delete;
   ArithmeticExpr &operator=(const ArithmeticExpr &expr) = delete;
 
   virtual ~ArithmeticExpr(){};
