@@ -541,11 +541,7 @@ extern int yylex \
 #undef yyTABLES_NAME
 #endif
 
-<<<<<<< HEAD
-#line 161 "lex_sql.l"
-=======
-#line 158 "lex_sql.l"
->>>>>>> feat-group-by
+#line 163 "lex_sql.l"
 
 
 #line 548 "lex_sql.h"

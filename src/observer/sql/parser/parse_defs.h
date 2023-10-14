@@ -38,7 +38,7 @@ struct RelAttrSqlNode
 {
   std::string relation_name;     ///< relation name (may be NULL) 表名
   std::string attribute_name;    ///< attribute name              属性名
-  std::string aggregation_func;  ///< aggregation function        聚合函数类型 max/min/count/avg/sum
+  // std::string aggregation_func;  ///< aggregation function        聚合函数类型 max/min/count/avg/sum
 };
 
 /**
@@ -76,6 +76,33 @@ enum LogiOp
 };
 
 /**
+ * @brief 描述函数名, 排在UNDEFINE和NO_FUNC之间的是聚集函数, 随后才是其他函数
+ * @ingroup SQLParser
+ */
+enum FuncName
+{
+  UNDEFINED,
+  MAX,    ///< "MAX"
+  MIN,    ///< "MIN"
+  COUNT,  ///< "COUNT"
+  AVG,    ///< "AVG"
+  NO_FUNC
+};
+
+/**
+ * @brief 描述条件比较的类型
+ * @ingroup SQLParser
+ */
+enum ConditionSqlNodeType
+{
+  VALUE = 0,  // 属性值或表达式
+  ATTR,       // 属性名
+  SUB_SELECT  // 子查询
+};
+
+struct SelectSqlNode;
+struct ConditionSqlNode;
+/**
  * @brief 表示一个条件比较
  * @ingroup SQLParser
  * @details 条件比较就是SQL查询中的 where a>b 这种。
@@ -83,24 +110,22 @@ enum LogiOp
  * 左边和右边理论上都可以是任意的数据，比如是字段（属性，列），也可以是数值常量。
  * 这个结构中记录的仅仅支持字段和值。
  */
-struct SelectSqlNode;
-struct ConditionSqlNode;
-
 // where 1:1 condition
 struct ConditionSqlNode
 {
-  int left_type;  ///< TRUE if left-hand side is an attribute
-                  ///< 2时，操作符左边是子查询，1时，操作符左边是属性名，0时，是属性值
+  ConditionSqlNodeType left_type;  ///< TRUE if left-hand side is an attribute
+                                   ///< 2时，操作符左边是子查询，1时，操作符左边是属性名，0时，是属性值
   // 现阶段 expression里面只包含value
-  Expression    *left_expr = nullptr;     ///< left-hand side value if left_is_attr = FALSE
-  RelAttrSqlNode left_attr;               ///< left-hand side attribute
-  SelectSqlNode *left_select = nullptr;   ///< left-hand side select
-  CompOp         comp;                    ///< comparison operator
-  int            right_type;              ///< TRUE if right-hand side is an attribute
-                                          ///< 1时，操作符右边是属性名，0时，是属性值
-  Expression    *right_expr = nullptr;    ///< right-hand side value if right_is_attr = FALSE
-  RelAttrSqlNode right_attr;              ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
-  SelectSqlNode *right_select = nullptr;  ///< right-hand side select
+  Expression          *left_expr = nullptr;    ///< left-hand side value if left_is_attr = FALSE
+  RelAttrSqlNode       left_attr;              ///< left-hand side attribute
+  SelectSqlNode       *left_select = nullptr;  ///< left-hand side select
+  CompOp               comp;                   ///< comparison operator
+  FuncName             func;                   ///< function operator
+  ConditionSqlNodeType right_type;             ///< TRUE if right-hand side is an attribute
+                                               ///< 1时，操作符右边是属性名，0时，是属性值
+  Expression    *right_expr = nullptr;         ///< right-hand side value if right_is_attr = FALSE
+  RelAttrSqlNode right_attr;                   ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
+  SelectSqlNode *right_select = nullptr;       ///< right-hand side select
 
   bool              inner_node = false;  ///< TRUE if this is an inner node of a condition tree
   ConditionSqlNode *left_cond  = nullptr;
@@ -131,12 +156,12 @@ struct OrderSqlNode
 
 struct SelectSqlNode
 {
-  std::vector<RelAttrSqlNode>   attributes;            ///< attributes in select clause
-  std::vector<std::string>      relations;             ///< 查询的表
-  ConditionSqlNode             *conditions = nullptr;  ///< 查询条件树
-  std::vector<OrderSqlNode>     orders;                // 排序条件，可能有多列需求
-  std::vector<RelAttrSqlNode>   groups;                ///< 分组的属性
-  std::vector<ConditionSqlNode> havings;  ///< 分组筛选条件，同样是使用AND串联起来多个条件
+  std::vector<RelAttrSqlNode> attributes;            ///< attributes in select clause
+  std::vector<std::string>    relations;             ///< 查询的表
+  ConditionSqlNode           *conditions = nullptr;  ///< 查询条件树
+  std::vector<OrderSqlNode>   orders;                // 排序条件，可能有多列需求
+  std::vector<RelAttrSqlNode> groups;                ///< 分组的属性
+  ConditionSqlNode           *havings = nullptr;  ///< 分组筛选条件，同样是使用AND串联起来多个条件
 
   // std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件 旧版查询条件
 };

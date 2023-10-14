@@ -127,9 +127,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
   ParsedSqlNode *                   sql_node;
-  ConditionSqlNode *                condition;
+  ConditionSqlNode *                condition; // 旧版，已重构为新的condition——tree
   Value *                           value;
   enum CompOp                       comp;
+  enum FuncName                     func_name;
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
@@ -138,7 +139,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<std::vector<Value>> * insert_list;
   std::vector<Value> *              value_list;
   std::vector<ConditionSqlNode> *   condition_list;
-  ConditionSqlNode *   condition_tree;
+  ConditionSqlNode *                condition_tree;
   std::vector<OrderSqlNode> *       order_by_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
@@ -164,6 +165,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
+%type <func_name>           func_name
+%type <func_name>           agg_func_name
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
@@ -187,6 +190,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       attr_list
 %type <order_by_list>       order
 %type <order_by_list>       order_list
+%type <condition>           function
+%type <condition>           agg_func
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -656,7 +661,8 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
 
       if ($9 != nullptr) {
-        $$->selection.havings.swap(*$9);
+        // $$->selection.havings.swap(*$9);
+        $$->selection.havings = $9;
         delete $9;
       }
 
@@ -844,7 +850,54 @@ select_attr:
       delete $1;
     }
     ;
-
+function: // 特殊的表达式，可能有括号内列表，注意无法在此生成Expression，可能有field需要后面才能知道
+    agg_func {
+      $$ = $1;
+    }
+    | /*empty*/ {
+      $$ = nullptr;
+    } 
+    ;
+agg_func: // 特殊之处在于括号内不是列表，只能是一个属性（可能和function的参数列表有冲突？），还需处理COUNT(*)
+    agg_func_name LBRACE rel_attr RBRACE {
+      $$ = new ConditionSqlNode;
+      $$->func = $1;
+      $$->left_attr.relation_name = $3->relation_name;
+      $$->left_attr.attribute_name = $3->attribute_name;
+      free($3);
+    }
+    | AGG_COUNT LBRACE '*' RBRACE { // TODO: 尚不支持 table.* 
+      $$ = new ConditionSqlNode;
+      $$->func = COUNT;
+      $$->left_attr.relation_name = "";
+      $$->left_attr.attribute_name = "*";
+    }
+    | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*) 好像有差别
+      $$ = new ConditionSqlNode;
+      $$->func = COUNT;
+      $$->left_attr.relation_name = "";
+      $$->left_attr.attribute_name = "*";
+    }
+    ;
+func_name: 
+    agg_func_name {
+      $$ = $1;
+    } 
+    ;
+agg_func_name:
+    AGG_MAX {
+      $$ = MAX;
+    } 
+    | AGG_MIN {
+      $$ = MIN;
+    } 
+    | AGG_COUNT {
+      $$ = COUNT;
+    }
+    | AGG_AVG {
+      $$ = AVG;
+    }
+    ;
 rel_attr:
     ID {
       $$ = new RelAttrSqlNode;
@@ -858,7 +911,7 @@ rel_attr:
       free($1);
       free($3);
     }
-    | AGG_MAX LBRACE ID RBRACE {
+    /* | AGG_MAX LBRACE ID RBRACE {
       $$ = new RelAttrSqlNode;
       $$->aggregation_func = "MAX";
       $$->attribute_name = $3;
@@ -939,7 +992,7 @@ rel_attr:
       $$->attribute_name = $5;
       free($3);
       free($5);
-    }
+    } */
     ;
 
 attr_list:
@@ -996,7 +1049,7 @@ having:
     {
       $$ = nullptr;
     }
-    | HAVING condition_list {
+    | HAVING condition_tree {
       $$ = $2;
     }
     ;
@@ -1221,7 +1274,6 @@ condition:
     }
 
     ;
-
 comp_op:
       EQ { $$ = EQUAL_TO; }
     | LT { $$ = LESS_THAN; }

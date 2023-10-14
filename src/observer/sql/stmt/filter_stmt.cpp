@@ -36,13 +36,13 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     rc                         = create(db, default_table, tables, conditions->left_cond, cur_left_stmt);
     if (rc != RC::SUCCESS) {
       delete cur_stmt;
-      LOG_WARN("failed to create filter unit. condition index=%d", 0);
+      LOG_WARN("failed to create filter unit. condition index=%d", 123456);
       return rc;
     }
     rc = create(db, default_table, tables, conditions->right_cond, cur_right_stmt);
     if (rc != RC::SUCCESS) {
       delete cur_stmt;
-      LOG_WARN("failed to create filter unit. condition index=%d", 0);
+      LOG_WARN("failed to create filter unit. condition index=%d", 123456);
       return rc;
     }
     cur_stmt->left_  = cur_left_stmt;
@@ -53,7 +53,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     rc                      = create_filter_unit(db, default_table, tables, *conditions, filter_unit);
     if (rc != RC::SUCCESS) {
       delete cur_stmt;
-      LOG_WARN("failed to create filter unit. condition index=%d", 0);
+      LOG_WARN("failed to create filter unit. condition index=%d", 123456);
       return rc;
     }
     cur_stmt->filter_unit_ = filter_unit;

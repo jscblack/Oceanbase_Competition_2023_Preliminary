@@ -19,37 +19,49 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-HavingFilterStmt::~HavingFilterStmt()
-{
-  for (HavingFilterUnit *unit : having_filter_units_) {
-    delete unit;
-  }
-  having_filter_units_.clear();
-}
-
 RC HavingFilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, int condition_num, HavingFilterStmt *&stmt)
+    const ConditionSqlNode *conditions, HavingFilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt  = nullptr;
-
-  HavingFilterStmt *tmp_stmt = new HavingFilterStmt();
-  for (int i = 0; i < condition_num; i++) {
-    HavingFilterUnit *having_filter_unit = nullptr;
-    rc = create_filter_unit(db, default_table, tables, conditions[i], having_filter_unit);
-    if (rc != RC::SUCCESS) {
-      delete tmp_stmt;
-      LOG_WARN("failed to create filter unit. condition index=%d", i);
-      return rc;
-    }
-    tmp_stmt->having_filter_units_.push_back(having_filter_unit);
+  if (conditions == nullptr) {
+    return rc;
   }
 
-  stmt = tmp_stmt;
+  HavingFilterStmt *cur_stmt = new HavingFilterStmt();
+  if (conditions->inner_node) {
+    HavingFilterStmt *cur_left_stmt  = nullptr;
+    HavingFilterStmt *cur_right_stmt = nullptr;
+    rc                               = create(db, default_table, tables, conditions->left_cond, cur_left_stmt);
+    if (OB_FAIL(rc)) {
+      delete cur_stmt;
+      LOG_WARN("HavingFilterStmt::create: failed to create filter unit. condition index=%d", 123456);
+      return rc;
+    }
+    rc = create(db, default_table, tables, conditions->right_cond, cur_right_stmt);
+    if (OB_FAIL(rc)) {
+      delete cur_stmt;
+      LOG_WARN("HavingFilterStmt::create: failed to create filter unit. condition index=%d", 123456);
+      return rc;
+    }
+    cur_stmt->left_  = cur_left_stmt;
+    cur_stmt->right_ = cur_right_stmt;
+    cur_stmt->logi_  = conditions->logi_op;
+  } else {
+    HavingFilterUnit *filter_unit = nullptr;
+    rc == create_filter_unit(db, default_table, tables, *conditions, filter_unit);
+    if (OB_FAIL(rc)) {
+      delete cur_stmt;
+      LOG_WARN("HavingFilterStmt::create: failed to create filter unit. condition index=%d", 123456);
+    }
+    cur_stmt->filter_unit_ = filter_unit;
+  }
+  stmt = cur_stmt;
   return rc;
 }
 
 // HavingFilterStatement_get_table_and_field
+// FIXME: 待重构。。。。。。。。。。。。。。。。。。。。。。。。。。。 尚未观看，跳过先看create_filter_unit
 RC hfs_get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
 {
@@ -84,7 +96,7 @@ RC hfs_get_table_and_field(Db *db, Table *default_table, std::unordered_map<std:
 }
 
 RC HavingFilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode &condition, HavingFilterUnit *&having_filter_unit)
+    const ConditionSqlNode &condition, HavingFilterUnit *&filter_unit)
 {
   RC rc = RC::SUCCESS;
 
@@ -94,9 +106,38 @@ RC HavingFilterStmt::create_filter_unit(Db *db, Table *default_table, std::unord
     return RC::INVALID_ARGUMENT;
   }
 
-  having_filter_unit  = new HavingFilterUnit;
+  filter_unit         = new HavingFilterUnit;
   AttrType type_left  = UNDEFINED;
   AttrType type_right = UNDEFINED;
+
+  switch (condition.left_type) {
+    case VALUE: {
+      HavingFilterObj filter_obj;
+      filter_obj.init_expr(condition.left_expr);
+      filter_unit->set_left(filter_obj);
+      type_left = filter_obj.expr->value_type();
+    } break;
+    case ATTR: {
+      Table           *table = nullptr;
+      const FieldMeta *field = nullptr;
+      rc                     = hfs_get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
+      HavingFilterObj filter_obj;
+      // filter_obj.init_expr(static_cast<Expression*>(new AggregationExpr(Field(table,field),)))
+      
+
+    } break;
+
+    case SUB_SELECT:  // having内暂不支持子查询
+    default: {
+      delete filter_unit;
+      LOG_WARN("invalid left_type: %d", condition.left_type);
+      return RC::INVALID_ARGUMENT;
+    } break;
+  }
 
   if (condition.left_is_attr) {
     Table           *table = nullptr;

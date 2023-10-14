@@ -429,8 +429,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     RC rc = HavingFilterStmt::create(db,
         default_table,
         &table_map,
-        select_sql.havings.data(),
-        static_cast<int>(select_sql.havings.size()),
+        select_sql.havings,
         having_filter_stmt);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot construct having filter stmt");

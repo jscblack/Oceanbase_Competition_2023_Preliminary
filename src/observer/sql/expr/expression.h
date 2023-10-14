@@ -287,7 +287,7 @@ public:
 
   std::unique_ptr<Expression> &child() { return child_; }
 
-  Expression       *clone() const override;
+  Expression *clone() const override;
 
 private:
   RC cast(const Value &value, Value &cast_value) const;
@@ -341,7 +341,7 @@ public:
    */
   RC compare_value(const Value &left, const std::vector<Value> &right, bool &value) const;
 
-  Expression       *clone() const override;
+  Expression *clone() const override;
 
 private:
   CompOp                      comp_;

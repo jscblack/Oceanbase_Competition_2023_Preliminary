@@ -26,24 +26,28 @@ class FieldMeta;
 
 struct HavingFilterObj
 {
-  bool        is_attr;
-  Field       field;  // 根据table()!=nullptr和meta()==nullptr特殊标记count(*)
-  Value       value;
-  std::string aggregation_func_;
-
-  void init_attr(const Field &field, const std::string &agg_func)
-  {
-    is_attr                 = true;
-    this->field             = field;
-    this->aggregation_func_ = agg_func;
-  }
-
-  void init_value(const Value &value)
-  {
-    is_attr     = false;
-    this->value = value;
-  }
+  Expression *expr = nullptr;
+  void        init_expr(Expression *expr) { this->expr = expr; }
 };
+
+// struct HavingFilterObj
+// {
+//   bool        is_attr;
+//   Field       field;  // 根据table()!=nullptr和meta()==nullptr特殊标记count(*)
+//   Value       value;
+//   std::string aggregation_func_;
+//   void init_attr(const Field &field, const std::string &agg_func)
+//   {
+//     is_attr                 = true;
+//     this->field             = field;
+//     this->aggregation_func_ = agg_func;
+//   }
+//   void init_value(const Value &value)
+//   {
+//     is_attr     = false;
+//     this->value = value;
+//   }
+// };
 
 class HavingFilterUnit
 {
@@ -75,18 +79,27 @@ class HavingFilterStmt
 {
 public:
   HavingFilterStmt() = default;
-  virtual ~HavingFilterStmt();
+  virtual ~HavingFilterStmt() = default;
 
 public:
-  const std::vector<HavingFilterUnit *> &filter_units() const { return having_filter_units_; }
+  HavingFilterUnit *filter_unit() const { return filter_unit_; }
+  HavingFilterStmt *left() const { return left_; }
+  HavingFilterStmt *right() const { return right_; }
+  LogiOp            logi() const { return logi_; }
+  bool              is_filter_unit() const { return left_ == nullptr && right_ == nullptr && filter_unit_ != nullptr; }
 
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode *conditions, int condition_num, HavingFilterStmt *&stmt);
+      const ConditionSqlNode *conditions, HavingFilterStmt *&stmt);
 
   static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const ConditionSqlNode &condition, HavingFilterUnit *&filter_unit);
 
 private:
-  std::vector<HavingFilterUnit *> having_filter_units_;  // 默认当前都是AND关系
+  // std::vector<HavingFilterUnit *> having_filter_units_;  // 默认当前都是AND关系
+
+  HavingFilterUnit *filter_unit_ = nullptr;
+  HavingFilterStmt *left_        = nullptr;
+  LogiOp            logi_        = NO_LOGI_OP;
+  HavingFilterStmt *right_       = nullptr;
 };
