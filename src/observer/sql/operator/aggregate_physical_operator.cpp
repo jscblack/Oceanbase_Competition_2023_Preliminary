@@ -40,6 +40,9 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     }
     tuples_values_.emplace_back(values);
   }
+  if (rc != RC::RECORD_EOF) {
+    return rc;
+  }
 
   // LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
   // LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());

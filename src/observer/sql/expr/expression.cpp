@@ -296,11 +296,11 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   if (comp_ == IN_ENUM || comp_ == NOT_IN_ENUM || comp_ == EXISTS_ENUM || comp_ == NOT_EXISTS_ENUM) {
     rc = compare_value(left_value, right_values, bool_value);
   } else {
-    // 需要在这里处理一下子查询返回过少的情况，因为是一个value的比较
-    if (left_->type() == ExprType::SELECT && left_values.size() > 1) {
+    // 需要在这里处理一下子查询返回不是一个的情况，因为是一个value的比较
+    if (left_->type() == ExprType::SELECT && left_values.size() != 1) {
       return RC::SUBQUERY_EXEC_FAILED;
     }
-    if (right_->type() == ExprType::SELECT && right_values.size() > 1) {
+    if (right_->type() == ExprType::SELECT && right_values.size() != 1) {
       return RC::SUBQUERY_EXEC_FAILED;
     }
     rc = compare_value(left_value, right_value, bool_value);
