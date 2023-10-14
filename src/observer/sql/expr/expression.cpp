@@ -298,10 +298,10 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   } else {
     // 需要在这里处理一下子查询返回过少的情况，因为是一个value的比较
     if (left_->type() == ExprType::SELECT && left_values.size() > 1) {
-      return RC::INTERNAL;
+      return RC::SUBQUERY_EXEC_FAILED;
     }
     if (right_->type() == ExprType::SELECT && right_values.size() > 1) {
-      return RC::INTERNAL;
+      return RC::SUBQUERY_EXEC_FAILED;
     }
     rc = compare_value(left_value, right_value, bool_value);
   }

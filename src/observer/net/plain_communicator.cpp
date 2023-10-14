@@ -263,7 +263,7 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
 
   if (rc == RC::RECORD_EOF) {
     rc = RC::SUCCESS;
-  } else {
+  } else if (RC::SUBQUERY_EXEC_FAILED == rc) {
     LOG_WARN("Error in getting result tuple", strerror(errno));
     writer_->clear();
     sql_result->close();
