@@ -137,11 +137,12 @@ public:
   const std::string alias(bool with_table_name) const override
   {
     if (with_table_name) {
-      if (std::string(field_.table_name()) == "") {
-        return field_.table_name() + std::string(".") + field_.field_name();
-      } else {
-        return field_.field_name();
-      }
+      // if (std::string(field_.table_name()) == "") {
+      //   return field_.table_name() + std::string(".") + field_.field_name();
+      // } else {
+      //   return field_.field_name();
+      // }
+      return field_.table_name() + std::string(".") + field_.field_name();
     } else {
       return field_.field_name();
     }
