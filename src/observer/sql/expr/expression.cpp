@@ -378,7 +378,15 @@ RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *tr
     }
     values.push_back(value);
   }
-  physical_operator->close();
+  if (rc != RC::RECORD_EOF) {
+    LOG_WARN("failed to exec select expr. rc=%s", strrc(rc));
+    return rc;
+  }
+  rc = physical_operator->close();
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to close select expr operator. rc=%s", strrc(rc));
+    return rc;
+  }
   // 到这里他就执行完了
   rc = recover_stmt(select_stmt_, &tuple);
   if (rc != RC::SUCCESS) {
