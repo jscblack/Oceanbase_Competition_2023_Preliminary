@@ -36,9 +36,9 @@ class Expression;
  */
 struct RelAttrSqlNode
 {
-  std::string relation_name;          ///< relation name (may be NULL) 表名
-  std::string attribute_name;         ///< attribute name              属性名
-  std::string aggregation_func = "";  ///< aggregation function       聚合函数类型 max/min/count/avg/sum
+  std::string relation_name;     ///< relation name (may be NULL) 表名
+  std::string attribute_name;    ///< attribute name              属性名
+  std::string aggregation_func;  ///< aggregation function        聚合函数类型 max/min/count/avg/sum
 };
 
 /**
@@ -131,10 +131,14 @@ struct OrderSqlNode
 
 struct SelectSqlNode
 {
-  std::vector<RelAttrSqlNode> attributes;            ///< attributes in select clause
-  std::vector<std::string>    relations;             ///< 查询的表
-  ConditionSqlNode           *conditions = nullptr;  ///< 查询条件树
-  std::vector<OrderSqlNode>   orders;                // 排序条件，可能有多列需求
+  std::vector<RelAttrSqlNode>   attributes;            ///< attributes in select clause
+  std::vector<std::string>      relations;             ///< 查询的表
+  ConditionSqlNode             *conditions = nullptr;  ///< 查询条件树
+  std::vector<OrderSqlNode>     orders;                // 排序条件，可能有多列需求
+  std::vector<RelAttrSqlNode>   groups;                ///< 分组的属性
+  std::vector<ConditionSqlNode> havings;  ///< 分组筛选条件，同样是使用AND串联起来多个条件
+
+  // std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件 旧版查询条件
 };
 
 /**

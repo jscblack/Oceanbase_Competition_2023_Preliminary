@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 
 class FieldMeta;
 class FilterStmt;
+class HavingFilterStmt;
 class Db;
 class Table;
 
@@ -42,13 +43,18 @@ public:
   static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt);
 
 public:
-  const std::vector<Table *>                       &tables() const { return tables_; }
-  const std::vector<Field>                         &query_fields() const { return query_fields_; }
-  FilterStmt                                       *filter_stmt() const { return filter_stmt_; }
+  const std::vector<Table *>      &tables() const { return tables_; }
+  const std::vector<Expression *> &query_fields_expressions() const { return query_fields_expressions_; }
+  const std::vector<Field>        &query_fields() const { return query_fields_; }
+  FilterStmt                      *filter_stmt() const { return filter_stmt_; }
   const std::vector<std::pair<std::string, Field>> &aggregation_func() const { return aggregation_func_; }
-  const std::vector<std::pair<Field, bool>>        &order_by() const { return order_by_; }
+  const std::vector<Expression *> &group_by_fields_expressions() const { return group_by_fields_expressions_; }
+  const std::vector<Field>        &group_by_fields() const { return group_by_fields_; }
+  HavingFilterStmt                *having_filter_stmt() const { return having_filter_stmt_; }
+  const std::vector<std::pair<Field, bool>> &order_by() const { return order_by_; }
 
 private:
+  std::vector<Expression *>                  query_fields_expressions_;
   std::vector<Field>                         query_fields_;
   std::vector<Table *>                       tables_;
   FilterStmt                                *filter_stmt_ = nullptr;
@@ -57,5 +63,8 @@ private:
 
 private:
   inline static std::unordered_map<std::string, Table *> table_map_;
+  std::vector<Expression *>                              group_by_fields_expressions_;
+  std::vector<Field>                                     group_by_fields_;
+  HavingFilterStmt                                      *having_filter_stmt_ = nullptr;
   std::vector<std::pair<Field, bool>>                    order_by_;  // (Field, is_asc)
 };

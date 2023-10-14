@@ -250,6 +250,8 @@ public:
 
   void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
 
+  const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
+
   void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
   int  cell_num() const override { return speces_.size(); }
 
@@ -270,8 +272,13 @@ public:
 
   RC clone(Tuple *&tuple) const override
   {
-    tuple = nullptr;
-    return RC::INTERNAL;
+    ProjectTuple *project_tuple = new ProjectTuple();
+    tuple_->clone(project_tuple->tuple_);
+    for (auto s : speces_) {
+      project_tuple->speces_.push_back(new TupleCellSpec(s->table_name(), s->field_name()));
+    }
+    tuple = project_tuple;
+    return RC::SUCCESS;
   }
 
 #if 0

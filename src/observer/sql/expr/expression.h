@@ -48,6 +48,7 @@ enum class ExprType
   FUNCTION,     ///< 多个表达式做函数运算，比如MAX，MIN
   SELECT,       ///< select子查询
   ARITHMETIC,   ///< 算术运算
+  AGGREGATION,  ///< 聚合运算
 };
 
 /**
@@ -80,13 +81,18 @@ public:
   /**
    * @brief 根据具体的tuple，来计算当前表达式的值。tuple有可能是一个具体某个表的行数据
    */
-  virtual RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const = 0;
+  virtual RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const { return RC::UNIMPLENMENT; };
 
   /**
    * @brief 在没有实际运行的情况下，也就是无法获取tuple的情况下，尝试获取表达式的值
    * @details 有些表达式的值是固定的，比如ValueExpr，这种情况下可以直接获取值
    */
   virtual RC try_get_value(Value &value) const { return RC::UNIMPLENMENT; }
+
+  /**
+   * @brief 根据分组的tuples，来计算当前和聚合表达式相关的值
+   */
+  virtual RC get_value(const std::vector<Tuple *> &tuples, Value &value) const { return RC::UNIMPLENMENT; }
 
   /**
    * @brief 表达式的类型
@@ -110,6 +116,15 @@ public:
    * @brief 克隆一个表达式，新的内存拷贝
    */
   virtual Expression *clone() const = 0;
+
+  /**
+   * @brief 表达式在表头的输出，根据with_table_name来决定是否返回表名（单表时忽略所有表名）
+   */
+  virtual const std::string alias(bool with_table_name) const
+  {
+    ASSERT(false, "Expr::const std::string alias(bool with_table_name) const: UNIMPLEMENT");
+    return "";
+  };
 
 private:
   std::string name_;
@@ -149,6 +164,20 @@ public:
 
   Expression *clone() const override { return new FieldExpr(*this); }
 
+  const std::string alias(bool with_table_name) const override
+  {
+    if (with_table_name) {
+      // if (std::string(field_.table_name()) == "") {
+      //   return field_.table_name() + std::string(".") + field_.field_name();
+      // } else {
+      //   return field_.field_name();
+      // }
+      return field_.table_name() + std::string(".") + field_.field_name();
+    } else {
+      return field_.field_name();
+    }
+  }
+
 private:
   Field field_;
 };
@@ -172,6 +201,11 @@ public:
   virtual ~ValueExpr(){};
 
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override
+  {
+    value = value_;
+    return RC::SUCCESS;
+  }
   RC try_get_value(Value &value) const override
   {
     value = value_;
@@ -186,7 +220,8 @@ public:
 
   const Value &get_value() const { return value_; }
 
-  Expression *clone() const override { return new ValueExpr(*this); }
+  Expression       *clone() const override { return new ValueExpr(*this); }
+  const std::string alias(bool with_table_name) const override { return value_.to_string(); }
 
 private:
   Value value_;
@@ -209,8 +244,6 @@ public:
   }
 
   virtual ~ValueListExpr(){};
-
-  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override { return RC::UNIMPLENMENT; };
 
   ExprType type() const override { return ExprType::VALUELIST; }
 
@@ -254,7 +287,7 @@ public:
 
   std::unique_ptr<Expression> &child() { return child_; }
 
-  Expression *clone() const override;
+  Expression       *clone() const override;
 
 private:
   RC cast(const Value &value, Value &cast_value) const;
@@ -281,6 +314,8 @@ public:
 
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override;
+
   AttrType value_type() const override { return BOOLEANS; }
 
   CompOp comp() const { return comp_; }
@@ -306,7 +341,7 @@ public:
    */
   RC compare_value(const Value &left, const std::vector<Value> &right, bool &value) const;
 
-  Expression *clone() const override;
+  Expression       *clone() const override;
 
 private:
   CompOp                      comp_;
@@ -341,6 +376,11 @@ public:
   // 而内层需要知道外层才能得到结果集
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
   RC get_value(const Tuple &tuple, std::vector<Value> &values, Trx *trx);
+
+  /**
+   * @brief 为分组聚合留的接口，SelectExpr中不需要用
+   */
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override { return RC::INTERNAL; };
 
   ExprType type() const override { return ExprType::SELECT; }
   AttrType value_type() const override
@@ -378,6 +418,7 @@ public:
   AttrType value_type() const override { return BOOLEANS; }
 
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override;
 
   LogiOp                       logical_calc_type() const { return logi_; }
   std::unique_ptr<Expression> &left() { return left_; }
@@ -448,6 +489,7 @@ public:
     MUL,
     DIV,
     NEGATIVE,
+    PAREN,  // 括号
   };
 
 public:
@@ -463,6 +505,8 @@ public:
   AttrType value_type() const override;
 
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
+  // RC get_value(const Tuple &tuple, Value &value) const override; // 旧版get_value 经由sub-query更新后已废弃
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override;
   RC try_get_value(Value &value) const override;
 
   Type arithmetic_type() const { return arithmetic_type_; }
@@ -470,7 +514,37 @@ public:
   std::unique_ptr<Expression> &left() { return left_; }
   std::unique_ptr<Expression> &right() { return right_; }
 
-  Expression *clone() const override;
+  Expression       *clone() const override;
+  const std::string alias(bool with_table_name) const override
+  {
+    std::string left_alias  = (left_ != nullptr) ? left_->alias(with_table_name) : "";
+    std::string right_alias = (right_ != nullptr) ? right_->alias(with_table_name) : "";
+
+    switch (arithmetic_type_) {
+      case Type::ADD: {
+        return left_alias + "+" + right_alias;
+      } break;
+      case Type::SUB: {
+        return left_alias + "-" + right_alias;
+      } break;
+      case Type::MUL: {
+        return left_alias + "*" + right_alias;
+      } break;
+      case Type::DIV: {
+        return left_alias + "/" + right_alias;
+      } break;
+      case Type::NEGATIVE: {
+        return "-" + left_alias;
+      } break;
+      case Type::PAREN: {
+        return "(" + left_alias + ")";
+      } break;
+      default: {
+        ASSERT(false, "ArithmeticExpr::const std::string alias(bool with_table_name) UNREACHABLE!!!");
+        return "";
+      } break;
+    }
+  }
 
 private:
   RC calc_value(const Value &left_value, const Value &right_value, Value &value) const;
@@ -479,4 +553,58 @@ private:
   Type                        arithmetic_type_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
+};
+
+/**
+ * @brief 聚合表达式
+ * @ingroup Expression
+ */
+class AggregationExpr : public Expression
+{
+public:
+  AggregationExpr() = default;
+  AggregationExpr(const Table *table, const FieldMeta *field, const std::string &aggregation_func)
+      : field_(table, field), aggregation_func_(aggregation_func)
+  {}
+  AggregationExpr(const Field &field, const std::string &aggregation_func)
+      : field_(field), aggregation_func_(aggregation_func)
+  {}
+
+  virtual ~AggregationExpr() = default;
+
+  ExprType type() const override { return ExprType::AGGREGATION; }
+  AttrType value_type() const override { return field_.attr_type(); }
+
+  Field       &field() { return field_; }
+  std::string &aggregation_func() { return aggregation_func_; }
+
+  const Field       &field() const { return field_; }
+  const std::string &aggregation_func() const { return aggregation_func_; }
+
+  const char *table_name() const { return field_.table_name(); }
+  const char *field_name() const { return field_.field_name(); }
+
+  const std::string alias(bool with_table_name) const
+  {
+    if (!with_table_name) {
+      return (aggregation_func_ + "(" + field_.field_name() + ")");
+    } else {
+      return (aggregation_func_ + "(" + field_.table_name() + "." + field_.field_name() + ")");
+    }
+  }
+
+  Expression *clone() const override;
+
+  RC get_value(const std::vector<Tuple *> &tuples,
+      Value &value) const override;  // 传入分组的所有tuples，返回聚合运算之后的Value
+
+private:
+  Field       field_;
+  std::string aggregation_func_;
+
+  RC do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
 };

@@ -30,47 +30,159 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     return rc;
   }
 
-  Tuple *tuple = nullptr;
   while (RC::SUCCESS == (rc = children_[0]->next())) {  // 取出所有的(project)tuple
-    tuple                       = children_[0]->current_tuple();
+    Tuple *tuple = children_[0]->current_tuple();
+    if (nullptr == tuple) {
+      LOG_WARN("failed to get tuple from operator");
+      return RC::INTERNAL;
+    }
+
+    // 拆分成value的写法 TODO: 为了aggregation-func的兼容，需要重构
     const int          cell_num = tuple->cell_num();
     std::vector<Value> values(cell_num);
     for (int i = 0; i < cell_num; i++) {
       tuple->cell_at(i, values[i]);
     }
     tuples_values_.emplace_back(values);
+
+    // clone tuple的写法
+    Tuple *new_tuple = nullptr;
+    tuple->clone(new_tuple);
+    tuples_.push_back(new_tuple);
   }
   if (rc != RC::RECORD_EOF) {
     return rc;
   }
 
+  LOG_DEBUG("========== tuples_.size() = %d ==========", tuples_.size());
+
   // LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
   // LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());
 
-  for (auto &agg : aggregations_) {
-    if (agg.first == "MAX") {
-      do_max_aggregate(agg.second);
-    } else if (agg.first == "MIN") {
-      do_min_aggregate(agg.second);
-    } else if (agg.first == "COUNT") {
-      do_count_aggregate(agg.second);
-    } else if (agg.first == "AVG") {
-      do_avg_aggregate(agg.second);
-    } else if (agg.first == "SUM") {
-      do_sum_aggregate(agg.second);
+  if (group_by_fields_.empty()) {  // TODO: 为了aggregation-func的兼容，需要重构
+    for (auto &agg : aggregations_) {
+      if (agg.first == "MAX") {
+        do_max_aggregate(agg.second);
+      } else if (agg.first == "MIN") {
+        do_min_aggregate(agg.second);
+      } else if (agg.first == "COUNT") {
+        do_count_aggregate(agg.second);
+      } else if (agg.first == "AVG") {
+        do_avg_aggregate(agg.second);
+      } else if (agg.first == "SUM") {
+        do_sum_aggregate(agg.second);
+      } else {
+        return RC::INVALID_ARGUMENT;
+      }
+    }
+
+    // 构造返回的value list tuple
+    std::vector<Value> result_value;
+    for (int i = 0; i < aggregate_results_.size(); i++) {
+      result_value.emplace_back(aggregate_results_[i]);
+    }
+    ValueListTuple vlt;
+    vlt.set_cells(result_value);
+    return_results_.emplace_back(vlt);
+    return RC::SUCCESS;
+  }
+
+  // 分组
+  // 1. 首先找到分组属性在每行tuple的位置
+  for (auto group_by_field : group_by_fields_) {
+    for (int idx = 0; idx < fields_.size(); idx++) {
+      if (strcmp(group_by_field.table_name(), fields_[idx].table_name()) == 0 &&
+          strcmp(group_by_field.field_name(), fields_[idx].field_name()) == 0) {
+        group_by_fields_idx_.emplace_back(idx);
+        break;
+      }
+    }
+  }
+  // 2. 根据分组属性将tuples_values填充到映射group_tuples_values中
+  for (auto tuple_ptr : tuples_) {
+    GroupByValues group_by_values;
+    Value         v;
+    for (auto idx : group_by_fields_idx_) {
+      tuple_ptr->cell_at(idx, v);
+      group_by_values.data.emplace_back(v);
+    }
+    auto it = group_tuples_.find(group_by_values);
+    if (it != group_tuples_.end()) {
+      it->second.emplace_back(tuple_ptr);
     } else {
-      return RC::INVALID_ARGUMENT;
+      std::vector<Tuple *> tmp;
+      tmp.emplace_back(tuple_ptr);
+      group_tuples_.insert({group_by_values, tmp});
     }
   }
 
-  // 构造返回的value list tuple
-  std::vector<Value> result_value;
-  for (int i = 0; i < aggregate_results_.size(); i++) {
-    result_value.emplace_back(aggregate_results_[i]);
+  // having分组筛选（可优化，因为having的聚合可能和分组的聚合是重复的，规范做法是先聚集再筛选，但先筛选会比较好实现）
+  if (!having_filter_units_.empty()) {
+    for (auto it = group_tuples_.begin(); it != group_tuples_.end();) {
+      Value value;
+      rc = having_filters_->get_value(it->second, value);
+      if (!value.get_boolean()) {
+        group_tuples_.erase(it++);
+      } else {
+        it++;
+      }
+    }
   }
-  ValueListTuple vlt;
-  vlt.set_cells(result_value);
-  return_results_.emplace_back(vlt);
+
+  // 分组聚集
+  // 1. 收集tuple schema信息
+  std::vector<std::pair<Field, int>> result_field_idx;
+  for (int i = 0; i < group_by_fields_.size(); i++) {
+    for (int idx = 0; idx < fields_expressions_.size(); idx++) {
+      if (fields_expressions_[idx]->type() == ExprType::FIELD) {
+        FieldExpr *field_expr = dynamic_cast<FieldExpr *>(fields_expressions_[idx]);
+        if (group_by_fields_[i] == field_expr->field()) {
+          result_field_idx.emplace_back(std::make_pair(group_by_fields_[i], idx));
+          break;
+        }
+      }
+    }
+  }
+  for (int i = 0; i < aggregations_.size(); i++) {
+    for (int idx = 0; idx < fields_expressions_.size(); idx++) {
+      if (fields_expressions_[idx]->type() == ExprType::AGGREGATION) {
+        AggregationExpr *agg_expr = dynamic_cast<AggregationExpr *>(fields_expressions_[idx]);
+        if (aggregations_[i].second == agg_expr->field()) {
+          result_field_idx.emplace_back(std::make_pair(aggregations_[i].second, idx));
+        }
+      }
+    }
+  }
+
+  // 2. 构造结果
+  // Require: 根据重构后的fields_expressions_
+  for (auto it = group_tuples_.begin(); it != group_tuples_.end(); it++) {
+    std::vector<Value> result_value;  // 该分组的结果
+    result_value.resize(fields_expressions_.size());
+    // 分组属性
+    for (int k = 0; k < group_by_fields_.size(); k++) {
+      for (int i = 0; i < result_field_idx.size(); i++) {
+        if (group_by_fields_[k] == result_field_idx[i].first) {
+          result_value[result_field_idx[i].second] = it->first.data[k];
+        }
+      }
+    }
+
+    // 聚合属性
+    for (auto &agg : aggregations_) {
+      AggregationExpr agg_expr(agg.second, agg.first);
+      Value           v;
+      agg_expr.get_value(it->second, v);
+      for (int i = 0; i < result_field_idx.size(); i++) {
+        if (agg.second == result_field_idx[i].first) {
+          result_value[result_field_idx[i].second] = v;
+        }
+      }
+    }
+    ValueListTuple vlt;
+    vlt.set_cells(result_value);
+    return_results_.emplace_back(vlt);
+  }
 
   return RC::SUCCESS;
 }
@@ -217,7 +329,7 @@ void AggregatePhysicalOperator::do_count_aggregate(Field &field)
   LOG_DEBUG("========== In AggregatePhysicalOperator::do_count_aggregate(Field& field) ==========");
   int count = 0;
 
-  if (field.table() != nullptr && field.meta() == nullptr) {  // count(*)
+  if (field.meta() == nullptr) {  // count(*)
     LOG_DEBUG("========== do_count(*) ==========");
     if (tuples_values_.empty()) {
       count = 0;

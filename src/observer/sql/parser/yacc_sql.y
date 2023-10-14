@@ -70,6 +70,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         AGG_COUNT
         AGG_AVG
         AGG_SUM
+        GROUP_BY
         NULLABLE
         UNNULLABLE
         SHOW
@@ -98,6 +99,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         FROM
         WHERE
         OR
+        HAVING
         AND
         SET
         ON
@@ -173,6 +175,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_tree>      where
 %type <condition_list>      condition_list
 %type <condition_tree>      condition_tree
+%type <rel_attr_list>       group_by
+%type <condition_list>      having
 %type <rel_attr_list>       select_attr
 %type <update_expr>         update_expr
 %type <update_expr>         update_expr_list
@@ -623,7 +627,7 @@ update_expr_list:
     ;
 
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where order 
+    SELECT select_attr FROM ID rel_list where order group_by having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -644,9 +648,21 @@ select_stmt:        /*  select 语句的语法解析树*/
         $$->selection.orders.swap(*$7);
         delete $7;
       }
+
+      if ($8 != nullptr) {
+        $$->selection.groups.swap(*$8);
+        std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
+        delete $8;
+      }
+
+      if ($9 != nullptr) {
+        $$->selection.havings.swap(*$9);
+        delete $9;
+      }
+
       free($4);
     }
-    | SELECT select_attr FROM join where order 
+    | SELECT select_attr FROM join where order group_by having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -676,6 +692,17 @@ select_stmt:        /*  select 语句的语法解析树*/
       if ($6 != nullptr) {
         $$->selection.orders.swap(*$6);
         delete $6;
+      }
+
+      if($7 != nullptr) {
+        $$->selection.groups.swap(*$7);
+        std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
+        delete $7;
+      }
+
+      if ($8 != nullptr) {
+        $$->selection.havings.swap(*$8);
+        delete $8;
       }
     }
     ;
@@ -948,6 +975,32 @@ rel_list:
       free($2);
     }
     ;
+
+group_by:
+    {
+      $$ = nullptr;
+    }
+    | GROUP_BY rel_attr attr_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+
+      $$->emplace_back(*$2);
+      delete $2;
+    }
+    ;
+
+having:
+    {
+      $$ = nullptr;
+    }
+    | HAVING condition_list {
+      $$ = $2;
+    }
+    ;
+
 order:
     /* empty */
     {
