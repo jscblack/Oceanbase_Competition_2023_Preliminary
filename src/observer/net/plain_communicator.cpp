@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/io/io.h"
 #include "common/log/log.h"
 #include "event/session_event.h"
+#include "event/sql_debug.h"
 #include "net/buffered_writer.h"
 #include "session/session.h"
 #include "sql/expr/tuple.h"
@@ -265,7 +266,7 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
     rc = RC::SUCCESS;
   } else if (RC::SUBQUERY_EXEC_FAILED == rc) {
     LOG_WARN("Error in getting result tuple", strerror(errno));
-    writer_->clear();
+    sql_debug("Encounter error in getting subquery result tuple(due to %s)\n will flush output buffer", strerror(errno));
     sql_result->close();
     sql_result->set_return_code(rc);
     return write_state(event, need_disconnect);
