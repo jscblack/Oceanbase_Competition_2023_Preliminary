@@ -123,7 +123,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC rc = RC::SUCCESS;
+  RC  rc = RC::SUCCESS;
   int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
   result = false;
   if (left.is_null() || right.is_null()) {
@@ -657,7 +657,7 @@ FunctionExpr::FunctionExpr(FuncType func_type, std::vector<std::unique_ptr<Expre
   }
 }
 
-RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const
+RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   if (func_type_ != FuncType::MAX && func_type_ != FuncType::MIN) {
     return RC::UNIMPLENMENT;
@@ -695,7 +695,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr)
   // 检查是否为空
   if (expr_values.empty()) {
     value.set_type(AttrType::NONE);
-    return;
+    return RC::SUCCESS;
   }
 
   switch (func_type_) {
@@ -716,6 +716,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr)
       }
     } break;
   }
+  return RC::SUCCESS;
 }
 
 Expression *FunctionExpr::clone() const
