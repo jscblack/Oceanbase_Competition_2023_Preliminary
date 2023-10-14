@@ -49,6 +49,7 @@ RC HavingFilterStmt::create(Db *db, Table *default_table, std::unordered_map<std
   return rc;
 }
 
+// HavingFilterStatement_get_table_and_field
 RC hfs_get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
 {
@@ -108,7 +109,9 @@ RC HavingFilterStmt::create_filter_unit(Db *db, Table *default_table, std::unord
     HavingFilterObj having_filter_obj;
     having_filter_obj.init_attr(Field(table, field), condition.left_attr.aggregation_func);
     having_filter_unit->set_left(having_filter_obj);
-    type_left = field->type();
+    // FIXME: field == nullptr 的情况尚未处理
+    type_left = (field) ? field->type() : AttrType::UNDEFINED;
+
   } else {
     HavingFilterObj having_filter_obj;
     having_filter_obj.init_value(condition.left_value);
@@ -127,7 +130,7 @@ RC HavingFilterStmt::create_filter_unit(Db *db, Table *default_table, std::unord
     HavingFilterObj having_filter_obj;
     having_filter_obj.init_attr(Field(table, field), condition.right_attr.aggregation_func);
     having_filter_unit->set_right(having_filter_obj);
-    type_right = field->type();
+    type_right = (field) ? field->type() : AttrType::UNDEFINED;
   } else {
     HavingFilterObj having_filter_obj;
     having_filter_obj.init_value(condition.right_value);
