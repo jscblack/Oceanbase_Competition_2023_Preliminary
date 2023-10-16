@@ -127,7 +127,6 @@ RC HavingFilterStmt::create_filter_unit(Db *db, Table *default_table, std::unord
       }
       HavingFilterObj filter_obj;
       // filter_obj.init_expr(static_cast<Expression*>(new AggregationExpr(Field(table,field),)))
-      
 
     } break;
 

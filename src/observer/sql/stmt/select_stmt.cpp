@@ -426,11 +426,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // FIXME: 目前Having仍然用的是旧版的condition，过不了编，需要重新调整
   HavingFilterStmt *having_filter_stmt = nullptr;
   {
-    RC rc = HavingFilterStmt::create(db,
-        default_table,
-        &table_map,
-        select_sql.havings,
-        having_filter_stmt);
+    RC rc = HavingFilterStmt::create(db, default_table, &table_map, select_sql.havings, having_filter_stmt);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot construct having filter stmt");
       return rc;

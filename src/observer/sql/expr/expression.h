@@ -38,7 +38,7 @@ class FilterStmt;
 enum class ExprType
 {
   NONE,
-  STAR,         ///< 星号，表示所有字段
+  STAR,  ///< 星号，表示所有字段
   // 以下是可比较计算的表达式：
   // ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
   // 以下是可算术计算的表达式
@@ -366,12 +366,11 @@ public:
 
   Expression *clone() const override;
 
-
-  static bool is_legal_subexpr(CompOp comp, const Expression* left, const Expression* right)  {
+  static bool is_legal_subexpr(CompOp comp, const Expression *left, const Expression *right)
+  {
     if (left == nullptr) {
       return false;
     } else if (right == nullptr) {
-      
     }
   }
 
@@ -549,17 +548,17 @@ public:
 
   /**
    * @brief Resolve Stage对算术表达式生成时的合法性检验。
-   * 
-   * @param type 
-   * @param left 
-   * @param right 
+   *
+   * @param type
+   * @param left
+   * @param right
    * @return true 合法
    * @return false 非法，需要报错
    */
-  //TODO 未完成，未处理NULL， 未判断表达式类型是否可计算
+  // TODO 未完成，未处理NULL， 未判断表达式类型是否可计算
   static bool is_legal_subexpr(Type type, const Expression *left, const Expression *right)
   {
-    
+
     if (nullptr == left) {
       return false;
     } else if (nullptr == right) {

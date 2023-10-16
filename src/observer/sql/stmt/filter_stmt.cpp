@@ -112,7 +112,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
       // TODO 特判一下,如果是comp, 则sub_select 不能是select *
       // 注意子查询相关的比较 （exist之类的）
       // 注意处理NULL
-      if(cond->binary) {
+      if (cond->binary) {
         Expression *left_expr;
         Expression *right_expr;
         rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
@@ -120,16 +120,13 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
           LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Left . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
-        rc = cond_to_expr(db,default_table, tables, cond->right_cond, is_having, right_expr);
+        rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Right . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
-        
 
-        
       } else {
-
       }
 
     } break;

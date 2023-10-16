@@ -78,7 +78,7 @@ private:
 class HavingFilterStmt
 {
 public:
-  HavingFilterStmt() = default;
+  HavingFilterStmt()          = default;
   virtual ~HavingFilterStmt() = default;
 
 public:
