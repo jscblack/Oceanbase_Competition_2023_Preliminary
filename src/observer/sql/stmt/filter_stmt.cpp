@@ -20,7 +20,6 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-
 /**
  * @brief 将ConditionSqlNode转为表达式
  *
@@ -138,7 +137,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         }
         expr = new ComparisonExpr(
             cond->comp, std::unique_ptr<Expression>(left_expr), std::unique_ptr<Expression>(right_expr));
-      } else { 
+      } else {
         // TODO: 我只处理exist/not exist这种
         if (cond->comp == CompOp::EXISTS_ENUM || cond->comp == CompOp::NOT_EXISTS_ENUM) {
           Expression *left_expr;

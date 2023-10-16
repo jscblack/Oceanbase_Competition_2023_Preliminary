@@ -366,14 +366,13 @@ public:
 
   Expression *clone() const override;
 
-
   /**
    * @brief 用于ConditionSqlNode转换为Expression时，自动转换类型并检测可比性
-   * 
-   * @param [in] comp 
-   * @param [out] left_expr 
-   * @param [out] right_expr 
-   * @return RC 
+   *
+   * @param [in] comp
+   * @param [out] left_expr
+   * @param [out] right_expr
+   * @return RC
    */
   static RC cast_and_check_comparable(CompOp comp, Expression *&left_expr, Expression *&right_expr)
   {
@@ -732,6 +731,7 @@ public:
       Value &value) const override;  // 传入分组的所有tuples，返回聚合运算之后的Value
 
 private:
+  // TODO: 应该彻底Expression化，接收一个sub_expr，不假定其类型
   Field       field_;
   std::string aggregation_func_;
 

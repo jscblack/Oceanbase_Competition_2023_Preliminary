@@ -63,8 +63,8 @@ bool is_table_legal(
 
 bool is_equal(const char *a, const char *b) { return 0 == strcmp(a, b); }
 
-RC attr_cond_to_expr(Db *db, std::vector<Table *> &tables, std::unordered_map<std::string, Table *> &table_map,
-    SelectSqlNode &select_sql, const ConditionSqlNode *cond, Expression *&expr)
+RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> &table_map,
+    const ConditionSqlNode &cond, Expression *&expr)
 {  // 对attr内的单个ConditionSqlNode做解析
   RC rc = RC::SUCCESS;
   expr  = nullptr;
@@ -79,7 +79,6 @@ RC attr_cond_to_expr(Db *db, std::vector<Table *> &tables, std::unordered_map<st
 
     case FIELD: {
       // 得把真实的表名填入
-
 
     } break;
 
@@ -164,18 +163,33 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     table_map_.insert(table);
   }
 
-  
+  Table *default_table = nullptr;
+  if (tables.size() == 1) {
+    default_table = tables[0];
+  }
 
-  
   // collect query fields in `select` statement
+  // 废弃的两个数据
   std::vector<Field>                         query_fields;
-  std::vector<Expression *>                  query_fields_expressions;
   std::vector<std::pair<std::string, Field>> aggregation_func;
-  Table                                     *default_table = nullptr;
-  
+
+  // 保留的数据
+  std::vector<Expression *> query_fields_expressions;
 
   {
-    for 
+    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+      Expression *expr = nullptr;
+      RC          rc   = attr_cond_to_expr(db, default_table, table_map, select_sql.attributes[i], expr);
+      if (OB_FAIL(rc)) {  // LOG_WARN在上面做
+        return rc;
+      }
+      // 还得判断是否是唯一的STAR，原本的代码似乎还没做这个特判。
+      // 如果STAR对应单一FieldExpr：那么FieldExpr的alias输出要变，get_value也要变，但似乎仍然可以是单个表达式
+      // 如果需要将STAR展开为多个FieldExpr，那么只需要在这里特判, 此外还需要对COUNT(*)特殊处理
+      // 或者干脆搞一个StarExpr？ （现在ExprType也有暗示），还是搞一个 ExprListExpr ？
+
+      query_fields_expressions.push_back(expr);
+    }
   }
 
   // 已废弃，需要注释掉
@@ -185,6 +199,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
       if (common::is_blank(relation_attr.relation_name.c_str()) &&
           0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询所有属性(*)
+        // 展开*
         for (Table *table : tables) {
           wildcard_fields(table, query_fields);
         }

@@ -69,9 +69,7 @@ void parse_parameter(int argc, char **argv)
         usage();
         exit(0);
         return;
-      default:
-        std::cout << "Unknown option: " << static_cast<char>(opt) << ", ignored" << std::endl;
-        break;
+      default: std::cout << "Unknown option: " << static_cast<char>(opt) << ", ignored" << std::endl; break;
     }
   }
 }
