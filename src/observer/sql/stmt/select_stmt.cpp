@@ -63,6 +63,77 @@ bool is_table_legal(
 
 bool is_equal(const char *a, const char *b) { return 0 == strcmp(a, b); }
 
+RC attr_cond_to_expr(Db *db, std::vector<Table *> &tables, std::unordered_map<std::string, Table *> &table_map,
+    SelectSqlNode &select_sql, const ConditionSqlNode *cond, Expression *&expr)
+{  // 对attr内的单个ConditionSqlNode做解析
+  RC rc = RC::SUCCESS;
+  expr  = nullptr;
+  if (nullptr == cond) {
+    return rc;
+  }
+
+  switch (cond->type) {
+    case VALUE: {
+      expr = cond->value;
+    } break;
+
+    case FIELD: {
+      // 得把真实的表名填入
+
+
+    } break;
+
+    case ARITH: {
+      // 注意类型转换
+      if (cond->binary) {
+        Expression *left_expr;
+        Expression *right_expr;
+        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Left . rc=%d:%s", rc, strrc(rc));
+          return rc;
+        }
+        rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Right . rc=%d:%s", rc, strrc(rc));
+          return rc;
+        }
+        if (ArithmeticExpr::is_legal_subexpr(cond->arith, left_expr, right_expr)) {
+          expr = new ArithmeticExpr(cond->arith, left_expr, right_expr);
+        } else {
+          return RC::EXPR_TYPE_MISMATCH;
+        }
+
+      } else {
+        Expression *sub_expr;
+        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, sub_expr);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Sub . rc=%d:%s", rc, strrc(rc));
+          return rc;
+        }
+        if (ArithmeticExpr::is_legal_subexpr(cond->arith, sub_expr, nullptr)) {
+          expr = new ArithmeticExpr(cond->arith, sub_expr, nullptr);
+        } else {
+          return RC::EXPR_TYPE_MISMATCH;
+        }
+      }
+    } break;
+
+    case FUNC_OR_AGG: {
+      // 不能是AGG
+    } break;
+
+    case SUB_SELECT:
+    case LOGIC:
+    case COMP:
+    case UNDEFINED:
+    default: {
+      LOG_WARN("invalid ConditionSqlNode type: %d", cond->type);
+      return RC::INVALID_ARGUMENT;
+    } break;
+  }
+}
+
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
   if (nullptr == db) {
@@ -93,11 +164,21 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     table_map_.insert(table);
   }
 
+  
+
+  
   // collect query fields in `select` statement
   std::vector<Field>                         query_fields;
   std::vector<Expression *>                  query_fields_expressions;
   std::vector<std::pair<std::string, Field>> aggregation_func;
   Table                                     *default_table = nullptr;
+  
+
+  {
+    for 
+  }
+
+  // 已废弃，需要注释掉
   {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
       const RelAttrSqlNode &relation_attr = select_sql.attributes[i];

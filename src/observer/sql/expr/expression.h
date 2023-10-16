@@ -366,11 +366,82 @@ public:
 
   Expression *clone() const override;
 
-  static bool is_legal_subexpr(CompOp comp, const Expression *left, const Expression *right)
+
+  /**
+   * @brief 用于ConditionSqlNode转换为Expression时，自动转换类型并检测可比性
+   * 
+   * @param [in] comp 
+   * @param [out] left_expr 
+   * @param [out] right_expr 
+   * @return RC 
+   */
+  static RC cast_and_check_comparable(CompOp comp, Expression *&left_expr, Expression *&right_expr)
   {
-    if (left == nullptr) {
-      return false;
-    } else if (right == nullptr) {
+    //   // like的语法检测, 必须左边是属性(字符串field), 右边是字符串
+    //   // 目前应该不需要支持右边是非字符串转成字符串???
+    RC             rc              = RC::SUCCESS;
+    const ExprType left_expr_type  = left_expr->type();
+    const ExprType right_expr_type = right_expr->type();
+
+    const AttrType type_left  = left_expr->value_type();
+    const AttrType type_right = right_expr->value_type();
+
+    if (LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) {
+      if (left_expr_type == ExprType::FIELD && right_expr_type == ExprType::VALUE) {
+        if (type_left != CHARS || type_right != CHARS) {
+          LOG_WARN("attr LIKE/NOT LIKE value, attr and value must be CHARS");
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+      } else {
+        LOG_WARN("LIKE/NOT LIKE must be 'attr LIKE value'");
+        return RC::SQL_SYNTAX;
+      }
+    }
+
+    // fix: 这个处理可能是多余的，待查证
+    // 检查两个类型是否能够比较
+    if (type_left != type_right) {
+      if (type_left == DATES || type_right == DATES) {
+        // date conversation
+        // advance check for date
+        if (left_expr_type == ExprType::VALUE && right_expr_type == ExprType::FIELD) {  // left:value, right:attr
+          if (type_right == DATES && type_left == CHARS) {
+            // the attr is date type, so we need to convert the value to date type
+            rc = dynamic_cast<ValueExpr *>(left_expr)->get_value().auto_cast(DATES);
+            if (rc != RC::SUCCESS) {
+              return rc;
+            }
+          }
+        } else if (left_expr_type == ExprType::FIELD && right_expr_type == ExprType::VALUE) {  // left:attr, right:value
+          if (type_left == DATES && type_right == CHARS) {
+            // the attr is date type, so we need to convert the value to date type
+            rc = dynamic_cast<ValueExpr *>(right_expr)->get_value().auto_cast(DATES);
+            if (rc != RC::SUCCESS) {
+              return rc;
+            }
+          }
+        }
+      } else if (type_left == CHARS && (type_right == FLOATS || type_right == INTS)) {
+        // left is a string, and right is s a number
+        // convert the string to number
+        if (left_expr_type == ExprType::VALUE) {
+          // left is a value
+          rc = dynamic_cast<ValueExpr *>(left_expr)->get_value().str_to_number();
+          if (rc != RC::SUCCESS) {
+            return rc;
+          }
+        }
+      } else if ((type_left == FLOATS || type_left == INTS) && type_right == CHARS) {
+        // left is a number, and right is a string
+        // convert the string to number
+        if (right_expr_type == ExprType::VALUE) {
+          // right is a value
+          rc = dynamic_cast<ValueExpr *>(right_expr)->get_value().str_to_number();
+          if (rc != RC::SUCCESS) {
+            return rc;
+          }
+        }
+      }
     }
   }
 

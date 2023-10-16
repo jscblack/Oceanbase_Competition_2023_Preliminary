@@ -20,80 +20,6 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-/**
- * @brief 判断两个表达式是否可以比较，如果可以，将类型转换为合适的类型，如果不可以，返回错误
- */
-
-RC is_comparable_and_cast(Expression *&left_expr, Expression *&right_expr, CompOp comp)
-{
-  //   // like的语法检测, 必须左边是属性(字符串field), 右边是字符串
-  //   // 目前应该不需要支持右边是非字符串转成字符串???
-  RC             rc              = RC::SUCCESS;
-  const ExprType left_expr_type  = left_expr->type();
-  const ExprType right_expr_type = right_expr->type();
-
-  const AttrType type_left  = left_expr->value_type();
-  const AttrType type_right = right_expr->value_type();
-
-  if (LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) {
-    if (left_expr_type == ExprType::FIELD && right_expr_type == ExprType::VALUE) {
-      if (type_left != CHARS || type_right != CHARS) {
-        LOG_WARN("attr LIKE/NOT LIKE value, attr and value must be CHARS");
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      }
-    } else {
-      LOG_WARN("LIKE/NOT LIKE must be 'attr LIKE value'");
-      return RC::SQL_SYNTAX;
-    }
-  }
-
-  // fix: 这个处理可能是多余的，待查证
-  // 检查两个类型是否能够比较
-
-  if (type_left != type_right) {
-    if (type_left == DATES || type_right == DATES) {
-      // date conversation
-      // advance check for date
-      if (left_expr_type == ExprType::VALUE && right_expr_type == ExprType::FIELD) {  // left:value, right:attr
-        if (type_right == DATES && type_left == CHARS) {
-          // the attr is date type, so we need to convert the value to date type
-          rc = dynamic_cast<ValueExpr *>(left_expr)->get_value().auto_cast(DATES);
-          if (rc != RC::SUCCESS) {
-            return rc;
-          }
-        }
-      } else if (left_expr_type == ExprType::FIELD && right_expr_type == ExprType::VALUE) {  // left:attr, right:value
-        if (type_left == DATES && type_right == CHARS) {
-          // the attr is date type, so we need to convert the value to date type
-          rc = dynamic_cast<ValueExpr *>(right_expr)->get_value().auto_cast(DATES);
-          if (rc != RC::SUCCESS) {
-            return rc;
-          }
-        }
-      }
-    } else if (type_left == CHARS && (type_right == FLOATS || type_right == INTS)) {
-      // left is a string, and right is s a number
-      // convert the string to number
-      if (left_expr_type == ExprType::VALUE) {
-        // left is a value
-        rc = dynamic_cast<ValueExpr *>(left_expr)->get_value().str_to_number();
-        if (rc != RC::SUCCESS) {
-          return rc;
-        }
-      }
-    } else if ((type_left == FLOATS || type_left == INTS) && type_right == CHARS) {
-      // left is a number, and right is a string
-      // convert the string to number
-      if (right_expr_type == ExprType::VALUE) {
-        // right is a value
-        rc = dynamic_cast<ValueExpr *>(right_expr)->get_value().str_to_number();
-        if (rc != RC::SUCCESS) {
-          return rc;
-        }
-      }
-    }
-  }
-}
 
 /**
  * @brief 将ConditionSqlNode转为表达式
@@ -205,14 +131,14 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
           return rc;
         }
         // 这里的比较需要做类型转换
-        rc = is_comparable_and_cast(left_expr, right_expr, cond->comp);
+        rc = ComparisonExpr::cast_and_check_comparable(cond->comp, left_expr, right_expr);
         if (rc != RC::SUCCESS) {
           LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Right . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
         expr = new ComparisonExpr(
             cond->comp, std::unique_ptr<Expression>(left_expr), std::unique_ptr<Expression>(right_expr));
-      } else {
+      } else { 
         // TODO: 我只处理exist/not exist这种
         if (cond->comp == CompOp::EXISTS_ENUM || cond->comp == CompOp::NOT_EXISTS_ENUM) {
           Expression *left_expr;
