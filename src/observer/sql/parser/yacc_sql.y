@@ -31,16 +31,42 @@ int yyerror(YYLTYPE *llocp, const char *sql_string, ParsedSqlResult *sql_result,
   return 0;
 }
 
-ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
-                                             Expression *left,
-                                             Expression *right,
-                                             const char *sql_string,
-                                             YYLTYPE *llocp)
-{
-  ArithmeticExpr *expr = new ArithmeticExpr(type, left, right);
-  expr->set_name(token_name(sql_string, llocp));
-  return expr;
+// ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
+//                                              Expression *left,
+//                                              Expression *right,
+//                                              const char *sql_string,
+//                                              YYLTYPE *llocp)
+// {
+//   ArithmeticExpr *expr = new ArithmeticExpr(type, left, right);
+//   expr->set_name(token_name(sql_string, llocp));
+//   return expr;
+// }
+
+ConditionSqlNode *create_arith_condition(ArithmeticExpr::Type type, ConditionSqlNode *left_cond, ConditionSqlNode *right_cond) {
+  ConditionSqlNode *ret = new ConditionSqlNode;
+  ret->type = ARITH;
+  ret->arith = type;
+  if(type == NEGATIVE || type == POSITIVE) {
+    ret->binary = false;
+    ret->left_cond = left_cond;
+  } else {
+    ret->binary = true;
+    ret->left_cond = left_cond;
+    ret->right_cond = right_cond;
+  }
+  return ret;
 }
+
+ConditionSqlNode *create_logic_condition(LogiOp op, ConditionSqlNode *left_cond, ConditionSqlNode *right_cond) {
+  ConditionSqlNode *ret = new ConditionSqlNode;
+  ret->type = LOGIC;
+  ret->binary = true;
+  ret->logi_op = op;
+  ret->left_cond = left_cond;
+  ret->right_cond = right_cond;
+  return ret;
+}
+
 
 %}
 
@@ -126,24 +152,24 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
-  ParsedSqlNode *                   sql_node;
-  ConditionSqlNode *                condition; // 旧版，已重构为新的condition——tree
+  ParsedSqlNode *                   sql_node; 
+  ConditionSqlNode *                a_expr; 
   Value *                           value;
   enum CompOp                       comp;
   enum FuncName                     func_name;
-  RelAttrSqlNode *                  rel_attr;
+  RelAttrSqlNode *                  rel_attr; 
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
   Expression *                      expression;
   std::vector<Expression *> *       expression_list;
   std::vector<std::vector<Value>> * insert_list;
   std::vector<Value> *              value_list;
-  std::vector<ConditionSqlNode> *   condition_list;
-  ConditionSqlNode *                condition_tree;
+  // std::vector<ConditionSqlNode> *   condition_list; //TODO：待检查是否已重构完成
+  // ConditionSqlNode *                condition_tree; //TODO：待检查是否已重构完成
   std::vector<OrderSqlNode> *       order_by_list;
-  std::vector<RelAttrSqlNode> *     rel_attr_list;
+  std::vector<ConditionSqlNode> *   rel_attr_list;
   std::vector<std::string> *        relation_list;
-  std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * join_list; // relateion_list + condition_list
+  std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * join_list; //TODO：待检查是否已重构完成 // relateion_list + condition_list，
   std::pair<std::vector<std::string>,std::vector<ComplexValue>> * update_expr;
   char *                            string;
   int                               number;
@@ -161,12 +187,11 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <number>              type
-%type <condition>           condition
+/* %type <condition>           condition  //TODO：待检查是否已重构完成 */
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
 %type <func_name>           func_name
-%type <func_name>           agg_func_name
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
@@ -175,25 +200,25 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <boolean>             unique_marker
 %type <boolean>             asc_or_desc
 %type <boolean>             nullable_marker
-%type <condition_tree>      where
-%type <condition_list>      condition_list
-%type <condition_tree>      condition_tree
+%type <a_expr>              where 
+/* %type <condition_list>      condition_list //TODO：待检查是否已重构完成 */
+/* %type <condition_tree>      condition_tree //TODO：待检查是否已重构完成 */
+%type <a_expr>              a_expr
 %type <rel_attr_list>       group_by
-%type <condition_list>      having
+%type <a_expr>              having 
 %type <rel_attr_list>       select_attr
 %type <update_expr>         update_expr
 %type <update_expr>         update_expr_list
 %type <relation_list>       rel_list
-%type <condition_list>      join_equal
+%type <a_expr>              join_equal
 %type <join_list>           join_list
 %type <join_list>           join
 %type <rel_attr_list>       attr_list
 %type <order_by_list>       order
 %type <order_by_list>       order_list
-%type <condition>           function
-%type <condition>           agg_func
-%type <expression>          expression
-%type <expression_list>     expression_list
+%type <a_expr>              function 
+%type <expression>          expression 
+%type <expression_list>     expression_list 
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
 %type <sql_node>            insert_stmt
@@ -226,6 +251,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %nonassoc UMINUS
 %left INNER_JOIN
 %left '(' ')'
+%left LBRACE RBRACE // 不知道会不会报重复的错误
 %%
 
 commands: command_wrapper opt_semicolon  //commands or sqls. parser starts here.
@@ -504,7 +530,6 @@ insert_list:
       // delete $3;
     }
     ;
-
 value_list:
     /* empty */
     {
@@ -757,12 +782,12 @@ join_equal: // 返回的condition_list是一个 std::vector<ConditionSqlNode> *
     {
       $$ = nullptr;
     }
-    | ON condition_list
+    | ON a_expr
     {
       $$ = $2;
     }
     ;
-calc_stmt:
+calc_stmt: 
     CALC expression_list
     {
       $$ = new ParsedSqlNode(SCF_CALC);
@@ -771,8 +796,7 @@ calc_stmt:
       delete $2;
     }
     ;
-
-expression_list:
+expression_list: //保留给CALC
     expression
     {
       $$ = new std::vector<Expression*>;
@@ -788,7 +812,7 @@ expression_list:
       $$->emplace_back($1);
     }
     ;
-expression:
+expression: // 保留给CALC
     expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
     }
@@ -801,21 +825,24 @@ expression:
     | expression '/' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
     }
-    | LBRACE expression_list RBRACE {
-      if($2->size()==1) {
-        $$ = $2->at(0);
-        $$->set_name(token_name(sql_string, &@$));
-      } else {
-        // 这个时候应该处理ValueListExpr
-        std::vector<Value> values;
-        values.resize($2->size());
-        for (int i = 0; i < $2->size(); i++) {
-          // assert($2->at(i)->type() == ExprType::VALUE)
-          $2->at(i)->try_get_value(values[i]);
-        }
-        $$ = new ValueListExpr(values);
-        $$->set_name(token_name(sql_string, &@$));
-      }
+    | LBRACE expression RBRACE {
+      $$ = $2;
+      // if($2->size()==1) {
+      //   $$ = $2->at(0);
+      //   $$->set_name(token_name(sql_string, &@$));
+      // }
+      //  else {
+        // 之前用在condition中，括号内是expression_list，现在废弃，因为expression仅用在CALC
+        // // 这个时候应该处理ValueListExpr
+        // std::vector<Value> values;
+        // values.resize($2->size());
+        // for (int i = 0; i < $2->size(); i++) {
+        //   // assert($2->at(i)->type() == ExprType::VALUE)
+        //   $2->at(i)->try_get_value(values[i]);
+        // }
+        // $$ = new ValueListExpr(values);
+        // $$->set_name(token_name(sql_string, &@$));
+      // }
     }
     | value {
       // single value
@@ -828,63 +855,176 @@ expression:
     }
     ;
 
+a_expr:
+    value {
+      // single value
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = VALUE;
+      $$->value = new ValueExpr(*$1);
+      $$->value->set_name(token_name(sql_string, &@$));
+
+      delete $1;
+    }
+    | rel_attr {
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FIELD;
+      $$->attr = *$1;
+
+      delete $1;
+    }
+    | function {
+      $$ = $1;
+    }
+    | select_stmt {
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = SUB_SELECT;
+      $$->select = &($2->selection);
+    }
+    | '-' a_expr %prec UMINUS {
+      $$ = create_arith_condition(ArithmeticExpr::Type::NEGATIVE, $2, nullptr);
+    }
+    | '+' a_expr %prec UMINUS { //TODO 原本没有要求的补充实现，物理层面尚未实现
+      $$ = create_arith_condition(ArithmeticExpr::Type::POSITIVE, $2, nullptr);
+    } 
+    | a_expr '+' a_expr {
+      $$ = create_arith_condition(ArithmeticExpr::Type::ADD, $1, $3);
+    }
+    | a_expr '-' a_expr {
+      $$ = create_arith_condition(ArithmeticExpr::Type::SUB, $1, $3);
+      // $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
+    }
+    | a_expr '*' a_expr {
+      $$ = create_arith_condition(ArithmeticExpr::Type::MUL, $1, $3);
+      // $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
+    }
+    | a_expr '/' a_expr {
+      $$ = create_arith_condition(ArithmeticExpr::Type::DIV, $1, $3);
+      // $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
+    }
+    | LBRACE value value_list RBRACE { //简单fix括号列表
+      if(nullptr == $3) {
+        $$ = new ConditionSqlNode;
+        $$->binary = false;
+        $$->type = VALUE;
+        $$->value = new ValueExpr(*$2);
+        $$->value->set_name(token_name(sql_string, &@$));
+
+        delete $2;
+      } else {
+        $$ = new ConditionSqlNode;
+        $$->binary = false;
+        $$->type = VALUE;
+        $3->insert($3->begin(), *$2);
+        $$->value = new ValueListExpr(*$3);
+        $$->value->set_name(token_name(sql_string, &@$));
+        
+        delete $2;
+        delete $3;
+      }
+    }
+    | LBRACE a_expr RBRACE {
+      $$ = $2;
+    }
+    | a_expr AND a_expr {
+      $$ = create_logic_condition(AND_ENUM, $1, $3);
+    }
+    | a_expr OR a_expr {
+      $$ = create_logic_condition(OR_ENUM, $1, $3);
+    }
+    | a_expr comp_op a_expr {
+      $$ = new ConditionSqlNode;
+      $$->binary = true;
+      $$->type = COMP;
+      $$->comp = $3;
+      $$->left_cond = $1;
+      $$->right_cond = $3;
+    }
+    | EXISTS LBRACE a_expr RBRACE {
+      ASSERT(SUB_SELECT == $3->type, "EXIST(a_expr), a_expr must be sub_select");
+      $$->binary = false;
+      $$->type = COMP;
+      $$->comp = EXISTS_ENUM;
+      $$->left_cond = $3;
+    } 
+    | NOT_EXISTS LBRACE a_expr RBRACE {
+      ASSERT(SUB_SELECT == $4->type, "NOT EXIST(a_expr), a_expr must be sub_select");
+      $$->binary = false;
+      $$->type = COMP;
+      $$->comp = NOT_EXISTS_ENUM;
+      $$->left_cond = $4;
+    }
+    ;
 select_attr:
     '*' attr_list{
       if ($2 != nullptr) {
         $$ = $2;
       } else {
-        $$ = new std::vector<RelAttrSqlNode>;
+        $$ = new std::vector<ConditionSqlNode>;
       }
-      RelAttrSqlNode attr;
-      attr.relation_name  = "";
-      attr.attribute_name = "*";
+
+      ConditionSqlNode attr;
+      attr.binary = false;
+      attr.type = FIELD;
+      attr.attr.relation_name = "";
+      attr.attr.attribute_name = "*";
+
       $$->emplace_back(attr);
     }
-    | rel_attr attr_list {
+    | a_expr attr_list {
       if ($2 != nullptr) {
         $$ = $2;
       } else {
-        $$ = new std::vector<RelAttrSqlNode>;
+        $$ = new std::vector<ConditionSqlNode>;
       }
+
       $$->emplace_back(*$1);
       delete $1;
     }
     ;
-function: // 特殊的表达式，可能有括号内列表，注意无法在此生成Expression，可能有field需要后面才能知道
-    agg_func {
-      $$ = $1;
-    }
-    | /*empty*/ {
+// 是否为合法的聚集表达式，将在Resolve阶段判断
+// TODO: 尚未完成列表参数(参数是表达式列表)的部分
+function: // 特殊的表达式，可能有括号内列表，注意无法在此生成Expression，可能有field需要后面才能知道 
+    /*empty*/ {
       $$ = nullptr;
-    } 
-    ;
-agg_func: // 特殊之处在于括号内不是列表，只能是一个属性（可能和function的参数列表有冲突？），还需处理COUNT(*)
-    agg_func_name LBRACE rel_attr RBRACE {
-      $$ = new ConditionSqlNode;
-      $$->func = $1;
-      $$->left_attr.relation_name = $3->relation_name;
-      $$->left_attr.attribute_name = $3->attribute_name;
-      free($3);
     }
-    | AGG_COUNT LBRACE '*' RBRACE { // TODO: 尚不支持 table.* 
+    | func_name LBRACE a_expr RBRACE { 
       $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FUNC_OR_AGG;
+      $$->func = $1;
+      $$->left_cond = $3;
+    }
+    | AGG_COUNT LBRACE '*' RBRACE {  
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FUNC_OR_AGG;
       $$->func = COUNT;
-      $$->left_attr.relation_name = "";
-      $$->left_attr.attribute_name = "*";
+
+      ConditionSqlNode *sub_attr = new ConditionSqlNode;
+      sub_attr->binary = false;
+      sub_attr->type = FIELD;
+      sub_attr->attr.relation_name = "";
+      sub_attr->attr.attribute_name = "*";
+      $$->left_cond = sub_attr;
     }
     | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*) 好像有差别
       $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FUNC_OR_AGG;
       $$->func = COUNT;
-      $$->left_attr.relation_name = "";
-      $$->left_attr.attribute_name = "*";
+
+      ConditionSqlNode * sub_attr = new ConditionSqlNode;
+      sub_attr->binary = false;
+      sub_attr->type = FIELD;
+      sub_attr->attr.relation_name = "";
+      sub_attr->attr.attribute_name = "*";
+      $$->left_cond = sub_attr;
     }
     ;
 func_name: 
-    agg_func_name {
-      $$ = $1;
-    } 
-    ;
-agg_func_name:
     AGG_MAX {
       $$ = MAX;
     } 
@@ -1000,14 +1140,14 @@ attr_list:
     {
       $$ = nullptr;
     }
-    | COMMA rel_attr attr_list {
+    | COMMA a_expr attr_list {
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<RelAttrSqlNode>;
+        $$ = new std::vector<ConditionSqlNode>;
       }
 
-      $$->emplace_back(*$2);
+      $$->emplace_back(*$2); // 最后再reverse顺序(例如select_attr)
       delete $2;
     }
     ;
@@ -1033,27 +1173,25 @@ group_by:
     {
       $$ = nullptr;
     }
-    | GROUP_BY rel_attr attr_list {
+    | GROUP_BY a_expr attr_list {
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<RelAttrSqlNode>;
+        $$ = new std::vector<ConditionSqlNode>;
       }
 
       $$->emplace_back(*$2);
       delete $2;
     }
     ;
-
 having:
     {
       $$ = nullptr;
     }
-    | HAVING condition_tree {
+    | HAVING a_expr {
       $$ = $2;
     }
     ;
-
 order:
     /* empty */
     {
@@ -1106,12 +1244,12 @@ where:
     {
       $$ = nullptr;
     }
-    | WHERE condition_tree {
+    | WHERE a_expr {
       $$ = $2;  
     }
     ;
-condition_list:
-    /* empty */
+/* condition_list:
+    // empty 
     {
       $$ = nullptr;
     }
@@ -1125,9 +1263,9 @@ condition_list:
       $$->emplace_back(*$1);
       delete $1;
     }
-    ;
-condition_tree:
-    /* empty */
+    ; */
+/* condition_tree:
+    // empty 
     {
       $$ = nullptr;
     }
@@ -1140,58 +1278,58 @@ condition_tree:
     | condition_tree AND condition_tree {
       $$ = new ConditionSqlNode;
       $$->inner_node = true;
-      $$->left_type = 3;// 防御性编程，防止被认为是其他的类型
+      $$->left_type = SUB_EXPR;// 防御性编程，防止被认为是其他的类型
       $$->left_cond = $1;
-      $$->right_type = 3;
+      $$->right_type = SUB_EXPR;
       $$->right_cond = $3;
       $$->logi_op = AND_ENUM;
     }
     | condition_tree OR condition_tree {
       $$ = new ConditionSqlNode;
       $$->inner_node = true;
-      $$->left_type = 3;
+      $$->left_type = SUB_EXPR;
       $$->left_cond = $1;
-      $$->right_type = 3;
+      $$->right_type = SUB_EXPR;
       $$->right_cond = $3;
       $$->logi_op = OR_ENUM;
     }
-    ;
-condition:
+    ; */
+/* condition:
     EXISTS LBRACE select_stmt RBRACE {
-      // TODO
       $$ = new ConditionSqlNode;
-      $$->left_type = 0;
+      $$->inner_node = true;
+      $$->left_type = VALUE;
       $$->left_expr=new ValueExpr();
-      $$->right_type = 2;
+      $$->right_type = SUB_SELECT;
       $$->right_select = &($3->selection);
       $$->comp = EXISTS_ENUM;
     }
     | NOT_EXISTS LBRACE select_stmt RBRACE {
-      // TODO
       $$ = new ConditionSqlNode;
-      $$->left_type = 0;
+      $$->inner_node = true;
+      $$->left_type = VALUE;
       $$->left_expr = new ValueExpr();
-      $$->right_type = 2;
+      $$->right_type = SUB_SELECT;
       $$->right_select = &($3->selection);
       $$->comp = NOT_EXISTS_ENUM;
     }
     | LBRACE select_stmt RBRACE comp_op LBRACE select_stmt RBRACE
     {
-      // TODO
       $$ = new ConditionSqlNode;
-      $$->left_type = 2;
+      $$->inner_node = true;
+      $$->left_type = SUB_SELECT;
       $$->left_select = &($2->selection);
-      $$->right_type = 2;
+      $$->right_type = SUB_SELECT;
       $$->right_select = &($6->selection);
       $$->comp = $4;
     }
     | rel_attr comp_op LBRACE select_stmt RBRACE
     {
-      // TODO
       $$ = new ConditionSqlNode;
-      $$->left_type = 1;
+      $$->inner_node = true;
+      $$->left_type = FIELD;
       $$->left_attr = *$1;
-      $$->right_type = 2;
+      $$->right_type = SUB_SELECT;
       $$->right_select = &($4->selection);
       $$->comp = $2;
 
@@ -1199,11 +1337,11 @@ condition:
     }
     | LBRACE select_stmt RBRACE comp_op rel_attr
     {
-      // TODO
       $$ = new ConditionSqlNode;
-      $$->left_type = 2;
+      $$->inner_node = true;
+      $$->left_type = SUB_SELECT;
       $$->left_select = &($2->selection);
-      $$->right_type = 1;
+      $$->right_type = FIELD;
       $$->right_attr = *$5;
       $$->comp = $4;
 
@@ -1211,30 +1349,31 @@ condition:
     }
     | expression comp_op LBRACE select_stmt RBRACE
     {
-      // TODO
       $$ = new ConditionSqlNode;
-      $$->left_type = 0;
+      $$->inner_node = true;
+      $$->left_type = SUB_COND;
       $$->left_expr = $1;
-      $$->right_type = 2;
+      $$->right_type = SUB_SELECT;
       $$->right_select = &($4->selection);
       $$->comp = $2;
     }
     | LBRACE select_stmt RBRACE comp_op expression
     {
-      // TODO
       $$ = new ConditionSqlNode;
-      $$->left_type = 2;
+      $$->inner_node = true;
+      $$->left_type = SUB_SELECT;
       $$->left_select = &($2->selection);
-      $$->right_type = 0;
+      $$->right_type = SUB_COND;
       $$->right_expr = $5;
       $$->comp = $4;
     }
     | rel_attr comp_op expression
     {
       $$ = new ConditionSqlNode;
-      $$->left_type = 1;
+      $$->inner_node = true;
+      $$->left_type = FIELD;
       $$->left_attr = *$1;
-      $$->right_type = 0;
+      $$->right_type = SUB_COND;
       $$->right_expr = $3;
       $$->comp = $2;
 
@@ -1243,18 +1382,20 @@ condition:
     | expression comp_op expression 
     {
       $$ = new ConditionSqlNode;
-      $$->left_type = 0;
+      $$->inner_node = true;
+      $$->left_type = SUB_COND;
       $$->left_expr = $1;
-      $$->right_type = 0;
+      $$->right_type = SUB_COND;
       $$->right_expr = $3;
       $$->comp = $2;
     }
     | rel_attr comp_op rel_attr
     {
       $$ = new ConditionSqlNode;
-      $$->left_type = 1;
+      $$->inner_node = true;
+      $$->left_type = FIELD;
       $$->left_attr = *$1;
-      $$->right_type = 1;
+      $$->right_type = FIELD;
       $$->right_attr = *$3;
       $$->comp = $2;
 
@@ -1264,16 +1405,16 @@ condition:
     | expression comp_op rel_attr
     {
       $$ = new ConditionSqlNode;
-      $$->left_type = 0;
+      $$->inner_node = true;
+      $$->left_type = SUB_COND;
       $$->left_expr = $1;
-      $$->right_type = 1;
+      $$->right_type = FIELD;
       $$->right_attr = *$3;
       $$->comp = $2;
 
       delete $3;
     }
-
-    ;
+    ; */
 comp_op:
       EQ { $$ = EQUAL_TO; }
     | LT { $$ = LESS_THAN; }

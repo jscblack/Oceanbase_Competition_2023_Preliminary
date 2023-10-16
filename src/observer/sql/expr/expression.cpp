@@ -934,7 +934,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
       }
     } break;
 
-    case Type::PAREN: {
+    case Type::POSITIVE: {
       if (target_type == AttrType::INTS) {
         value.set_int(left_value.get_int());
       } else {

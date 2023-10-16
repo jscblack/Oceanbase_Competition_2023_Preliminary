@@ -62,6 +62,7 @@ private:
   // std::vector<Expression *>                  query_exprs_;
 
 private:
+  // 这玩意是子查询用的, create的进入和退出记得处理一下, 记录已经打开的表的信息.
   inline static std::unordered_map<std::string, Table *> table_map_;
   std::vector<Expression *>                              group_by_fields_expressions_;
   std::vector<Field>                                     group_by_fields_;

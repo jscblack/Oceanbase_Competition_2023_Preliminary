@@ -36,22 +36,26 @@ public:
   FilterUnit() = default;
   ~FilterUnit() {}
 
-  void set_comp(CompOp comp) { comp_ = comp; }
+  // void set_comp(CompOp comp) { comp_ = comp; }
 
-  CompOp comp() const { return comp_; }
+  // CompOp comp() const { return comp_; }
 
-  void set_left(const FilterObj &obj) { left_ = obj; }
-  void set_right(const FilterObj &obj) { right_ = obj; }
+  // void set_left(const FilterObj &obj) { left_ = obj; }
+  // void set_right(const FilterObj &obj) { right_ = obj; }
 
-  const FilterObj &left() const { return left_; }
-  const FilterObj &right() const { return right_; }
-  FilterObj       &left() { return left_; }
-  FilterObj       &right() { return right_; }
+  // const FilterObj &left() const { return left_; }
+  // const FilterObj &right() const { return right_; }
+  // FilterObj       &left() { return left_; }
+  // FilterObj       &right() { return right_; }
+
+  void       set_obj(const FilterObj &obj) { obj_ = obj; }
+  FilterObj &filter_object() { return obj_; }
 
 private:
-  FilterObj left_;
-  CompOp    comp_ = NO_OP;
-  FilterObj right_;
+  // FilterObj left_;
+  // CompOp    comp_ = NO_OP;
+  // FilterObj right_;
+  FilterObj obj_;
 };
 
 /**
@@ -65,11 +69,13 @@ public:
   ~FilterStmt() = default;
 
 public:
-  FilterUnit *filter_unit() const { return filter_unit_; }
-  FilterStmt *left() const { return left_; }
-  FilterStmt *right() const { return right_; }
-  LogiOp      logi() const { return logi_; }
-  bool        is_filter_unit() const { return left_ == nullptr && right_ == nullptr && filter_unit_ != nullptr; }
+  Expression *filter_expr() const { return filter_expr_; }
+
+  // FilterUnit *filter_unit() const { return filter_unit_; }
+  // FilterStmt *left() const { return left_; }
+  // FilterStmt *right() const { return right_; }
+  // LogiOp      logi() const { return logi_; }
+  // bool        is_filter_unit() const { return left_ == nullptr && right_ == nullptr && filter_unit_ != nullptr; }
 
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
@@ -79,10 +85,13 @@ public:
       const ConditionSqlNode &condition, FilterUnit *&filter_unit);
 
 private:
-  FilterUnit *filter_unit_ = nullptr;
+  Expression *filter_expr_ = nullptr;
+  // FilterUnit *filter_unit_ = nullptr;
+  
+  // 最终重构理论上只需要 Expression*
 
-private:
-  FilterStmt *left_  = nullptr;
-  LogiOp      logi_  = NO_LOGI_OP;
-  FilterStmt *right_ = nullptr;
+  // private:
+  //   FilterStmt *left_  = nullptr;
+  //   LogiOp      logi_  = NO_LOGI_OP;
+  //   FilterStmt *right_ = nullptr;
 };

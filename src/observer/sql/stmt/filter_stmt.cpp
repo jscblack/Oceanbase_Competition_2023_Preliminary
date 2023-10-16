@@ -20,6 +20,132 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
+/**
+ * @brief 将ConditionSqlNode转为表达式
+ *
+ * @param [in] db
+ * @param [in] default_table
+ * @param [in] tables
+ * @param [in] cond
+ * @param [in] is_having 是否为聚合类型，尚未结合考虑，可能会结合
+ * @param [out] expr
+ * @param [out] value_type  expression求解的类型
+ * @return RC
+ */
+RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+    const ConditionSqlNode *cond, bool is_having, Expression *&expr)
+{
+  RC rc = RC::SUCCESS;
+  expr  = nullptr;
+  if (nullptr == cond) {
+    return rc;
+  }
+
+  switch (cond->type) {
+    case VALUE: {
+      expr = cond->value;
+    } break;
+
+    case FIELD: {
+      Table           *table = nullptr;
+      const FieldMeta *field = nullptr;
+      rc                     = get_table_and_field(db, default_table, tables, cond->attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
+      expr = new FieldExpr(table, field);
+    } break;
+
+    case SUB_SELECT: {
+      Stmt *select_stmt = nullptr;
+      rc                = SelectStmt::create(db, *cond->select, select_stmt);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
+        return rc;
+      }
+      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
+        LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
+        return RC::INVALID_ARGUMENT;
+      }
+
+      expr = new SelectExpr(select_stmt);
+    } break;
+
+    case ARITH: {
+      // 注意类型转换
+      if (cond->binary) {
+        Expression *left_expr;
+        Expression *right_expr;
+        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Left . rc=%d:%s", rc, strrc(rc));
+          return rc;
+        }
+        rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Right . rc=%d:%s", rc, strrc(rc));
+          return rc;
+        }
+        if (ArithmeticExpr::is_legal_subexpr(cond->arith, left_expr, right_expr)) {
+          expr = new ArithmeticExpr(cond->arith, left_expr, right_expr);
+        } else {
+          return RC::EXPR_TYPE_MISMATCH;
+        }
+
+      } else {
+        Expression *sub_expr;
+        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, sub_expr);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Sub . rc=%d:%s", rc, strrc(rc));
+          return rc;
+        }
+        if (ArithmeticExpr::is_legal_subexpr(cond->arith, sub_expr, nullptr)) {
+          expr = new ArithmeticExpr(cond->arith, sub_expr, nullptr);
+        } else {
+          return RC::EXPR_TYPE_MISMATCH;
+        }
+      }
+    } break;
+    case COMP: {
+      // 注意like的条件判断
+      // TODO 特判一下,如果是comp, 则sub_select 不能是select *
+      // 注意子查询相关的比较 （exist之类的）
+      // 注意处理NULL
+      if(cond->binary) {
+        Expression *left_expr;
+        Expression *right_expr;
+        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Left . rc=%d:%s", rc, strrc(rc));
+          return rc;
+        }
+        rc = cond_to_expr(db,default_table, tables, cond->right_cond, is_having, right_expr);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Right . rc=%d:%s", rc, strrc(rc));
+          return rc;
+        }
+        
+
+        
+      } else {
+
+      }
+
+    } break;
+    case FUNC_OR_AGG: {
+      // 不能是AGG
+    } break;
+    case LOGIC: {
+
+    } break;
+    case UNDEFINED:
+    default: {
+
+    } break;
+  }
+}
+
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const ConditionSqlNode *conditions, FilterStmt *&stmt)
 {

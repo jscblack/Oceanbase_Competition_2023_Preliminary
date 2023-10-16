@@ -39,16 +39,21 @@ enum class ExprType
 {
   NONE,
   STAR,         ///< 星号，表示所有字段
+  // 以下是可比较计算的表达式：
+  // ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+  // 以下是可算术计算的表达式
+  // ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
   FIELD,        ///< 字段。在实际执行时，根据行数据内容提取对应字段的值
   VALUE,        ///< 常量值
+  ARITHMETIC,   ///< 算术运算
+  FUNCTION,     ///< 多个表达式做函数运算，比如MAX，MIN
+  SELECT,       ///< select子查询
+  AGGREGATION,  ///< 聚合运算
+  // ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
   VALUELIST,    ///< 常量列表
   CAST,         ///< 需要做类型转换的表达式
   COMPARISON,   ///< 需要做比较的表达式
   LOGICALCALC,  ///< 多个表达式做逻辑运算
-  FUNCTION,     ///< 多个表达式做函数运算，比如MAX，MIN
-  SELECT,       ///< select子查询
-  ARITHMETIC,   ///< 算术运算
-  AGGREGATION,  ///< 聚合运算
 };
 
 /**
@@ -81,18 +86,36 @@ public:
   /**
    * @brief 根据具体的tuple，来计算当前表达式的值。tuple有可能是一个具体某个表的行数据
    */
-  virtual RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const { return RC::UNIMPLENMENT; };
+  virtual RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const
+  {
+    ASSERT(false,
+        "Expr::get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const: UNIMPLEMENT, %s:%d ",
+        __FILE__,
+        __LINE__);
+    return RC::UNIMPLENMENT;
+  };
 
   /**
    * @brief 在没有实际运行的情况下，也就是无法获取tuple的情况下，尝试获取表达式的值
    * @details 有些表达式的值是固定的，比如ValueExpr，这种情况下可以直接获取值
    */
-  virtual RC try_get_value(Value &value) const { return RC::UNIMPLENMENT; }
+  virtual RC try_get_value(Value &value) const
+  {
+    ASSERT(false, "Expr::try_get_value(Value &value) const: UNIMPLEMENT, %s:%d ", __FILE__, __LINE__);
+    return RC::UNIMPLENMENT;
+  }
 
   /**
    * @brief 根据分组的tuples，来计算当前和聚合表达式相关的值
    */
-  virtual RC get_value(const std::vector<Tuple *> &tuples, Value &value) const { return RC::UNIMPLENMENT; }
+  virtual RC get_value(const std::vector<Tuple *> &tuples, Value &value) const
+  {
+    ASSERT(false,
+        "Expr::get_value(const std::vector<Tuple *> &tuples, Value &value) const: UNIMPLEMENT, %s:%d ",
+        __FILE__,
+        __LINE__);
+    return RC::UNIMPLENMENT;
+  }
 
   /**
    * @brief 表达式的类型
@@ -343,6 +366,15 @@ public:
 
   Expression *clone() const override;
 
+
+  static bool is_legal_subexpr(CompOp comp, const Expression* left, const Expression* right)  {
+    if (left == nullptr) {
+      return false;
+    } else if (right == nullptr) {
+      
+    }
+  }
+
 private:
   CompOp                      comp_;
   std::unique_ptr<Expression> left_;
@@ -386,7 +418,10 @@ public:
   AttrType value_type() const override
   {
     // 在select真正执行之前，是无法知道select的结果集的类型的
-    return AttrType::UNDEFINED;
+    // return AttrType::UNDEFINED;
+
+    // TODO: 特判一下 select *
+    return reinterpret_cast<SelectStmt *>(select_stmt_)->query_fields_expressions()[0]->value_type();
   }
   RC rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
   RC rewrite_stmt(FilterStmt *&rewrited_stmt, const Tuple *row_tuple);
@@ -489,7 +524,8 @@ public:
     MUL,
     DIV,
     NEGATIVE,
-    PAREN,  // 括号
+    POSITIVE,
+    // PAREN,  // 括号 似乎用不上
   };
 
 public:
@@ -510,6 +546,31 @@ public:
   RC try_get_value(Value &value) const override;
 
   Type arithmetic_type() const { return arithmetic_type_; }
+
+  /**
+   * @brief Resolve Stage对算术表达式生成时的合法性检验。
+   * 
+   * @param type 
+   * @param left 
+   * @param right 
+   * @return true 合法
+   * @return false 非法，需要报错
+   */
+  //TODO 未完成，未处理NULL， 未判断表达式类型是否可计算
+  static bool is_legal_subexpr(Type type, const Expression *left, const Expression *right)
+  {
+    
+    if (nullptr == left) {
+      return false;
+    } else if (nullptr == right) {
+      return (type == Type::POSITIVE || type == Type::NEGATIVE) && (left->type() != ExprType::VALUELIST) &&
+             (left->value_type() >= CHARS && left->value_type() <= FLOATS);
+    } else {
+      return (type >= Type::ADD && type <= Type::DIV) &&
+             (left->value_type() >= CHARS && left->value_type() <= FLOATS) &&
+             (right->value_type() >= CHARS && right->value_type() <= FLOATS);
+    }
+  }
 
   std::unique_ptr<Expression> &left() { return left_; }
   std::unique_ptr<Expression> &right() { return right_; }
@@ -547,6 +608,8 @@ public:
   }
 
 private:
+  // TODO: 尚未处理运行时错误
+  // 例如 子表达式返回超出预期的值（一个vector而非单行，NULL值），除零错误，
   RC calc_value(const Value &left_value, const Value &right_value, Value &value) const;
 
 private:
