@@ -184,7 +184,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, const ConditionSqlNode *le
   std::vector<OrderSqlNode> *       order_by_list;
   std::vector<ConditionSqlNode> *   rel_attr_list;
   std::vector<std::string> *        relation_list;
-  std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * join_list; //TODO：待检查是否已重构完成 // relateion_list + condition_list，
+  std::pair<std::vector<std::string>,ConditionSqlNode *> * join_list; //TODO：待检查是否已重构完成 // relateion_list + condition_list，
   std::pair<std::vector<std::string>,std::vector<ComplexValue>> * update_expr;
   char *                            string;
   int                               number;
@@ -727,24 +727,18 @@ select_stmt:        /*  select 语句的语法解析树*/
         $$->selection.attributes.swap(*$2);
         delete $2;
       }
+      // 把id挂在where下
       if ($4 != nullptr) {
         $$->selection.relations.swap($4->first);
         std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-        if($4->second.size()==1){
-          $$->selection.conditions = &($4->second[0]);
-        }else{
-          $$->selection.conditions= new ConditionSqlNode(&($4->second[0]),LogiOp::AND_ENUM,&($4->second[1]));
-            for (int i=2;i<$4->second.size();i++){
-            $$->selection.conditions = new ConditionSqlNode($$->selection.conditions,LogiOp::AND_ENUM,&($4->second[i]));
-          }
-        }
+        $$->selection.conditions = $4->second;
       }
-
+      // 在现有where的基础上加上过滤条件
       if($5 != nullptr) {
         if($$->selection.conditions==nullptr){
           $$->selection.conditions = $5;
         }else{
-          $$->selection.conditions = new ConditionSqlNode( $$->selection.conditions, LogiOp::AND_ENUM,$5);
+          $$->selection.conditions = create_logic_condition(LogiOp::AND_ENUM,$$->selection.conditions,$5);
         }
       }
       if ($6 != nullptr) {
@@ -764,47 +758,41 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
     }
     ;
-join: // 类型是 std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * 
+join:
     ID INNER_JOIN ID join_equal join_list
     {
       if($5 != nullptr) {
         $$ = $5;
+        $$->second = create_logic_condition(LogiOp::AND_ENUM,$5->second,$4);
       } else {
-        $$ = new std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>>;
+        $$ = new std::pair<std::vector<std::string>,ConditionSqlNode*>;
+        $$->second = $4;
       }
       $$->first.emplace_back($3);
+      free($3);
       $$->first.emplace_back($1);
       free($1);
-      free($3);
-
-      if($4 != nullptr) {
-        $$->second.insert($$->second.end(),$4->begin(),$4->end());
-      }
-      delete $4;
     }
     ;
-join_list: // 类型是 std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>> * 
+join_list:
     INNER_JOIN ID join_equal join_list
     {
       if($4 != nullptr) {
         $$ = $4;
+        $$->second = create_logic_condition(LogiOp::AND_ENUM,$4->second,$3);
       } else {
-        $$ = new std::pair<std::vector<std::string>,std::vector<ConditionSqlNode>>;
+        $$ = new std::pair<std::vector<std::string>,ConditionSqlNode*>;
+        $$->second = $3;
       }
       $$->first.emplace_back($2);
       free($2);
-
-      if($3 != nullptr) {
-        $$->second.insert($$->second.end(),$3->begin(),$3->end());
-      } 
-      delete $3;
     }
     | /* empty */
     {
       $$ = nullptr;
     }
     ;
-join_equal: // 返回的condition_list是一个 std::vector<ConditionSqlNode> * 
+join_equal:
     /* empty */
     {
       $$ = nullptr;
