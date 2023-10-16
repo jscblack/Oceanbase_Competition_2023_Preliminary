@@ -24,39 +24,39 @@ class Db;
 class Table;
 class FieldMeta;
 
-struct FilterObj
-{
-  Expression *expr = nullptr;
-  void        init_expr(Expression *expr) { this->expr = expr; }
-};
+// struct FilterObj
+// {
+//   Expression *expr = nullptr;
+//   void        init_expr(Expression *expr) { this->expr = expr; }
+// };
 
-class FilterUnit
-{
-public:
-  FilterUnit() = default;
-  ~FilterUnit() {}
+// class FilterUnit
+// {
+// public:
+//   FilterUnit() = default;
+//   ~FilterUnit() {}
 
-  // void set_comp(CompOp comp) { comp_ = comp; }
+//   // void set_comp(CompOp comp) { comp_ = comp; }
 
-  // CompOp comp() const { return comp_; }
+//   // CompOp comp() const { return comp_; }
 
-  // void set_left(const FilterObj &obj) { left_ = obj; }
-  // void set_right(const FilterObj &obj) { right_ = obj; }
+//   // void set_left(const FilterObj &obj) { left_ = obj; }
+//   // void set_right(const FilterObj &obj) { right_ = obj; }
 
-  // const FilterObj &left() const { return left_; }
-  // const FilterObj &right() const { return right_; }
-  // FilterObj       &left() { return left_; }
-  // FilterObj       &right() { return right_; }
+//   // const FilterObj &left() const { return left_; }
+//   // const FilterObj &right() const { return right_; }
+//   // FilterObj       &left() { return left_; }
+//   // FilterObj       &right() { return right_; }
 
-  void       set_obj(const FilterObj &obj) { obj_ = obj; }
-  FilterObj &filter_object() { return obj_; }
+//   void       set_obj(const FilterObj &obj) { obj_ = obj; }
+//   FilterObj &filter_object() { return obj_; }
 
-private:
-  // FilterObj left_;
-  // CompOp    comp_ = NO_OP;
-  // FilterObj right_;
-  FilterObj obj_;
-};
+// private:
+//   // FilterObj left_;
+//   // CompOp    comp_ = NO_OP;
+//   // FilterObj right_;
+//   FilterObj obj_;
+// };
 
 /**
  * @brief Filter/谓词/过滤语句
@@ -81,8 +81,8 @@ public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const ConditionSqlNode *conditions, FilterStmt *&stmt);
 
-  static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode &condition, FilterUnit *&filter_unit);
+  // static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+  //     const ConditionSqlNode &condition, FilterUnit *&filter_unit);
 
 private:
   Expression *filter_expr_ = nullptr;

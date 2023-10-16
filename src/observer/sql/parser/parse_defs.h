@@ -57,10 +57,10 @@ enum CompOp
   NOT_LIKE_ENUM,    ///< "NOT LIKE"
   IS_NOT_ENUM,      ///< "IS NOT"
   IS_ENUM,          ///< "IS"
-  EXISTS_ENUM,      ///< "EXISTS"
-  NOT_EXISTS_ENUM,  ///< "NOT EXISTS"
   NOT_IN_ENUM,      ///< "NOT IN"
   IN_ENUM,          ///< "IN"
+  NOT_EXISTS_ENUM,  ///< "NOT EXISTS"
+  EXISTS_ENUM,      ///< "EXISTS"
   NO_OP
 };
 /**

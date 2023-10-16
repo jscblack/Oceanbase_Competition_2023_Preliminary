@@ -596,8 +596,8 @@ public:
       case Type::NEGATIVE: {
         return "-" + left_alias;
       } break;
-      case Type::PAREN: {
-        return "(" + left_alias + ")";
+      case Type::POSITIVE: {
+        return left_alias;
       } break;
       default: {
         ASSERT(false, "ArithmeticExpr::const std::string alias(bool with_table_name) UNREACHABLE!!!");
