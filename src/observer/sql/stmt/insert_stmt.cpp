@@ -60,6 +60,18 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
       const AttrType   field_type = field_meta->type();
       const AttrType   value_type = cur_values[i].attr_type();
 
+      // check the value length
+      if (field_type == AttrType::CHARS&&value_type == AttrType::CHARS) {
+        const int field_len = field_meta->len();
+        const int value_len = cur_values[i].length();
+
+        if (value_len > field_len) {
+          LOG_WARN("field length mismatch. table=%s, field=%s, field length=%d, value length=%d",
+                   table_name, field_meta->name(), field_len, value_len);
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+      }
+
       if (field_type != value_type) {  // TODO try to convert the value type to field type
         if (value_type == AttrType::NONE) {
           // 空值检查
@@ -81,17 +93,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
         return rc;
       }
 
-      // check the value length
-      if (field_type == AttrType::CHARS) {
-        const int field_len = field_meta->len();
-        const int value_len = cur_values[i].length();
-
-        if (value_len > field_len) {
-          LOG_WARN("field length mismatch. table=%s, field=%s, field length=%d, value length=%d",
-                   table_name, field_meta->name(), field_len, value_len);
-          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-        }
-      }
+      
     }
   }
 

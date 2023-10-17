@@ -470,7 +470,7 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type nullable_marker LBRACE number RBRACE 
+    ID type LBRACE number RBRACE nullable_marker
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
