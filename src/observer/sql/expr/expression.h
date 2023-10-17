@@ -695,6 +695,7 @@ class AggregationExpr : public Expression
 {
 public:
   AggregationExpr() = default;
+  AggregationExpr(FuncName agg_type, Expression* child);
   AggregationExpr(FuncName agg_type, std::unique_ptr<Expression> child);
   AggregationExpr(const AggregationExpr &expr) = delete;
   AggregationExpr &operator=(const AggregationExpr &expr) = delete;
