@@ -271,6 +271,8 @@ public:
   // void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
   int cell_num() const override { return expressions_.size(); }
 
+  const std::vector<std::unique_ptr<Expression>>& expressions() { return expressions_; }
+
   RC cell_at(int index, Value &cell) const override
   {
     if (index < 0 || index >= static_cast<int>(expressions_.size())) {

@@ -1060,12 +1060,13 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
     return RC::INTERNAL;
   }
 
+  // 强转ProjectTuple，目的是为了拿到里面的expressions_，找到对哪一列做聚合
   Tuple        *tpl      = tuples.front();
-  ExpressionTuple *tpl_cast = dynamic_cast<ExpressionTuple *>(tpl);
-  const std::string child_alias = child_->alias(true); // FIXME: 可能涉及到 *.*  *  t.* 的区别
-                                                       // NOTE: 这里传参数要用true，区分不同表的同一属性
+  ProjectTuple *tpl_cast = dynamic_cast<ProjectTuple *>(tpl);
 
-  if (child_alias == "*") {  // FIXME: 特殊判断count(*)，但是需要再改一下alias，取出的alias有表名
+  // 强转field expression，判断是否是count(*)
+  FieldExpr* child_cast = dynamic_cast<FieldExpr*>(child_.get());
+  if (child_cast->field().meta() == nullptr) { // FIXME: 这里合并处理了table()是否为空的情况，即目前没有区分*.*  *  t.*
     do_count_aggregate(tuples, value, -1);
     return RC::SUCCESS;
   }
@@ -1073,7 +1074,7 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
   int                                 idx    = 0;
   const std::vector<std::unique_ptr<Expression>>& expressions = tpl_cast->expressions();
   for (idx = 0; idx < tpl_cast->cell_num(); idx++) {
-    if (child_alias == expressions[idx]->alias(true)) {
+    if (child_cast->alias(true) == expressions[idx]->alias(true)) { // FIXME: 不确定这里的判断会不会漏掉情况
       break;
     }
   }
