@@ -167,7 +167,6 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
       }
     }
   }
-  //
 
   const std::vector<std::pair<std::string, Field>> &all_aggregations = select_stmt->aggregation_func();
   if (!all_aggregations.empty()) {  // 存在聚合操作

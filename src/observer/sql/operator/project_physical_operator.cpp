@@ -54,10 +54,14 @@ Tuple *ProjectPhysicalOperator::current_tuple()
   return &tuple_;
 }
 
-void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta *field_meta)
-{
-  // 对单表来说，展示的(alias) 字段总是字段名称，
-  // 对多表查询来说，展示的alias 需要带表名字
-  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
-  tuple_.add_cell_spec(spec);
+// void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta *field_meta)
+// {
+//   // 对单表来说，展示的(alias) 字段总是字段名称，
+//   // 对多表查询来说，展示的alias 需要带表名字
+//   TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
+//   tuple_.add_cell_spec(spec);
+// }
+
+void ProjectPhysicalOperator::add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions){
+  tuple_.set_expressions(expressions);
 }

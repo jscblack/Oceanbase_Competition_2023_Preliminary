@@ -269,6 +269,14 @@ public:
 
   // const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
   // void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
+
+  void set_expressions(const std::vector<std::unique_ptr<Expression>> &exprs)
+  {
+    for (int i = 0; i < exprs.size(); i++) {
+      expressions_.push_back(std::unique_ptr<Expression>(exprs[i]->clone()));
+    }
+  }
+
   int cell_num() const override { return expressions_.size(); }
 
   RC cell_at(int index, Value &cell) const override

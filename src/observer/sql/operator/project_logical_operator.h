@@ -40,7 +40,7 @@ public:
   // const std::vector<Field>                       &fields() const { return fields_; }
   // const std::vector<Expression *> &fields_expressions() const { return fields_expresions_; }
 
-private:
+// private:
   //! 投影映射的字段名称
   //! 并不是所有的select都会查看表字段，也可能是常量数字、字符串，
   //! 或者是执行某个函数。所以这里应该是表达式Expression。
