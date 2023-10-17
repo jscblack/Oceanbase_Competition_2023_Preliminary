@@ -492,10 +492,10 @@ public:
     // TODO: 特判一下 select *
     return reinterpret_cast<SelectStmt *>(select_stmt_)->query_fields_expressions()[0]->value_type();
   }
-  RC rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
-  RC rewrite_stmt(FilterStmt *&rewrited_stmt, const Tuple *row_tuple);
+  RC rewrite_stmt(Stmt *&original_stmt, const Tuple *row_tuple);
+  RC rewrite_expr(Expression *&original_expr, const Tuple *row_tuple);
   RC recover_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
-  RC recover_stmt(FilterStmt *&rewrited_stmt, const Tuple *row_tuple);
+  RC recover_expr(Expression *&rewrited_expr, const Tuple *row_tuple);
 
   Expression *clone() const override { return new SelectExpr(*this); }
 
