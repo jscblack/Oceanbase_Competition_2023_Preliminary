@@ -159,6 +159,51 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
     case FUNC_OR_AGG: {
       // 不能是AGG
       // TODO: 待修改完成function
+      if (is_having) {  // Having子句中需要对聚集特殊处理
+        // 得在这里特判 STAR，而不是往下推
+        Expression             *sub_expr;
+        const ConditionSqlNode *sub_cond = cond->left_cond;
+        // 目前判别有点简单，更好的做法是根据Funcname来判断可以有多少个参数，否则max这种可能是聚集也可能是普通函数。
+        if (cond->func >= COUNT && cond->func <= MIN) {  // Aggregation
+          if (sub_cond->type != ConditionSqlNodeType::FIELD) {
+            LOG_WARN("Aggregation's subexpr must be FieldExpr");
+            return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+          }
+          bool is_table_star = sub_cond->attr.relation_name == "*";
+          bool is_field_star = sub_cond->attr.attribute_name == "*";
+          if (is_table_star || is_field_star) {
+            if (is_table_star && !is_field_star) {  // *.col 报错
+              LOG_WARN("invalid field name while table is *. attr=%s", sub_cond->attr.attribute_name.c_str());
+              return RC::SCHEMA_FIELD_MISSING;
+            }
+            if (cond->func != COUNT) {
+              LOG_WARN("invalid aggregate while table/field is *.");
+              return RC::SCHEMA_FIELD_MISSING;
+            }
+            // 暂时没法区分COUNT(*.*)和COUNT(*)，实在有需要就加个新的状态标明一下。
+            if (is_table_star) {
+              expr = new AggregationExpr(cond->type, FieldExpr(nullptr, nullptr));
+            } else {
+              Table *table = nullptr;
+              auto iter = tables->find(sub_cond->attr.relation_name);
+              if (iter == tables->end()) {
+                LOG_WARN("no such table in from list: %s", sub_cond->attr.relation_name);
+                return RC::SCHEMA_TABLE_NOT_EXIST;
+              }
+              table = iter->second;
+              if (OB_FAIL(rc)) {
+                return rc;
+              }
+              expr = new AggregationExpr(cond->type, FieldExpr(table, nullptr));
+            }
+          } else {
+            rc   = cond_to_expr(db, default_table, tables, sub_cond, is_having, sub_expr);
+            expr = new AggregationExpr(cond->func, sub_expr);
+          }
+        }
+      } else {  // Where子句中需要对func进行处理 （max和min）
+        // TODO: 补一下 funcExpr的构造
+      }
     } break;
 
     case LOGIC: {
@@ -234,7 +279,6 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     LOG_WARN("failed to convert ConditionSqlNode to Expression. rc=%d:%s", rc, strrc(rc));
     return rc;
   }
-
   stmt               = new FilterStmt();
   stmt->filter_expr_ = filter_expr;
   return rc;
