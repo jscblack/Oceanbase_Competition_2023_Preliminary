@@ -51,7 +51,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
       const FieldMeta *field = nullptr;
       rc                     = get_table_and_field(db, default_table, tables, cond->attr, table, field);
       if (rc != RC::SUCCESS) {
-        LOG_WARN("cannot find attr");
+        LOG_WARN("cannot find table [%s] and attr [%s]", cond->attr.relation_name.c_str(), cond->attr.attribute_name.c_str());
         return rc;
       }
       expr = new FieldExpr(table, field);
@@ -64,8 +64,8 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
         return rc;
       }
-      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
-        LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
+      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields_expressions().size() != 1) {
+        LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields_expressions().size());
         return RC::INVALID_ARGUMENT;
       }
 
@@ -92,7 +92,6 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         } else {
           return RC::EXPR_TYPE_MISMATCH;
         }
-
       } else {
         Expression *sub_expr;
         rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, sub_expr);
@@ -159,6 +158,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
 
     case FUNC_OR_AGG: {
       // 不能是AGG
+      // TODO: 待修改完成function
     } break;
 
     case LOGIC: {

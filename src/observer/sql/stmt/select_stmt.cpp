@@ -30,14 +30,14 @@ SelectStmt::~SelectStmt()
   }
 }
 
-static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
-{
-  const TableMeta &table_meta = table->table_meta();
-  const int        field_num  = table_meta.field_num();
-  for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-    field_metas.push_back(Field(table, table_meta.field(i)));
-  }
-}
+// static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
+// {
+//   const TableMeta &table_meta = table->table_meta();
+//   const int        field_num  = table_meta.field_num();
+//   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
+//     field_metas.push_back(Field(table, table_meta.field(i)));
+//   }
+// }
 
 static void wildcard_fields(Table *table, std::vector<Expression *> &field_metas)
 {
@@ -49,28 +49,73 @@ static void wildcard_fields(Table *table, std::vector<Expression *> &field_metas
   }
 }
 
-bool is_table_legal(
+/**
+ * @brief 检测表名合法性（是否存在），并返回Table信息
+ *
+ * @param table_map
+ * @param table_name
+ * @param [out] table
+ * @return true
+ * @return false
+ */
+RC is_table_legal(
     const std::unordered_map<std::string, Table *> &table_map, const std::string &table_name, Table *&table)
 {
   auto iter = table_map.find(table_name);
   if (iter == table_map.end()) {
     LOG_WARN("no such table in from list: %s", table_name);
-    return false;
+    return RC::SCHEMA_TABLE_NOT_EXIST;
   }
   table = iter->second;
-  return true;
+  return RC::SUCCESS;
 }
 
 bool is_equal(const char *a, const char *b) { return 0 == strcmp(a, b); }
 
-RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> &table_map,
-    const ConditionSqlNode &cond, Expression *&expr)
+/**
+ * @brief Get the table and field object，从filter_stmt里偷过来的
+ *
+ * @param db
+ * @param default_table
+ * @param tables
+ * @param attr
+ * @param [out] table
+ * @param [out] field
+ * @return RC
+ */
+RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+    const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
+{
+  if (common::is_blank(attr.relation_name.c_str())) {
+    table = default_table;
+  } else if (nullptr != tables) {
+    auto iter = tables->find(attr.relation_name);
+    if (iter != tables->end()) {
+      table = iter->second;
+    }
+  } else {
+    table = db->find_table(attr.relation_name.c_str());
+  }
+  if (nullptr == table) {
+    LOG_WARN("No such table: attr.relation_name: %s", attr.relation_name.c_str());
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  field = table->table_meta().field(attr.attribute_name.c_str());
+  if (nullptr == field) {
+    LOG_WARN("no such field in table: table %s, field %s", table->name(), attr.attribute_name.c_str());
+    table = nullptr;
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+
+  return RC::SUCCESS;
+}
+
+RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+    const ConditionSqlNode *cond, Expression *&expr)
 {  // 对attr内的单个ConditionSqlNode做解析
   RC rc = RC::SUCCESS;
   expr  = nullptr;
-  if (nullptr == cond) {
-    return rc;
-  }
 
   switch (cond->type) {
     case VALUE: {
@@ -78,8 +123,19 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
     } break;
 
     case FIELD: {
-      // 得把真实的表名填入
-
+      // 得把真实的表名填入，不能为STAR, 似乎无需特殊处理STAR，因为找不到
+      // if (cond->attr.attribute_name == "*" || cond->attr.relation_name == "*") {
+      //   LOG_WARN("STAR * cannot be subexpr of field");
+      //   return RC::SCHEMA_FIELD_MISSING;
+      // }
+      Table           *table = nullptr;
+      const FieldMeta *field = nullptr;
+      rc                     = get_table_and_field(db, default_table, tables, cond->attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find table [%s] and attr [%s]", cond->attr.relation_name.c_str(), cond->attr.attribute_name.c_str());
+        return rc;
+      }
+      expr = new FieldExpr(table, field);
     } break;
 
     case ARITH: {
@@ -87,12 +143,12 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       if (cond->binary) {
         Expression *left_expr;
         Expression *right_expr;
-        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, left_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Left . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
-        rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+        rc = attr_cond_to_expr(db, default_table, tables, cond->right_cond, right_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Right . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -102,10 +158,9 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
         } else {
           return RC::EXPR_TYPE_MISMATCH;
         }
-
       } else {
         Expression *sub_expr;
-        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, sub_expr);
+        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, sub_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Sub . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -116,10 +171,48 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
           return RC::EXPR_TYPE_MISMATCH;
         }
       }
+
     } break;
 
     case FUNC_OR_AGG: {
-      // 不能是AGG
+      // 暂时先只处理AGG， TODO：完成function
+      // 得在这里特判 STAR，而不是往下推
+      Expression             *sub_expr;
+      const ConditionSqlNode *sub_cond = cond->left_cond;
+
+      // 目前判别有点简单，更好的做法是根据Funcname来判断可以有多少个参数，否则max这种可能是聚集也可能是普通函数。
+      if (cond->func >= COUNT && cond->func <= MIN) {  // Aggregation
+        if (sub_cond->type != ConditionSqlNodeType::FIELD) {
+          LOG_WARN("Aggregation's subexpr must be FieldExpr");
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+        bool is_table_star = sub_cond->attr.relation_name == "*";
+        bool is_field_star = sub_cond->attr.attribute_name == "*";
+        if (is_table_star || is_field_star) {
+          if (is_table_star && !is_field_star) {  // *.col 报错
+            LOG_WARN("invalid field name while table is *. attr=%s", sub_cond->attr.attribute_name.c_str());
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+          if (cond->func != COUNT) {
+            LOG_WARN("invalid aggregate while table/field is *.");
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+          // 暂时没法区分COUNT(*.*)和COUNT(*)，实在有需要就加个新的状态标明一下。
+          if (is_table_star) {
+            expr = new AggregationExpr(cond->type, FieldExpr(nullptr, nullptr));
+          } else {
+            Table *table;
+            RC     rc = is_table_legal(*tables, sub_cond->attr.relation_name, table);
+            if (OB_FAIL(rc)) {
+              return rc;
+            }
+            expr = new AggregationExpr(cond->type, FieldExpr(table, nullptr));
+          }
+        } else {
+          rc = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr);
+          expr = new AggregationExpr(cond->func, sub_expr);
+        }
+      }
     } break;
 
     case SUB_SELECT:
@@ -127,7 +220,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
     case COMP:
     case UNDEFINED:
     default: {
-      LOG_WARN("invalid ConditionSqlNode type: %d", cond->type);
+      LOG_WARN("invalid ConditionSqlNode type in select attribute: %d", cond->type);
       return RC::INVALID_ARGUMENT;
     } break;
   }
@@ -169,167 +262,64 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect query fields in `select` statement
-  // 废弃的两个数据
-  std::vector<Field>                         query_fields;
-  std::vector<std::pair<std::string, Field>> aggregation_func;
-
-  // 保留的数据
   std::vector<Expression *> query_fields_expressions;
-
   {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-      Expression *expr = nullptr;
-      RC          rc   = attr_cond_to_expr(db, default_table, table_map, select_sql.attributes[i], expr);
-      if (OB_FAIL(rc)) {  // LOG_WARN在上面做
-        return rc;
-      }
-      // 还得判断是否是唯一的STAR，原本的代码似乎还没做这个特判。
-      // 如果STAR对应单一FieldExpr：那么FieldExpr的alias输出要变，get_value也要变，但似乎仍然可以是单个表达式
-      // 如果需要将STAR展开为多个FieldExpr，那么只需要在这里特判, 此外还需要对COUNT(*)特殊处理
-      // 或者干脆搞一个StarExpr？ （现在ExprType也有暗示），还是搞一个 ExprListExpr ？
+      Expression             *expr = nullptr;
+      const ConditionSqlNode &cond = select_sql.attributes[i];
 
-      query_fields_expressions.push_back(expr);
-    }
-  }
-
-  // 已废弃，需要注释掉
-  {
-    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-      const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
-
-      if (common::is_blank(relation_attr.relation_name.c_str()) &&
-          0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询所有属性(*)
-        // 展开*
-        for (Table *table : tables) {
-          wildcard_fields(table, query_fields);
-        }
-
-        // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
-        if (0 == strcmp(relation_attr.aggregation_func.c_str(), "COUNT")) {
-          aggregation_func.emplace_back("COUNT", Field(nullptr, nullptr));
-        }
-
-        //-----------------------------------------------------
-        // 重构为expression的写法
-        // select * or select count(*)
-        if (0 == strcmp(relation_attr.aggregation_func.c_str(),
-                     "COUNT")) {  // select count(*) 在logical operator生成的时候才将 *
-                                  // 拆分，目的是为了保证与用户查询的顺序对应，同时必须要在过程中拆分出 *
-          Expression *agg_expr =
-              new AggregationExpr(Field(nullptr, nullptr), "COUNT");  // (nullptr, nullptr)对应 * or *.*
-          query_fields_expressions.emplace_back(agg_expr);
-        } else {  // 普通 select * 在这里就可以拆分
-          for (Table *table : tables) {
-            wildcard_fields(table, query_fields_expressions);
-          }
-        }
-      } else if (!common::is_blank(relation_attr.relation_name.c_str())) {  // 表名非空
-        const char *table_name           = relation_attr.relation_name.c_str();
-        const char *field_name           = relation_attr.attribute_name.c_str();
-        const char *aggregation_function = relation_attr.aggregation_func.c_str();
-
-        if (0 == strcmp(table_name, "*")) {  // table_name == "*"
-          if (0 != strcmp(field_name, "*")) {
-            LOG_WARN("invalid field name while table is *. attr=%s", field_name);
-            return RC::SCHEMA_FIELD_MISSING;
-          }
-          for (Table *table : tables) {
-            wildcard_fields(table, query_fields);
-          }
-
-          // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
-          if (0 == strcmp(aggregation_function, "COUNT")) {
-            aggregation_func.emplace_back("COUNT", Field(nullptr, nullptr));
-          }
-
-          // select *.* or select count(*.*)
-          if (0 == strcmp(aggregation_function, "COUNT")) {
-            Expression *agg_expr = new AggregationExpr(Field(nullptr, nullptr), "COUNT");
-            query_fields_expressions.emplace_back(agg_expr);
-          } else {
+      // 最外层可以是*，所以需要特殊处理，而对于COUNT(*)在attr_cond_to_expr内部特判即可。
+      if (cond.type == FIELD) {
+        if (common::is_blank(cond.attr.relation_name.c_str())) {  // 表名为空
+          if (cond.attr.attribute_name == "*") {                  // 表名为空，且列名为* [].*
+            // 将tables展开
             for (Table *table : tables) {
               wildcard_fields(table, query_fields_expressions);
             }
-          }
-        } else {  // table_name != "*"
-          Table *table;
-          if (!is_table_legal(table_map, table_name, table)) {
-            return RC::SCHEMA_FIELD_MISSING;
-          }
-
-          if (0 == strcmp(field_name, "*")) {
-            wildcard_fields(table, query_fields);
-            // 记录field的聚合信息：这里如果有聚合，只可能是count(*)
-            if (0 == strcmp(aggregation_function, "COUNT")) {
-              aggregation_func.emplace_back("COUNT", Field(table, nullptr));
-            }
-            // select t.* or select count(t.*)
-            if (0 == strcmp(aggregation_function, "COUNT")) {
-              Expression *agg_expr =
-                  new AggregationExpr(Field(table, nullptr), "COUNT");  // (table, nullptr)对应table.*
-              query_fields_expressions.emplace_back(agg_expr);
-            } else {
-              wildcard_fields(table, query_fields_expressions);
-            }
-          } else {
-            const FieldMeta *field_meta = table->table_meta().field(field_name);
-            if (nullptr == field_meta) {
-              LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+          } else {                     // 表名为空，且列名不为*, [].col
+            if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
+              LOG_WARN("invalid. I do not know the attr's table. attr=%s", cond.attr.attribute_name.c_str());
               return RC::SCHEMA_FIELD_MISSING;
             }
-
-            query_fields.push_back(Field(table, field_meta));
-
-            // 记录field的聚合信息：这里可能存在5种类型的聚合
-            // if (0 != strcmp(aggregation_function, "")) {
-            if (!common::is_blank(aggregation_function)) {
-              aggregation_func.emplace_back(std::string(aggregation_function), Field(table, field_meta));
+            RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr);
+            if (OB_FAIL(rc)) {
+              return rc;
             }
-            // need aggregate or not?
-            if (common::is_blank(aggregation_function)) {
-              Expression *field_expr = new FieldExpr(table, field_meta);
-              query_fields_expressions.emplace_back(field_expr);
-            } else {
-              Expression *agg_expr = new AggregationExpr(Field(table, field_meta), relation_attr.aggregation_func);
-              query_fields_expressions.emplace_back(agg_expr);
+          }
+        } else {                                    // 表名非空
+          if (cond.attr.relation_name == "*") {     // 表名为*
+            if (cond.attr.attribute_name == "*") {  // *.*
+              // 将tables展开
+              for (Table *table : tables) {
+                wildcard_fields(table, query_fields_expressions);
+              }
+            } else {  // *.col
+              LOG_WARN("invalid field name while table is *. attr=%s", cond.attr.attribute_name.c_str());
+              return RC::SCHEMA_FIELD_MISSING;
+            }
+          } else {  // 表名非空且非'*'
+            Table *table;
+            RC     rc = is_table_legal(table_map, cond.attr.relation_name, table);
+            if (OB_FAIL(rc)) {
+              return rc;
+            }
+            if (cond.attr.attribute_name == "*") {  // t.*
+              wildcard_fields(table, query_fields_expressions);
+            } else {  // t.col
+              RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr);
+              if (OB_FAIL(rc)) {
+                return rc;
+              }
             }
           }
         }
-      } else {                     // 表名为空，但不是查询所有属性
-        if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
-          LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
-          return RC::SCHEMA_FIELD_MISSING;
+      } else {
+        RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr);
+        if (OB_FAIL(rc)) {  // LOG_WARN在上面做
+          return rc;
         }
-
-        Table           *table      = tables[0];
-        const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
-        if (nullptr == field_meta) {
-          LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
-          return RC::SCHEMA_FIELD_MISSING;
-        }
-
-        query_fields.push_back(Field(table, field_meta));
-
-        // 记录field的聚合信息：这里可能存在5种类型的聚合
-        // if (0 != strcmp(relation_attr.aggregation_func.c_str(), "")) {
-        if (!common::is_blank(relation_attr.aggregation_func.c_str())) {
-          aggregation_func.emplace_back(std::string(relation_attr.aggregation_func.c_str()), Field(table, field_meta));
-        }
-        // need aggregate or not?
-        if (common::is_blank(relation_attr.aggregation_func.c_str())) {
-          Expression *field_expr = new FieldExpr(table, field_meta);
-          query_fields_expressions.emplace_back(field_expr);
-        } else {
-          Expression *agg_expr = new AggregationExpr(Field(table, field_meta), relation_attr.aggregation_func);
-          query_fields_expressions.emplace_back(agg_expr);
-        }
+        query_fields_expressions.push_back(expr);
       }
-    }
-
-    LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields_expressions.size());
-
-    if (tables.size() == 1) {
-      default_table = tables[0];
     }
   }
 
@@ -343,15 +333,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // group_by + aggregate 相关的语法合法性检测
   if (select_sql.groups.empty()) {  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
-    // 旧版check
-    // Expression *expr = query_fields_expressions.front();
-    // if (expr->type() == ExprType::AGGREGATION) {
-    //   for (auto attr : select_sql.attributes) {
-    //     if (common::is_blank(attr.aggregation_func.c_str())) {
-    //       return RC::SQL_SYNTAX;
-    //     }
-    //   }
-    // }
     bool has_normal_field = false;
     bool has_agg_field    = false;
     for (auto query_fields_expr : query_fields_expressions) {
@@ -391,8 +372,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         } else {
           // 检测表名是否存在
           Table *table;
-          if (!is_table_legal(table_map, table_name, table)) {
-            return RC::SCHEMA_FIELD_MISSING;
+          RC     rc = is_table_legal(table_map, table_name, table);
+          if (OB_FAIL(rc)) {
+            return rc;
           }
           // 检测（表名，列名）是否合法
           if (field_name == "*") {
@@ -484,7 +466,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
           Table *table = iter->second;
           if (0 == strcmp(field_name, "*")) {
-            wildcard_fields(table, group_by_fields);
+            // wildcard_fields(table, group_by_fields);
             wildcard_fields(table, group_by_fields_expressions);
           } else {
             const FieldMeta *field_meta = table->table_meta().field(field_name);
@@ -536,9 +518,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       const RelAttrSqlNode &order_attr = select_sql.orders.at(i).attr;
       bool                  is_asc     = select_sql.orders.at(i).is_asc;
 
-      if (0 != strcmp(order_attr.aggregation_func.c_str(), "")) {  // 处理一下aggregate的特殊场景
-        return RC::SQL_SYNTAX;
-      }
+      // if (0 != strcmp(order_attr.aggregation_func.c_str(), "")) {  // 处理一下aggregate的特殊场景
+      //   return RC::SQL_SYNTAX;
+      // }
 
       if (common::is_blank(order_attr.relation_name.c_str()) &&
           0 == strcmp(order_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询*
@@ -592,9 +574,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   {
     select_stmt->tables_.swap(tables);
     select_stmt->query_fields_expressions_.swap(query_fields_expressions);
-    select_stmt->query_fields_.swap(query_fields);
+    // select_stmt->query_fields_.swap(query_fields);
     select_stmt->filter_stmt_ = filter_stmt;
-    select_stmt->aggregation_func_.swap(aggregation_func);
+    // select_stmt->aggregation_func_.swap(aggregation_func);
     select_stmt->group_by_fields_expressions_.swap(group_by_fields_expressions);
     select_stmt->group_by_fields_.swap(group_by_fields);
     select_stmt->having_filter_stmt_ = having_filter_stmt;

@@ -82,10 +82,11 @@ enum LogiOp
 enum FuncName
 {
   UNDEFINED,
-  MAX,    ///< "MAX"
-  MIN,    ///< "MIN"
   COUNT,  ///< "COUNT"
   AVG,    ///< "AVG"
+  SUM,    ///< "SUM"
+  MAX,    ///< "MAX"
+  MIN,    ///< "MIN"
   NO_FUNC
 };
 
@@ -194,7 +195,7 @@ struct SelectSqlNode
   std::vector<std::string>      relations;             ///< 查询的表
   ConditionSqlNode             *conditions = nullptr;  ///< 查询条件树
   std::vector<OrderSqlNode>     orders;                // 排序条件，可能有多列需求
-  std::vector<ConditionSqlNode> groups;                ///< 分组的属性
+  std::vector<RelAttrSqlNode>   groups;                ///< 分组的属性
   ConditionSqlNode             *havings = nullptr;  ///< 分组筛选条件，同样是使用AND串联起来多个条件
 
   // std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件 旧版查询条件

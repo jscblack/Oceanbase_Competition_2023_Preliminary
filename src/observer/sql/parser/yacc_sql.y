@@ -182,7 +182,8 @@ ConditionSqlNode *create_compare_condition(CompOp op, const ConditionSqlNode *le
   // std::vector<ConditionSqlNode> *   condition_list; //TODO：待检查是否已重构完成
   // ConditionSqlNode *                condition_tree; //TODO：待检查是否已重构完成
   std::vector<OrderSqlNode> *       order_by_list;
-  std::vector<ConditionSqlNode> *   rel_attr_list;
+  std::vector<ConditionSqlNode> *   a_expr_list;
+  std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   std::pair<std::vector<std::string>,ConditionSqlNode *> * join_list; //TODO：待检查是否已重构完成 // relateion_list + condition_list，
   std::pair<std::vector<std::string>,std::vector<ComplexValue>> * update_expr;
@@ -224,16 +225,17 @@ ConditionSqlNode *create_compare_condition(CompOp op, const ConditionSqlNode *le
 %type <a_expr>              a_expr
 %type <a_expr>              c_expr
 %type <a_expr>              select_stmt_with_paren
-%type <rel_attr_list>       group_by
+%type <rel_attr_list>       group_by // 传统的attr_list
 %type <a_expr>              having 
-%type <rel_attr_list>       select_attr
+%type <a_expr_list>         select_attr
 %type <update_expr>         update_expr
 %type <update_expr>         update_expr_list
 %type <relation_list>       rel_list
 %type <a_expr>              join_equal
 %type <join_list>           join_list
 %type <join_list>           join
-%type <rel_attr_list>       attr_list
+%type <rel_attr_list>       attr_list // 传统的attr_list
+%type <a_expr_list>         a_expr_list
 %type <order_by_list>       order
 %type <order_by_list>       order_list
 %type <a_expr>              function 
@@ -404,7 +406,6 @@ create_index_stmt:    /*create index 语句的语法解析树*/
       free($8);
     }
     ;
-
 drop_index_stmt:      /*drop index 语句的语法解析树*/
     DROP INDEX ID ON ID
     {
@@ -1026,7 +1027,7 @@ value_list_LA:
     }
     ;
 select_attr:
-    '*' attr_list{
+    '*' a_expr_list{
       if ($2 != nullptr) {
         $$ = $2;
       } else {
@@ -1041,7 +1042,7 @@ select_attr:
 
       $$->emplace_back(attr);
     }
-    | a_expr attr_list {
+    | a_expr a_expr_list {
       if ($2 != nullptr) {
         $$ = $2;
       } else {
@@ -1090,10 +1091,10 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
     } */
     ;
 func_LA:
-  func_name LBRACE {
-    $$ = $1;
-  }
-
+    func_name LBRACE {
+      $$ = $1;
+    }
+    ;
 func_name: 
     AGG_MAX  {
       $$ = MAX;
@@ -1106,6 +1107,9 @@ func_name:
     }
     | AGG_AVG {
       $$ = AVG;
+    }
+    | AGG_SUM {
+      $$ = SUM;
     }
     ;
 rel_attr:
@@ -1121,96 +1125,28 @@ rel_attr:
       free($1);
       free($3);
     }
-    /* | AGG_MAX LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "MAX";
-      $$->attribute_name = $3;
-      free($3);
-    }
-    | AGG_MIN LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "MIN";
-      $$->attribute_name = $3;
-      free($3);
-    }
-    | AGG_COUNT LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "COUNT";
-      $$->attribute_name = $3;
-      free($3);
-    }
-    | AGG_COUNT LBRACE '*' RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "COUNT";
-      $$->attribute_name = "*";
-      $$->relation_name = "";
-    }
-    | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*)的区别
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "COUNT";
-      $$->attribute_name = "*";
-      $$->relation_name = "";
-    }
-    | AGG_AVG LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "AVG";
-      $$->attribute_name = $3;
-      free($3);
-    }
-    | AGG_SUM LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "SUM";
-      $$->attribute_name = $3;
-      free($3);
-    }
-    | AGG_MAX LBRACE ID DOT ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "MAX";
-      $$->relation_name = $3;
-      $$->attribute_name = $5;
-      free($3);
-      free($5);
-    }
-    | AGG_MIN LBRACE ID DOT ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "MIN";
-      $$->relation_name = $3;
-      $$->attribute_name = $5;
-      free($3);
-      free($5);
-    }
-    | AGG_COUNT LBRACE ID DOT ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "COUNT";
-      $$->relation_name = $3;
-      $$->attribute_name = $5;
-      free($3);
-      free($5);
-    }
-    | AGG_AVG LBRACE ID DOT ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "AVG";
-      $$->relation_name = $3;
-      $$->attribute_name = $5;
-      free($3);
-      free($5);
-    }
-    | AGG_SUM LBRACE ID DOT ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->aggregation_func = "SUM";
-      $$->relation_name = $3;
-      $$->attribute_name = $5;
-      free($3);
-      free($5);
-    } */
     ;
+attr_list: // group-by等会使用到，旧版的attr_list
+    /* empty */ {
+      $$ = nullptr;
+    }
+    | COMMA rel_attr attr_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
 
-attr_list:
+      $$->emplace_back(*$2);
+      delete $2;
+    }
+    ;
+a_expr_list:
     /* empty */
     {
       $$ = nullptr;
     }
-    | COMMA a_expr attr_list {
+    | COMMA a_expr a_expr_list {
       if ($3 != nullptr) {
         $$ = $3;
       } else {
@@ -1221,7 +1157,6 @@ attr_list:
       delete $2;
     }
     ;
-
 rel_list:
     /* empty */
     {
@@ -1243,11 +1178,11 @@ group_by:
     {
       $$ = nullptr;
     }
-    | GROUP_BY a_expr attr_list {
+    | GROUP_BY rel_attr attr_list {
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<ConditionSqlNode>;
+        $$ = new std::vector<RelAttrSqlNode>;
       }
 
       $$->emplace_back(*$2);

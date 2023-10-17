@@ -716,6 +716,7 @@ public:
   const char *table_name() const { return field_.table_name(); }
   const char *field_name() const { return field_.field_name(); }
 
+  // 现在没法解决COUNT(*.*)的输出问题，通过nullptr无法区分(*.*)和(*)，可能不需要fix
   const std::string alias(bool with_table_name) const
   {
     if (!with_table_name) {
