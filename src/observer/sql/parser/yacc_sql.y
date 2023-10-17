@@ -475,8 +475,8 @@ attr_def:
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = $5;
-      $$->nullable=$3;
+      $$->length = $4;
+      $$->nullable=$6;
       free($1);
     }
     | ID type nullable_marker
