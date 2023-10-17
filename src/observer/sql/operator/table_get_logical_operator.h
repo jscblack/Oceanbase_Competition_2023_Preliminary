@@ -38,9 +38,9 @@ public:
   std::vector<std::unique_ptr<Expression>> &predicates() { return predicates_; }
 
 private:
-  Table             *table_ = nullptr;
+  Table *table_ = nullptr;
   // std::vector<Field> fields_; // 废弃
-  bool               readonly_ = false;
+  bool readonly_ = false;
 
   // 与当前表相关的过滤操作，可以尝试在遍历数据时执行
   // 这里的表达式都是比较简单的比较运算，并且左右两边都是取字段表达式或值表达式

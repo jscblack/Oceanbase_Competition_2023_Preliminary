@@ -14,8 +14,9 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/project_logical_operator.h"
 
-ProjectLogicalOperator::ProjectLogicalOperator(const std::vector<Expression*> &fields_expressions) {
-    for(int i = 0; i < fields_expressions.size(); i++) {
-        expressions_.push_back(std::unique_ptr<Expression>(fields_expressions[i]->clone()));
-    }
+ProjectLogicalOperator::ProjectLogicalOperator(const std::vector<Expression *> &fields_expressions)
+{
+  for (int i = 0; i < fields_expressions.size(); i++) {
+    expressions_.push_back(std::unique_ptr<Expression>(fields_expressions[i]->clone()));
+  }
 }

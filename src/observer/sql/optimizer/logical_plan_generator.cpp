@@ -289,7 +289,6 @@ RC LogicalPlanGenerator::create_plan(DeleteStmt *delete_stmt, unique_ptr<Logical
   // unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, false /*readonly*/));
   unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, false /*readonly*/));
 
-
   unique_ptr<LogicalOperator> predicate_oper;
   RC                          rc = create_plan(filter_stmt, predicate_oper);
   if (rc != RC::SUCCESS) {

@@ -695,15 +695,16 @@ class AggregationExpr : public Expression
 {
 public:
   AggregationExpr() = default;
-  AggregationExpr(FuncName agg_type, Expression* child);
+  AggregationExpr(FuncName agg_type, Expression *child);
   AggregationExpr(FuncName agg_type, std::unique_ptr<Expression> child);
-  AggregationExpr(const AggregationExpr &expr) = delete;
+  AggregationExpr(const AggregationExpr &expr)            = delete;
   AggregationExpr &operator=(const AggregationExpr &expr) = delete;
-  virtual ~AggregationExpr() = default;
+  virtual ~AggregationExpr()                              = default;
 
   ExprType type() const override { return ExprType::AGGREGATION; }
 
-  AttrType value_type() const override { 
+  AttrType value_type() const override
+  {
     // 在子表达式真正执行之前，是无法知道select的结果集的类型的，需要在执行完之后set一下吗？
     return AttrType::UNDEFINED;
   }
@@ -716,16 +717,11 @@ public:
   const std::string alias(bool with_table_name) const
   {
     switch (agg_type_) {
-      case MAX:
-        return  "MAX(" + child_->alias(with_table_name) + ")";
-      case MIN:
-        return  "MIN(" + child_->alias(with_table_name) + ")";
-      case COUNT:
-        return  "COUNT(" + child_->alias(with_table_name) + ")";
-      case AVG:
-        return  "AVG(" + child_->alias(with_table_name) + ")";
-      case SUM:
-        return  "SUM(" + child_->alias(with_table_name) + ")";
+      case MAX: return "MAX(" + child_->alias(with_table_name) + ")";
+      case MIN: return "MIN(" + child_->alias(with_table_name) + ")";
+      case COUNT: return "COUNT(" + child_->alias(with_table_name) + ")";
+      case AVG: return "AVG(" + child_->alias(with_table_name) + ")";
+      case SUM: return "SUM(" + child_->alias(with_table_name) + ")";
     }
   }
 
@@ -755,7 +751,7 @@ public:
 
 private:
   // TODO: 应该彻底Expression化，接收一个sub_expr，不假定其类型
-  FuncName agg_type_;
+  FuncName                    agg_type_;
   std::unique_ptr<Expression> child_;
 
   RC do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
@@ -763,7 +759,7 @@ private:
   RC do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
   RC do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
   RC do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
-  
+
   // 废弃代码*********************************************************BEGIN
   // Field       field_;
   // std::string aggregation_func_;

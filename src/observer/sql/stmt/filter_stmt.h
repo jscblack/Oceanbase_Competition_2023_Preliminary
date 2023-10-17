@@ -58,10 +58,9 @@ class FieldMeta;
 //   FilterObj obj_;
 // };
 
-
 RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode *cond, bool is_having, Expression *&expr);
-  
+    const ConditionSqlNode *cond, bool is_having, Expression *&expr);
+
 /**
  * @brief Filter/谓词/过滤语句
  * @ingroup Statement
@@ -84,7 +83,7 @@ public:
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const ConditionSqlNode *conditions, FilterStmt *&stmt);
-  
+
   // static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
   //     const ConditionSqlNode &condition, FilterUnit *&filter_unit);
 

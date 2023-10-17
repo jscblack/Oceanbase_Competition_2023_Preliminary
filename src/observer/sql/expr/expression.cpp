@@ -123,7 +123,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC rc = RC::SUCCESS;
+  RC  rc = RC::SUCCESS;
   int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
   result = false;
   if (left.is_null() || right.is_null()) {
@@ -1039,9 +1039,7 @@ Expression *ArithmeticExpr::clone() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-AggregationExpr::AggregationExpr(FuncName agg_type, Expression *child)
-    : agg_type_(agg_type), child_(child)
-{}
+AggregationExpr::AggregationExpr(FuncName agg_type, Expression *child) : agg_type_(agg_type), child_(child) {}
 
 AggregationExpr::AggregationExpr(FuncName agg_type, std::unique_ptr<Expression> child)
     : agg_type_(agg_type), child_(std::move(child))
@@ -1049,8 +1047,7 @@ AggregationExpr::AggregationExpr(FuncName agg_type, std::unique_ptr<Expression> 
 
 Expression *AggregationExpr::clone() const
 {
-  return new AggregationExpr(
-      agg_type_, unique_ptr<Expression>(child_->clone()));
+  return new AggregationExpr(agg_type_, unique_ptr<Expression>(child_->clone()));
 }
 
 RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
@@ -1065,16 +1062,16 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
   ProjectTuple *tpl_cast = dynamic_cast<ProjectTuple *>(tpl);
 
   // 强转field expression，判断是否是count(*)
-  FieldExpr* child_cast = dynamic_cast<FieldExpr*>(child_.get());
-  if (child_cast->field().meta() == nullptr) { // FIXME: 这里合并处理了table()是否为空的情况，即目前没有区分*.*  *  t.*
+  FieldExpr *child_cast = dynamic_cast<FieldExpr *>(child_.get());
+  if (child_cast->field().meta() == nullptr) {  // FIXME: 这里合并处理了table()是否为空的情况，即目前没有区分*.*  *  t.*
     do_count_aggregate(tuples, value, -1);
     return RC::SUCCESS;
   }
 
-  int                                 idx    = 0;
-  const std::vector<std::unique_ptr<Expression>>& expressions = tpl_cast->expressions();
+  int                                             idx         = 0;
+  const std::vector<std::unique_ptr<Expression>> &expressions = tpl_cast->expressions();
   for (idx = 0; idx < tpl_cast->cell_num(); idx++) {
-    if (child_cast->alias(true) == expressions[idx]->alias(true)) { // FIXME: 不确定这里的判断会不会漏掉情况
+    if (child_cast->alias(true) == expressions[idx]->alias(true)) {  // FIXME: 不确定这里的判断会不会漏掉情况
       break;
     }
   }
@@ -1082,26 +1079,13 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
   LOG_DEBUG("========== idx = %d ========== log by tyh", idx);
 
   RC rc = RC::SUCCESS;
-  switch (agg_type_)
-  {
-  case MAX:
-    rc = do_max_aggregate(tuples, value, idx);
-    break;
-  case MIN:
-    rc = do_min_aggregate(tuples, value, idx);
-    break;
-  case COUNT:
-    rc = do_count_aggregate(tuples, value, idx);
-    break;
-  case AVG:
-    rc = do_avg_aggregate(tuples, value, idx);
-    break;
-  case SUM:
-    rc = do_sum_aggregate(tuples, value, idx);
-    break;
-  default:
-    rc = RC::INVALID_ARGUMENT;
-    break;
+  switch (agg_type_) {
+    case MAX: rc = do_max_aggregate(tuples, value, idx); break;
+    case MIN: rc = do_min_aggregate(tuples, value, idx); break;
+    case COUNT: rc = do_count_aggregate(tuples, value, idx); break;
+    case AVG: rc = do_avg_aggregate(tuples, value, idx); break;
+    case SUM: rc = do_sum_aggregate(tuples, value, idx); break;
+    default: rc = RC::INVALID_ARGUMENT; break;
   }
   return rc;
 }
@@ -1403,7 +1387,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
 
 // RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 // {
-//   LOG_DEBUG("========== In AggregationExpr::do_max_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+//   LOG_DEBUG("========== In AggregationExpr::do_max_aggregate(const std::vector<Tuple*> &tuples, Value &value)
+//   ==========");
 
 //   // 检查是否为空
 //   if (tuples.empty()) {
@@ -1442,7 +1427,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
 
 // RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 // {
-//   LOG_DEBUG("========== In AggregationExpr::do_min_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+//   LOG_DEBUG("========== In AggregationExpr::do_min_aggregate(const std::vector<Tuple*> &tuples, Value &value)
+//   ==========");
 
 //   // 检查是否为空
 //   if (tuples.empty()) {
@@ -1481,7 +1467,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
 
 // RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 // {
-//   LOG_DEBUG("========== In AggregationExpr::do_count_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+//   LOG_DEBUG("========== In AggregationExpr::do_count_aggregate(const std::vector<Tuple*> &tuples, Value &value)
+//   ==========");
 
 //   int count = 0;
 
@@ -1507,7 +1494,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
 
 // RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 // {
-//   LOG_DEBUG("========== In AggregationExpr::do_avg_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+//   LOG_DEBUG("========== In AggregationExpr::do_avg_aggregate(const std::vector<Tuple*> &tuples, Value &value)
+//   ==========");
 
 //   // 检查是否为空
 //   if (tuples.empty()) {
@@ -1586,7 +1574,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
 
 // RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 // {
-//   LOG_DEBUG("========== In AggregationExpr::do_sum_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+//   LOG_DEBUG("========== In AggregationExpr::do_sum_aggregate(const std::vector<Tuple*> &tuples, Value &value)
+//   ==========");
 
 //   // 检查是否为空
 //   if (tuples.empty()) {

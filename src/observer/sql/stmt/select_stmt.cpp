@@ -200,7 +200,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
           // 暂时没法区分COUNT(*.*)和COUNT(*)，实在有需要就加个新的状态标明一下。
           if (is_table_star) {
             sub_expr = new FieldExpr(nullptr, nullptr);
-            expr = new AggregationExpr(cond->func,sub_expr);
+            expr     = new AggregationExpr(cond->func, sub_expr);
           } else {
             Table *table;
             RC     rc = is_table_legal(*tables, sub_cond->attr.relation_name, table);
@@ -208,10 +208,10 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
               return rc;
             }
             sub_expr = new FieldExpr(table, nullptr);
-            expr = new AggregationExpr(cond->func,sub_expr);
+            expr     = new AggregationExpr(cond->func, sub_expr);
           }
         } else {
-          rc = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr);
+          rc   = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr);
           expr = new AggregationExpr(cond->func, sub_expr);
         }
       }
