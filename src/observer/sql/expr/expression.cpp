@@ -1039,6 +1039,10 @@ Expression *ArithmeticExpr::clone() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+AggregationExpr::AggregationExpr(FuncName agg_type, Expression *child)
+    : agg_type_(agg_type), child_(child)
+{}
+
 AggregationExpr::AggregationExpr(FuncName agg_type, std::unique_ptr<Expression> child)
     : agg_type_(agg_type), child_(std::move(child))
 {}
@@ -1083,7 +1087,7 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
     rc = do_max_aggregate(tuples, value, idx);
     break;
   case MIN:
-    rc = do_min_aggreagte(tuples, value, idx);
+    rc = do_min_aggregate(tuples, value, idx);
     break;
   case COUNT:
     rc = do_count_aggregate(tuples, value, idx);
