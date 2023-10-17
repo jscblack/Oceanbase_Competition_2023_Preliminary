@@ -1,3 +1,8 @@
+Terminals unused in grammar
+
+    NULLABLE
+
+
 Grammar
 
     0 $accept: commands $end
@@ -55,14 +60,14 @@ Grammar
 
    37 nullable_marker: ε
    38                | UNNULLABLE
-   39                | NULLABLE
+   39                | NULL_T
 
    40 create_table_stmt: CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE
 
    41 attr_def_list: ε
    42              | COMMA attr_def attr_def_list
 
-   43 attr_def: ID type nullable_marker LBRACE number RBRACE
+   43 attr_def: ID type LBRACE number RBRACE nullable_marker
    44         | ID type nullable_marker
 
    45 number: NUMBER
@@ -246,7 +251,7 @@ Terminals, with rules where they appear
     AGG_AVG (271) 132
     AGG_SUM (272) 133
     GROUP_BY (273) 143
-    NULLABLE (274) 39
+    NULLABLE (274)
     UNNULLABLE (275) 38
     SHOW (276) 30 31
     SYNC (277) 25
@@ -264,7 +269,7 @@ Terminals, with rules where they appear
     STRING_T (289) 47
     FLOAT_T (290) 49
     DATE_T (291) 50
-    NULL_T (292) 56 62
+    NULL_T (292) 39 56 62
     TEXT_T (293) 48
     HELP (294) 24
     EXIT (295) 23
@@ -3800,7 +3805,7 @@ State 189
 
 State 190
 
-   43 attr_def: ID • type nullable_marker LBRACE number RBRACE
+   43 attr_def: ID • type LBRACE number RBRACE nullable_marker
    44         | ID • type nullable_marker
 
     INT_T     shift, and go to state 208
@@ -4032,15 +4037,16 @@ State 212
 
 State 213
 
-   43 attr_def: ID type • nullable_marker LBRACE number RBRACE
+   43 attr_def: ID type • LBRACE number RBRACE nullable_marker
    44         | ID type • nullable_marker
 
-    NULLABLE    shift, and go to state 232
-    UNNULLABLE  shift, and go to state 233
+    UNNULLABLE  shift, and go to state 232
+    LBRACE      shift, and go to state 233
+    NULL_T      shift, and go to state 234
 
     $default  reduce using rule 37 (nullable_marker)
 
-    nullable_marker  go to state 234
+    nullable_marker  go to state 235
 
 
 State 214
@@ -4049,21 +4055,21 @@ State 214
 
     ID  shift, and go to state 190
 
-    attr_def  go to state 235
+    attr_def  go to state 236
 
 
 State 215
 
    40 create_table_stmt: CREATE TABLE ID LBRACE attr_def attr_def_list • RBRACE
 
-    RBRACE  shift, and go to state 236
+    RBRACE  shift, and go to state 237
 
 
 State 216
 
    35 create_index_stmt: CREATE unique_marker INDEX ID ON ID • LBRACE ID rel_list RBRACE
 
-    LBRACE  shift, and go to state 237
+    LBRACE  shift, and go to state 238
 
 
 State 217
@@ -4074,18 +4080,18 @@ State 217
 
     $default  reduce using rule 140 (rel_list)
 
-    rel_list  go to state 238
+    rel_list  go to state 239
 
 
 State 218
 
    76 join: ID INNER_JOIN ID • join_equal join_list
 
-    ON  shift, and go to state 239
+    ON  shift, and go to state 240
 
     $default  reduce using rule 79 (join_equal)
 
-    join_equal  go to state 240
+    join_equal  go to state 241
 
 
 State 219
@@ -4096,7 +4102,7 @@ State 219
 
     $default  reduce using rule 146 (order)
 
-    order  go to state 241
+    order  go to state 242
 
 
 State 220
@@ -4105,18 +4111,18 @@ State 220
 
     ID  shift, and go to state 65
 
-    rel_attr  go to state 242
+    rel_attr  go to state 243
 
 
 State 221
 
    75 select_stmt: SELECT select_attr FROM join where order • group_by having
 
-    GROUP_BY  shift, and go to state 243
+    GROUP_BY  shift, and go to state 244
 
     $default  reduce using rule 142 (group_by)
 
-    group_by  go to state 244
+    group_by  go to state 245
 
 
 State 222
@@ -4158,18 +4164,18 @@ State 227
 
    58 value_with_MINUS: '-' • NUMBER
 
-    NUMBER  shift, and go to state 245
+    NUMBER  shift, and go to state 246
 
 
 State 228
 
    51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS • value_list_with_MINUS RBRACE insert_list
 
-    COMMA  shift, and go to state 246
+    COMMA  shift, and go to state 247
 
     $default  reduce using rule 54 (value_list_with_MINUS)
 
-    value_list_with_MINUS  go to state 247
+    value_list_with_MINUS  go to state 248
 
 
 State 229
@@ -4178,52 +4184,58 @@ State 229
 
     SELECT  shift, and go to state 4
 
-    select_stmt  go to state 248
+    select_stmt  go to state 249
 
 
 State 230
 
    70 update_expr: ID EQ value • update_expr_list
 
-    COMMA  shift, and go to state 249
+    COMMA  shift, and go to state 250
 
     $default  reduce using rule 71 (update_expr_list)
 
-    update_expr_list  go to state 250
+    update_expr_list  go to state 251
 
 
 State 231
 
   155 load_data_stmt: LOAD DATA INFILE SSS INTO TABLE • ID
 
-    ID  shift, and go to state 251
+    ID  shift, and go to state 252
 
 
 State 232
-
-   39 nullable_marker: NULLABLE •
-
-    $default  reduce using rule 39 (nullable_marker)
-
-
-State 233
 
    38 nullable_marker: UNNULLABLE •
 
     $default  reduce using rule 38 (nullable_marker)
 
 
+State 233
+
+   43 attr_def: ID type LBRACE • number RBRACE nullable_marker
+
+    NUMBER  shift, and go to state 253
+
+    number  go to state 254
+
+
 State 234
 
-   43 attr_def: ID type nullable_marker • LBRACE number RBRACE
-   44         | ID type nullable_marker •  [RBRACE, COMMA]
+   39 nullable_marker: NULL_T •
 
-    LBRACE  shift, and go to state 252
+    $default  reduce using rule 39 (nullable_marker)
+
+
+State 235
+
+   44 attr_def: ID type nullable_marker •
 
     $default  reduce using rule 44 (attr_def)
 
 
-State 235
+State 236
 
    42 attr_def_list: COMMA attr_def • attr_def_list
 
@@ -4231,31 +4243,31 @@ State 235
 
     $default  reduce using rule 41 (attr_def_list)
 
-    attr_def_list  go to state 253
+    attr_def_list  go to state 255
 
 
-State 236
+State 237
 
    40 create_table_stmt: CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE •
 
     $default  reduce using rule 40 (create_table_stmt)
 
 
-State 237
+State 238
 
    35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE • ID rel_list RBRACE
 
-    ID  shift, and go to state 254
+    ID  shift, and go to state 256
 
 
-State 238
+State 239
 
   141 rel_list: COMMA ID rel_list •
 
     $default  reduce using rule 141 (rel_list)
 
 
-State 239
+State 240
 
    80 join_equal: ON • a_expr
 
@@ -4277,7 +4289,7 @@ State 239
     '-'         shift, and go to state 67
 
     value                   go to state 69
-    a_expr                  go to state 255
+    a_expr                  go to state 257
     c_expr                  go to state 71
     value_list_LALR         go to state 72
     select_stmt_with_paren  go to state 73
@@ -4287,68 +4299,68 @@ State 239
     rel_attr                go to state 78
 
 
-State 240
+State 241
 
    76 join: ID INNER_JOIN ID join_equal • join_list
 
-    INNER_JOIN  shift, and go to state 256
+    INNER_JOIN  shift, and go to state 258
 
     $default  reduce using rule 78 (join_list)
 
-    join_list  go to state 257
-
-
-State 241
-
-   74 select_stmt: SELECT select_attr FROM ID rel_list where order • group_by having
-
-    GROUP_BY  shift, and go to state 243
-
-    $default  reduce using rule 142 (group_by)
-
-    group_by  go to state 258
+    join_list  go to state 259
 
 
 State 242
 
-  147 order: ORDER_BY rel_attr • asc_or_desc order_list
+   74 select_stmt: SELECT select_attr FROM ID rel_list where order • group_by having
 
-    DESC  shift, and go to state 259
-    ASC   shift, and go to state 260
+    GROUP_BY  shift, and go to state 244
 
-    $default  reduce using rule 150 (asc_or_desc)
+    $default  reduce using rule 142 (group_by)
 
-    asc_or_desc  go to state 261
+    group_by  go to state 260
 
 
 State 243
+
+  147 order: ORDER_BY rel_attr • asc_or_desc order_list
+
+    DESC  shift, and go to state 261
+    ASC   shift, and go to state 262
+
+    $default  reduce using rule 150 (asc_or_desc)
+
+    asc_or_desc  go to state 263
+
+
+State 244
 
   143 group_by: GROUP_BY • rel_attr attr_list
 
     ID  shift, and go to state 65
 
-    rel_attr  go to state 262
-
-
-State 244
-
-   75 select_stmt: SELECT select_attr FROM join where order group_by • having
-
-    HAVING  shift, and go to state 263
-
-    $default  reduce using rule 144 (having)
-
-    having  go to state 264
+    rel_attr  go to state 264
 
 
 State 245
+
+   75 select_stmt: SELECT select_attr FROM join where order group_by • having
+
+    HAVING  shift, and go to state 265
+
+    $default  reduce using rule 144 (having)
+
+    having  go to state 266
+
+
+State 246
 
    58 value_with_MINUS: '-' NUMBER •
 
     $default  reduce using rule 58 (value_with_MINUS)
 
 
-State 246
+State 247
 
    55 value_list_with_MINUS: COMMA • value_with_MINUS value_list_with_MINUS
 
@@ -4359,62 +4371,67 @@ State 246
     SSS     shift, and go to state 226
     '-'     shift, and go to state 227
 
-    value_with_MINUS  go to state 265
-
-
-State 247
-
-   51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS • RBRACE insert_list
-
-    RBRACE  shift, and go to state 266
+    value_with_MINUS  go to state 267
 
 
 State 248
 
-   69 update_expr: ID EQ LBRACE select_stmt • RBRACE update_expr_list
+   51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS • RBRACE insert_list
 
-    RBRACE  shift, and go to state 267
+    RBRACE  shift, and go to state 268
 
 
 State 249
 
-   72 update_expr_list: COMMA • ID EQ LBRACE select_stmt RBRACE update_expr_list
-   73                 | COMMA • ID EQ value update_expr_list
+   69 update_expr: ID EQ LBRACE select_stmt • RBRACE update_expr_list
 
-    ID  shift, and go to state 268
+    RBRACE  shift, and go to state 269
 
 
 State 250
+
+   72 update_expr_list: COMMA • ID EQ LBRACE select_stmt RBRACE update_expr_list
+   73                 | COMMA • ID EQ value update_expr_list
+
+    ID  shift, and go to state 270
+
+
+State 251
 
    70 update_expr: ID EQ value update_expr_list •
 
     $default  reduce using rule 70 (update_expr)
 
 
-State 251
+State 252
 
   155 load_data_stmt: LOAD DATA INFILE SSS INTO TABLE ID •
 
     $default  reduce using rule 155 (load_data_stmt)
 
 
-State 252
-
-   43 attr_def: ID type nullable_marker LBRACE • number RBRACE
-
-    NUMBER  shift, and go to state 269
-
-    number  go to state 270
-
-
 State 253
+
+   45 number: NUMBER •
+
+    $default  reduce using rule 45 (number)
+
+
+State 254
+
+   43 attr_def: ID type LBRACE number • RBRACE nullable_marker
+
+    RBRACE  shift, and go to state 271
+
+
+State 255
 
    42 attr_def_list: COMMA attr_def attr_def_list •
 
     $default  reduce using rule 42 (attr_def_list)
 
 
-State 254
+State 256
 
    35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE ID • rel_list RBRACE
 
@@ -4422,10 +4439,10 @@ State 254
 
     $default  reduce using rule 140 (rel_list)
 
-    rel_list  go to state 271
+    rel_list  go to state 272
 
 
-State 255
+State 257
 
    80 join_equal: ON a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, WHERE, HAVING, INNER_JOIN, ORDER_BY]
    97 a_expr: a_expr • '+' a_expr
@@ -4469,68 +4486,68 @@ State 255
     $default  reduce using rule 80 (join_equal)
 
 
-State 256
+State 258
 
    77 join_list: INNER_JOIN • ID join_equal join_list
 
-    ID  shift, and go to state 272
+    ID  shift, and go to state 273
 
 
-State 257
+State 259
 
    76 join: ID INNER_JOIN ID join_equal join_list •
 
     $default  reduce using rule 76 (join)
 
 
-State 258
+State 260
 
    74 select_stmt: SELECT select_attr FROM ID rel_list where order group_by • having
 
-    HAVING  shift, and go to state 263
+    HAVING  shift, and go to state 265
 
     $default  reduce using rule 144 (having)
 
-    having  go to state 273
+    having  go to state 274
 
 
-State 259
+State 261
 
   152 asc_or_desc: DESC •
 
     $default  reduce using rule 152 (asc_or_desc)
 
 
-State 260
+State 262
 
   151 asc_or_desc: ASC •
 
     $default  reduce using rule 151 (asc_or_desc)
 
 
-State 261
+State 263
 
   147 order: ORDER_BY rel_attr asc_or_desc • order_list
 
-    COMMA  shift, and go to state 274
+    COMMA  shift, and go to state 275
 
     $default  reduce using rule 148 (order_list)
 
-    order_list  go to state 275
+    order_list  go to state 276
 
 
-State 262
+State 264
 
   143 group_by: GROUP_BY rel_attr • attr_list
 
-    COMMA  shift, and go to state 276
+    COMMA  shift, and go to state 277
 
     $default  reduce using rule 136 (attr_list)
 
-    attr_list  go to state 277
+    attr_list  go to state 278
 
 
-State 263
+State 265
 
   145 having: HAVING • a_expr
 
@@ -4552,7 +4569,7 @@ State 263
     '-'         shift, and go to state 67
 
     value                   go to state 69
-    a_expr                  go to state 278
+    a_expr                  go to state 279
     c_expr                  go to state 71
     value_list_LALR         go to state 72
     select_stmt_with_paren  go to state 73
@@ -4562,126 +4579,124 @@ State 263
     rel_attr                go to state 78
 
 
-State 264
+State 266
 
    75 select_stmt: SELECT select_attr FROM join where order group_by having •
 
     $default  reduce using rule 75 (select_stmt)
 
 
-State 265
+State 267
 
    55 value_list_with_MINUS: COMMA value_with_MINUS • value_list_with_MINUS
 
-    COMMA  shift, and go to state 246
+    COMMA  shift, and go to state 247
 
     $default  reduce using rule 54 (value_list_with_MINUS)
 
-    value_list_with_MINUS  go to state 279
-
-
-State 266
-
-   51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE • insert_list
-
-    COMMA  shift, and go to state 280
-
-    $default  reduce using rule 52 (insert_list)
-
-    insert_list  go to state 281
-
-
-State 267
-
-   69 update_expr: ID EQ LBRACE select_stmt RBRACE • update_expr_list
-
-    COMMA  shift, and go to state 249
-
-    $default  reduce using rule 71 (update_expr_list)
-
-    update_expr_list  go to state 282
+    value_list_with_MINUS  go to state 280
 
 
 State 268
 
-   72 update_expr_list: COMMA ID • EQ LBRACE select_stmt RBRACE update_expr_list
-   73                 | COMMA ID • EQ value update_expr_list
+   51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE • insert_list
 
-    EQ  shift, and go to state 283
+    COMMA  shift, and go to state 281
+
+    $default  reduce using rule 52 (insert_list)
+
+    insert_list  go to state 282
 
 
 State 269
 
-   45 number: NUMBER •
+   69 update_expr: ID EQ LBRACE select_stmt RBRACE • update_expr_list
 
-    $default  reduce using rule 45 (number)
+    COMMA  shift, and go to state 250
+
+    $default  reduce using rule 71 (update_expr_list)
+
+    update_expr_list  go to state 283
 
 
 State 270
 
-   43 attr_def: ID type nullable_marker LBRACE number • RBRACE
+   72 update_expr_list: COMMA ID • EQ LBRACE select_stmt RBRACE update_expr_list
+   73                 | COMMA ID • EQ value update_expr_list
 
-    RBRACE  shift, and go to state 284
+    EQ  shift, and go to state 284
 
 
 State 271
 
-   35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE ID rel_list • RBRACE
+   43 attr_def: ID type LBRACE number RBRACE • nullable_marker
 
-    RBRACE  shift, and go to state 285
+    UNNULLABLE  shift, and go to state 232
+    NULL_T      shift, and go to state 234
+
+    $default  reduce using rule 37 (nullable_marker)
+
+    nullable_marker  go to state 285
 
 
 State 272
 
-   77 join_list: INNER_JOIN ID • join_equal join_list
+   35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE ID rel_list • RBRACE
 
-    ON  shift, and go to state 239
-
-    $default  reduce using rule 79 (join_equal)
-
-    join_equal  go to state 286
+    RBRACE  shift, and go to state 286
 
 
 State 273
+
+   77 join_list: INNER_JOIN ID • join_equal join_list
+
+    ON  shift, and go to state 240
+
+    $default  reduce using rule 79 (join_equal)
+
+    join_equal  go to state 287
+
+
+State 274
 
    74 select_stmt: SELECT select_attr FROM ID rel_list where order group_by having •
 
     $default  reduce using rule 74 (select_stmt)
 
 
-State 274
-
-  149 order_list: COMMA • rel_attr asc_or_desc order_list
-
-    ID  shift, and go to state 65
-
-    rel_attr  go to state 287
-
-
 State 275
 
-  147 order: ORDER_BY rel_attr asc_or_desc order_list •
-
-    $default  reduce using rule 147 (order)
-
-
-State 276
-
-  137 attr_list: COMMA • rel_attr attr_list
+  149 order_list: COMMA • rel_attr asc_or_desc order_list
 
     ID  shift, and go to state 65
 
     rel_attr  go to state 288
 
 
+State 276
+
+  147 order: ORDER_BY rel_attr asc_or_desc order_list •
+
+    $default  reduce using rule 147 (order)
+
+
 State 277
+
+  137 attr_list: COMMA • rel_attr attr_list
+
+    ID  shift, and go to state 65
+
+    rel_attr  go to state 289
+
+
+State 278
 
   143 group_by: GROUP_BY rel_attr attr_list •
 
     $default  reduce using rule 143 (group_by)
 
 
-State 278
+State 279
 
    97 a_expr: a_expr • '+' a_expr
    98       | a_expr • '-' a_expr
@@ -4725,98 +4740,98 @@ State 278
     $default  reduce using rule 145 (having)
 
 
-State 279
+State 280
 
    55 value_list_with_MINUS: COMMA value_with_MINUS value_list_with_MINUS •
 
     $default  reduce using rule 55 (value_list_with_MINUS)
 
 
-State 280
+State 281
 
    53 insert_list: COMMA • LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list
 
-    LBRACE  shift, and go to state 289
+    LBRACE  shift, and go to state 290
 
 
-State 281
+State 282
 
    51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list •
 
     $default  reduce using rule 51 (insert_stmt)
 
 
-State 282
+State 283
 
    69 update_expr: ID EQ LBRACE select_stmt RBRACE update_expr_list •
 
     $default  reduce using rule 69 (update_expr)
 
 
-State 283
+State 284
 
    72 update_expr_list: COMMA ID EQ • LBRACE select_stmt RBRACE update_expr_list
    73                 | COMMA ID EQ • value update_expr_list
 
-    LBRACE  shift, and go to state 290
+    LBRACE  shift, and go to state 291
     NULL_T  shift, and go to state 48
     NUMBER  shift, and go to state 49
     FLOAT   shift, and go to state 50
     DATE    shift, and go to state 51
     SSS     shift, and go to state 52
 
-    value  go to state 291
+    value  go to state 292
 
 
-State 284
+State 285
 
-   43 attr_def: ID type nullable_marker LBRACE number RBRACE •
+   43 attr_def: ID type LBRACE number RBRACE nullable_marker •
 
     $default  reduce using rule 43 (attr_def)
 
 
-State 285
+State 286
 
    35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE ID rel_list RBRACE •
 
     $default  reduce using rule 35 (create_index_stmt)
 
 
-State 286
+State 287
 
    77 join_list: INNER_JOIN ID join_equal • join_list
 
-    INNER_JOIN  shift, and go to state 256
+    INNER_JOIN  shift, and go to state 258
 
     $default  reduce using rule 78 (join_list)
 
-    join_list  go to state 292
-
-
-State 287
-
-  149 order_list: COMMA rel_attr • asc_or_desc order_list
-
-    DESC  shift, and go to state 259
-    ASC   shift, and go to state 260
-
-    $default  reduce using rule 150 (asc_or_desc)
-
-    asc_or_desc  go to state 293
+    join_list  go to state 293
 
 
 State 288
 
-  137 attr_list: COMMA rel_attr • attr_list
+  149 order_list: COMMA rel_attr • asc_or_desc order_list
 
-    COMMA  shift, and go to state 276
+    DESC  shift, and go to state 261
+    ASC   shift, and go to state 262
 
-    $default  reduce using rule 136 (attr_list)
+    $default  reduce using rule 150 (asc_or_desc)
 
-    attr_list  go to state 294
+    asc_or_desc  go to state 294
 
 
 State 289
+
+  137 attr_list: COMMA rel_attr • attr_list
+
+    COMMA  shift, and go to state 277
+
+    $default  reduce using rule 136 (attr_list)
+
+    attr_list  go to state 295
+
+
+State 290
 
    53 insert_list: COMMA LBRACE • value_with_MINUS value_list_with_MINUS RBRACE insert_list
 
@@ -4827,123 +4842,123 @@ State 289
     SSS     shift, and go to state 226
     '-'     shift, and go to state 227
 
-    value_with_MINUS  go to state 295
+    value_with_MINUS  go to state 296
 
 
-State 290
+State 291
 
    72 update_expr_list: COMMA ID EQ LBRACE • select_stmt RBRACE update_expr_list
 
     SELECT  shift, and go to state 4
 
-    select_stmt  go to state 296
-
-
-State 291
-
-   73 update_expr_list: COMMA ID EQ value • update_expr_list
-
-    COMMA  shift, and go to state 249
-
-    $default  reduce using rule 71 (update_expr_list)
-
-    update_expr_list  go to state 297
+    select_stmt  go to state 297
 
 
 State 292
+
+   73 update_expr_list: COMMA ID EQ value • update_expr_list
+
+    COMMA  shift, and go to state 250
+
+    $default  reduce using rule 71 (update_expr_list)
+
+    update_expr_list  go to state 298
+
+
+State 293
 
    77 join_list: INNER_JOIN ID join_equal join_list •
 
     $default  reduce using rule 77 (join_list)
 
 
-State 293
+State 294
 
   149 order_list: COMMA rel_attr asc_or_desc • order_list
 
-    COMMA  shift, and go to state 274
+    COMMA  shift, and go to state 275
 
     $default  reduce using rule 148 (order_list)
 
-    order_list  go to state 298
+    order_list  go to state 299
 
 
-State 294
+State 295
 
   137 attr_list: COMMA rel_attr attr_list •
 
     $default  reduce using rule 137 (attr_list)
 
 
-State 295
+State 296
 
    53 insert_list: COMMA LBRACE value_with_MINUS • value_list_with_MINUS RBRACE insert_list
 
-    COMMA  shift, and go to state 246
+    COMMA  shift, and go to state 247
 
     $default  reduce using rule 54 (value_list_with_MINUS)
 
-    value_list_with_MINUS  go to state 299
-
-
-State 296
-
-   72 update_expr_list: COMMA ID EQ LBRACE select_stmt • RBRACE update_expr_list
-
-    RBRACE  shift, and go to state 300
+    value_list_with_MINUS  go to state 300
 
 
 State 297
+
+   72 update_expr_list: COMMA ID EQ LBRACE select_stmt • RBRACE update_expr_list
+
+    RBRACE  shift, and go to state 301
+
+
+State 298
 
    73 update_expr_list: COMMA ID EQ value update_expr_list •
 
     $default  reduce using rule 73 (update_expr_list)
 
 
-State 298
+State 299
 
   149 order_list: COMMA rel_attr asc_or_desc order_list •
 
     $default  reduce using rule 149 (order_list)
 
 
-State 299
+State 300
 
    53 insert_list: COMMA LBRACE value_with_MINUS value_list_with_MINUS • RBRACE insert_list
 
-    RBRACE  shift, and go to state 301
-
-
-State 300
-
-   72 update_expr_list: COMMA ID EQ LBRACE select_stmt RBRACE • update_expr_list
-
-    COMMA  shift, and go to state 249
-
-    $default  reduce using rule 71 (update_expr_list)
-
-    update_expr_list  go to state 302
+    RBRACE  shift, and go to state 302
 
 
 State 301
 
-   53 insert_list: COMMA LBRACE value_with_MINUS value_list_with_MINUS RBRACE • insert_list
+   72 update_expr_list: COMMA ID EQ LBRACE select_stmt RBRACE • update_expr_list
 
-    COMMA  shift, and go to state 280
+    COMMA  shift, and go to state 250
 
-    $default  reduce using rule 52 (insert_list)
+    $default  reduce using rule 71 (update_expr_list)
 
-    insert_list  go to state 303
+    update_expr_list  go to state 303
 
 
 State 302
+
+   53 insert_list: COMMA LBRACE value_with_MINUS value_list_with_MINUS RBRACE • insert_list
+
+    COMMA  shift, and go to state 281
+
+    $default  reduce using rule 52 (insert_list)
+
+    insert_list  go to state 304
+
+
+State 303
 
    72 update_expr_list: COMMA ID EQ LBRACE select_stmt RBRACE update_expr_list •
 
     $default  reduce using rule 72 (update_expr_list)
 
 
-State 303
+State 304
 
    53 insert_list: COMMA LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list •
 
