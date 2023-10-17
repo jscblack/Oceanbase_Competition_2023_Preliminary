@@ -695,34 +695,36 @@ class AggregationExpr : public Expression
 {
 public:
   AggregationExpr() = default;
-  AggregationExpr(const Table *table, const FieldMeta *field, const std::string &aggregation_func)
-      : field_(table, field), aggregation_func_(aggregation_func)
-  {}
-  AggregationExpr(const Field &field, const std::string &aggregation_func)
-      : field_(field), aggregation_func_(aggregation_func)
-  {}
-
+  AggregationExpr(FuncName agg_type, std::unique_ptr<Expression> child);
+  AggregationExpr(const AggregationExpr &expr) = delete;
+  AggregationExpr &operator=(const AggregationExpr &expr) = delete;
   virtual ~AggregationExpr() = default;
 
   ExprType type() const override { return ExprType::AGGREGATION; }
-  AttrType value_type() const override { return field_.attr_type(); }
 
-  Field       &field() { return field_; }
-  std::string &aggregation_func() { return aggregation_func_; }
+  AttrType value_type() const override { 
+    // 在子表达式真正执行之前，是无法知道select的结果集的类型的，需要在执行完之后set一下吗？
+    return AttrType::UNDEFINED;
+  }
 
-  const Field       &field() const { return field_; }
-  const std::string &aggregation_func() const { return aggregation_func_; }
+  FuncName agg_type() const { return agg_type_; }
 
-  const char *table_name() const { return field_.table_name(); }
-  const char *field_name() const { return field_.field_name(); }
+  std::unique_ptr<Expression> &child() { return child_; }
 
   // 现在没法解决COUNT(*.*)的输出问题，通过nullptr无法区分(*.*)和(*)，可能不需要fix
   const std::string alias(bool with_table_name) const
   {
-    if (!with_table_name) {
-      return (aggregation_func_ + "(" + field_.field_name() + ")");
-    } else {
-      return (aggregation_func_ + "(" + field_.table_name() + "." + field_.field_name() + ")");
+    switch (agg_type_) {
+      case MAX:
+        return  "MAX(" + child_->alias(with_table_name) + ")";
+      case MIN:
+        return  "MIN(" + child_->alias(with_table_name) + ")";
+      case COUNT:
+        return  "COUNT(" + child_->alias(with_table_name) + ")";
+      case AVG:
+        return  "AVG(" + child_->alias(with_table_name) + ")";
+      case SUM:
+        return  "SUM(" + child_->alias(with_table_name) + ")";
     }
   }
 
@@ -731,14 +733,38 @@ public:
   RC get_value(const std::vector<Tuple *> &tuples,
       Value &value) const override;  // 传入分组的所有tuples，返回聚合运算之后的Value
 
+  // 废弃代码*********************************************************BEGIN
+  // AggregationExpr(const Table *table, const FieldMeta *field, const std::string &aggregation_func)
+  //     : field_(table, field), aggregation_func_(aggregation_func)
+  // {}
+  // AggregationExpr(const Field &field, const std::string &aggregation_func)
+  //     : field_(field), aggregation_func_(aggregation_func)
+  // {}
+  // AttrType value_type() const override { return field_.attr_type(); }
+
+  // Field       &field() { return field_; }
+  // std::string &aggregation_func() { return aggregation_func_; }
+
+  // const Field       &field() const { return field_; }
+  // const std::string &aggregation_func() const { return aggregation_func_; }
+
+  // const char *table_name() const { return field_.table_name(); }
+  // const char *field_name() const { return field_.field_name(); }
+  // 废弃代码*********************************************************END
+
 private:
   // TODO: 应该彻底Expression化，接收一个sub_expr，不假定其类型
-  Field       field_;
-  std::string aggregation_func_;
+  FuncName agg_type_;
+  std::unique_ptr<Expression> child_;
 
   RC do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
   RC do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
   RC do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
   RC do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
   RC do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  
+  // 废弃代码*********************************************************BEGIN
+  // Field       field_;
+  // std::string aggregation_func_;
+  //废弃代码*********************************************************END
 };

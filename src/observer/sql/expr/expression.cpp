@@ -1036,7 +1036,18 @@ Expression *ArithmeticExpr::clone() const
   return new ArithmeticExpr(
       arithmetic_type_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>(right_->clone()));
 }
+
 ////////////////////////////////////////////////////////////////////////////////
+
+AggregationExpr::AggregationExpr(FuncName agg_type, std::unique_ptr<Expression> child)
+    : agg_type_(agg_type), child_(std::move(child))
+{}
+
+Expression *AggregationExpr::clone() const
+{
+  return new AggregationExpr(
+      agg_type_, unique_ptr<Expression>(child_->clone()));
+}
 
 RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
 {
@@ -1046,56 +1057,55 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
   }
 
   Tuple        *tpl      = tuples.front();
-  ProjectTuple *tpl_cast = dynamic_cast<ProjectTuple *>(tpl);
+  ExpressionTuple *tpl_cast = dynamic_cast<ExpressionTuple *>(tpl);
+  const std::string child_alias = child_->alias(true); // FIXME: 可能涉及到 *.*  *  t.* 的区别
+                                                       // NOTE: 这里传参数要用true，区分不同表的同一属性
 
-  if (field_.table() != nullptr && field_.meta() == nullptr) {  // 特殊判断count(*)
+  if (child_alias == "*") {  // FIXME: 特殊判断count(*)，但是需要再改一下alias，取出的alias有表名
     do_count_aggregate(tuples, value, -1);
     return RC::SUCCESS;
   }
 
   int                                 idx    = 0;
-  const std::vector<TupleCellSpec *> &speces = tpl_cast->get_speces();
-  for (idx = 0; idx < speces.size(); idx++) {
-    LOG_DEBUG("========== field_.table_name() = %s ==========",field_.table_name());
-    LOG_DEBUG("========== fields_[idx].table_name() = %s ==========",speces[idx]->table_name());
-    LOG_DEBUG("========== field_.field_name() = %s ==========",field_.field_name());
-    LOG_DEBUG("========== fields_[idx].field_name() = %s ==========",speces[idx]->field_name());
-    if (strcmp(field_.table_name(), speces[idx]->table_name()) == 0 &&
-        strcmp(field_.field_name(), speces[idx]->field_name()) == 0) {
-      // potential bug: field_.field_name()不一定是直接返回field_meta.field_name()
-      // 基本确认目前不是bug，field_meta()如果为nullptr只是为了标记tuple schema的 '*'
+  const std::vector<std::unique_ptr<Expression>>& expressions = tpl_cast->expressions();
+  for (idx = 0; idx < tpl_cast->cell_num(); idx++) {
+    if (child_alias == expressions[idx]->alias(true)) {
       break;
     }
   }
 
-  LOG_DEBUG("========== idx = %d ==========", idx);
+  LOG_DEBUG("========== idx = %d ========== log by tyh", idx);
 
   RC rc = RC::SUCCESS;
-  if (aggregation_func_ == "MAX") {
+  switch (agg_type_)
+  {
+  case MAX:
     rc = do_max_aggregate(tuples, value, idx);
-  } else if (aggregation_func_ == "MIN") {
-    rc = do_min_aggregate(tuples, value, idx);
-  } else if (aggregation_func_ == "COUNT") {
+    break;
+  case MIN:
+    rc = do_min_aggreagte(tuples, value, idx);
+    break;
+  case COUNT:
     rc = do_count_aggregate(tuples, value, idx);
-  } else if (aggregation_func_ == "AVG") {
+    break;
+  case AVG:
     rc = do_avg_aggregate(tuples, value, idx);
-  } else if (aggregation_func_ == "SUM") {
+    break;
+  case SUM:
     rc = do_sum_aggregate(tuples, value, idx);
-  } else {
+    break;
+  default:
     rc = RC::INVALID_ARGUMENT;
+    break;
   }
   return rc;
 }
 
-Expression *AggregationExpr::clone() const { return new AggregationExpr(field_, aggregation_func_); }
-
 RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 {
-  LOG_DEBUG("========== In AggregationExpr::do_max_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
-
   // 检查是否为空
   if (tuples.empty()) {
-    value.set_type(field_.attr_type());
+    value.set_type(child_->value_type());
     return RC::SUCCESS;
   }
 
@@ -1130,11 +1140,9 @@ RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &
 
 RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 {
-  LOG_DEBUG("========== In AggregationExpr::do_min_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
-
   // 检查是否为空
   if (tuples.empty()) {
-    value.set_type(field_.attr_type());
+    value.set_type(child_->value_type());
     return RC::SUCCESS;
   }
 
@@ -1169,12 +1177,10 @@ RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &
 
 RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 {
-  LOG_DEBUG("========== In AggregationExpr::do_count_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
-
   int count = 0;
 
   if (idx == -1) {  // count(*)
-    LOG_DEBUG("========== do_count(*) ==========");
+    LOG_DEBUG("========== do count(*) ========== log by tyh");
     count = tuples.size();
   } else {
     // 检查是否为空
@@ -1195,11 +1201,9 @@ RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value
 
 RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 {
-  LOG_DEBUG("========== In AggregationExpr::do_avg_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
-
   // 检查是否为空
   if (tuples.empty()) {
-    value.set_type(field_.attr_type());
+    value.set_type(child_->value_type());
     return RC::SUCCESS;
   }
 
@@ -1274,11 +1278,9 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
 
 RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
 {
-  LOG_DEBUG("========== In AggregationExpr::do_sum_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
-
   // 检查是否为空
   if (tuples.empty()) {
-    value.set_type(field_.attr_type());
+    value.set_type(child_->value_type());
     return RC::SUCCESS;
   }
 
@@ -1341,3 +1343,310 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
 
   return RC::SUCCESS;
 }
+
+// 废弃代码*********************************************************BEGIN
+// RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
+// {
+//   if (tuples.empty()) {
+//     LOG_WARN("get value of tuples empty");
+//     return RC::INTERNAL;
+//   }
+
+//   Tuple        *tpl      = tuples.front();
+//   ProjectTuple *tpl_cast = dynamic_cast<ProjectTuple *>(tpl);
+
+//   if (field_.table() != nullptr && field_.meta() == nullptr) {  // 特殊判断count(*)
+//     do_count_aggregate(tuples, value, -1);
+//     return RC::SUCCESS;
+//   }
+
+//   int                                 idx    = 0;
+//   const std::vector<TupleCellSpec *> &speces = tpl_cast->get_speces();
+//   for (idx = 0; idx < speces.size(); idx++) {
+//     LOG_DEBUG("========== field_.table_name() = %s ==========",field_.table_name());
+//     LOG_DEBUG("========== fields_[idx].table_name() = %s ==========",speces[idx]->table_name());
+//     LOG_DEBUG("========== field_.field_name() = %s ==========",field_.field_name());
+//     LOG_DEBUG("========== fields_[idx].field_name() = %s ==========",speces[idx]->field_name());
+//     if (strcmp(field_.table_name(), speces[idx]->table_name()) == 0 &&
+//         strcmp(field_.field_name(), speces[idx]->field_name()) == 0) {
+//       // potential bug: field_.field_name()不一定是直接返回field_meta.field_name()
+//       // 基本确认目前不是bug，field_meta()如果为nullptr只是为了标记tuple schema的 '*'
+//       break;
+//     }
+//   }
+
+//   LOG_DEBUG("========== idx = %d ==========", idx);
+
+//   RC rc = RC::SUCCESS;
+//   if (aggregation_func_ == "MAX") {
+//     rc = do_max_aggregate(tuples, value, idx);
+//   } else if (aggregation_func_ == "MIN") {
+//     rc = do_min_aggregate(tuples, value, idx);
+//   } else if (aggregation_func_ == "COUNT") {
+//     rc = do_count_aggregate(tuples, value, idx);
+//   } else if (aggregation_func_ == "AVG") {
+//     rc = do_avg_aggregate(tuples, value, idx);
+//   } else if (aggregation_func_ == "SUM") {
+//     rc = do_sum_aggregate(tuples, value, idx);
+//   } else {
+//     rc = RC::INVALID_ARGUMENT;
+//   }
+//   return rc;
+// }
+
+// Expression *AggregationExpr::clone() const { return new AggregationExpr(field_, aggregation_func_); }
+
+// RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+// {
+//   LOG_DEBUG("========== In AggregationExpr::do_max_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+//   // 检查是否为空
+//   if (tuples.empty()) {
+//     value.set_type(field_.attr_type());
+//     return RC::SUCCESS;
+//   }
+
+//   // 检查是否均为null
+//   bool all_null = true;
+//   for (auto t : tuples) {
+//     Value cur_value;
+//     RC    rc = t->cell_at(idx, cur_value);
+//     if (rc != RC::SUCCESS) {
+//       return rc;
+//     }
+//     if (!cur_value.is_null()) {
+//       all_null = false;
+//       break;
+//     }
+//   }
+//   if (all_null) {
+//     value.set_type(AttrType::NONE);
+//     return RC::SUCCESS;
+//   }
+
+//   tuples[0]->cell_at(idx, value);
+
+//   for (auto t : tuples) {
+//     Value cur_value;
+//     t->cell_at(idx, cur_value);
+//     if (cur_value.compare(value) > 0) {
+//       value = cur_value;
+//     }
+//   }
+// }
+
+// RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+// {
+//   LOG_DEBUG("========== In AggregationExpr::do_min_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+//   // 检查是否为空
+//   if (tuples.empty()) {
+//     value.set_type(field_.attr_type());
+//     return RC::SUCCESS;
+//   }
+
+//   // 检查是否均为null
+//   bool all_null = true;
+//   for (auto t : tuples) {
+//     Value cur_value;
+//     RC    rc = t->cell_at(idx, cur_value);
+//     if (rc != RC::SUCCESS) {
+//       return rc;
+//     }
+//     if (!cur_value.is_null()) {
+//       all_null = false;
+//       break;
+//     }
+//   }
+//   if (all_null) {
+//     value.set_type(AttrType::NONE);
+//     return RC::SUCCESS;
+//   }
+
+//   tuples[0]->cell_at(idx, value);
+
+//   for (auto t : tuples) {
+//     Value cur_value;
+//     t->cell_at(idx, cur_value);
+//     if (cur_value.compare(value) < 0) {
+//       value = cur_value;
+//     }
+//   }
+// }
+
+// RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+// {
+//   LOG_DEBUG("========== In AggregationExpr::do_count_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+//   int count = 0;
+
+//   if (idx == -1) {  // count(*)
+//     LOG_DEBUG("========== do_count(*) ==========");
+//     count = tuples.size();
+//   } else {
+//     // 检查是否为空
+//     if (!tuples.empty()) {
+//       for (auto t : tuples) {
+//         Value cur_value;
+//         t->cell_at(idx, cur_value);
+//         if (!cur_value.is_null()) {
+//           count++;
+//         }
+//       }
+//     }
+//   }
+
+//   value.set_int(count);
+//   return RC::SUCCESS;
+// }
+
+// RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+// {
+//   LOG_DEBUG("========== In AggregationExpr::do_avg_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+//   // 检查是否为空
+//   if (tuples.empty()) {
+//     value.set_type(field_.attr_type());
+//     return RC::SUCCESS;
+//   }
+
+//   // 检查是否均为null
+//   bool all_null = true;
+//   for (auto t : tuples) {
+//     Value cur_value;
+//     t->cell_at(idx, cur_value);
+//     if (!cur_value.is_null()) {
+//       all_null = false;
+//       break;
+//     }
+//   }
+//   if (all_null) {
+//     value.set_type(AttrType::NONE);
+//     return RC::SUCCESS;
+//   }
+
+//   int   cnt = 0;
+//   Value attr_value;
+//   tuples[0]->cell_at(idx, attr_value);
+//   AttrType attr_type = attr_value.attr_type();
+//   if (attr_type == INTS) {
+//     int sum = 0;
+//     for (auto t : tuples) {
+//       Value cur_value;
+//       t->cell_at(idx, cur_value);
+//       if (!cur_value.is_null()) {
+//         sum += cur_value.get_int();
+//         cnt++;
+//       }
+//     }
+//     if (sum % cnt == 0) {
+//       value.set_int(sum / cnt);
+//     } else {
+//       value.set_float(static_cast<float>(sum) / cnt);
+//     }
+//   } else if (attr_type == FLOATS) {
+//     float sum = 0;
+//     for (auto t : tuples) {
+//       Value cur_value;
+//       t->cell_at(idx, cur_value);
+//       if (!cur_value.is_null()) {
+//         sum += cur_value.get_float();
+//         cnt++;
+//       }
+//     }
+//     value.set_float(sum / cnt);
+//   } else if (attr_type == CHARS) {
+//     for (auto t : tuples) {
+//       float sum = 0;
+//       Value cur_value;
+//       t->cell_at(idx, cur_value);
+//       if (!cur_value.is_null()) {
+//         cur_value.str_to_number();
+//         if (cur_value.attr_type() == INTS) {
+//           sum += cur_value.get_int();
+//           cnt++;
+//         } else {
+//           sum += cur_value.get_float();
+//           cnt++;
+//         }
+//       }
+//       value.set_float(sum / cnt);
+//     }
+//   } else {  // 其余类型无法求和
+//     return RC::INVALID_ARGUMENT;
+//   }
+
+//   return RC::SUCCESS;
+// }
+
+// RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+// {
+//   LOG_DEBUG("========== In AggregationExpr::do_sum_aggregate(const std::vector<Tuple*> &tuples, Value &value) ==========");
+
+//   // 检查是否为空
+//   if (tuples.empty()) {
+//     value.set_type(field_.attr_type());
+//     return RC::SUCCESS;
+//   }
+
+//   // 检查是否均为null
+//   bool all_null = true;
+//   for (auto t : tuples) {
+//     Value cur_value;
+//     t->cell_at(idx, cur_value);
+//     if (!cur_value.is_null()) {
+//       all_null = false;
+//       break;
+//     }
+//   }
+//   if (all_null) {
+//     value.set_type(AttrType::NONE);
+//     return RC::SUCCESS;
+//   }
+
+//   Value attr_value;
+//   tuples[0]->cell_at(idx, attr_value);
+//   AttrType attr_type = attr_value.attr_type();
+//   if (attr_type == INTS) {
+//     int sum = 0;
+//     for (auto t : tuples) {
+//       Value cur_value;
+//       t->cell_at(idx, cur_value);
+//       if (!cur_value.is_null()) {
+//         sum += cur_value.get_int();
+//       }
+//     }
+//     value.set_int(sum);
+//   } else if (attr_type == FLOATS) {
+//     float sum = 0;
+//     for (auto t : tuples) {
+//       Value cur_value;
+//       t->cell_at(idx, cur_value);
+//       if (!cur_value.is_null()) {
+//         sum += cur_value.get_float();
+//       }
+//     }
+//     value.set_float(sum);
+//   } else if (attr_type == CHARS) {
+//     for (auto t : tuples) {
+//       float sum = 0;
+//       Value cur_value;
+//       t->cell_at(idx, cur_value);
+//       if (!cur_value.is_null()) {
+//         cur_value.str_to_number();
+//         if (cur_value.attr_type() == INTS) {
+//           sum += cur_value.get_int();
+//         } else {
+//           sum += cur_value.get_float();
+//         }
+//       }
+//       value.set_float(sum);
+//     }
+//   } else {  // 其余类型无法求和
+//     return RC::INVALID_ARGUMENT;
+//   }
+
+//   return RC::SUCCESS;
+// }
+
+// 废弃代码*********************************************************END
