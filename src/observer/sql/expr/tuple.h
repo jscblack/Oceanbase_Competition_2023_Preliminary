@@ -258,30 +258,31 @@ public:
 
   virtual ~ProjectTuple()
   {
-    for (TupleCellSpec *spec : speces_) {
-      delete spec;
-    }
-    speces_.clear();
+    // for (TupleCellSpec *spec : speces_) {
+    //   delete spec;
+    // }
+    // speces_.clear();
+    delete tuple_;
   }
 
   void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
 
-  const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
-
-  void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
-  int  cell_num() const override { return speces_.size(); }
+  // const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
+  // void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
+  int cell_num() const override { return expressions_.size(); }
 
   RC cell_at(int index, Value &cell) const override
   {
-    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+    if (index < 0 || index >= static_cast<int>(expressions_.size())) {
       return RC::INTERNAL;
     }
     if (tuple_ == nullptr) {
       return RC::INTERNAL;
     }
 
-    const TupleCellSpec *spec = speces_[index];
-    return tuple_->find_cell(*spec, cell);
+    return expressions_[index]->get_value(*tuple_, cell);
+    // const TupleCellSpec *spec = speces_[index];
+    // return tuple_->find_cell(*spec, cell);
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return tuple_->find_cell(spec, cell); }
@@ -290,9 +291,13 @@ public:
   {
     ProjectTuple *project_tuple = new ProjectTuple();
     tuple_->clone(project_tuple->tuple_);
-    for (auto s : speces_) {
-      project_tuple->speces_.push_back(new TupleCellSpec(s->table_name(), s->field_name()));
+    for (int i = 0; i < expressions_.size(); i++) {
+      project_tuple->expressions_.push_back(unique_ptr<Expression>(expressions_[i]->clone()));
     }
+
+    // for (auto s : speces_) {
+    //   project_tuple->speces_.push_back(new TupleCellSpec(s->table_name(), s->field_name()));
+    // }
     tuple = project_tuple;
     return RC::SUCCESS;
   }
@@ -308,8 +313,9 @@ public:
   }
 #endif
 private:
-  std::vector<TupleCellSpec *> speces_;
-  Tuple                       *tuple_ = nullptr;
+  // std::vector<TupleCellSpec *> speces_;
+  std::vector<std::unique_ptr<Expression>> expressions_;
+  Tuple                                   *tuple_ = nullptr;
 };
 
 class ExpressionTuple : public Tuple
