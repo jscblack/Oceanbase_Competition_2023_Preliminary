@@ -80,6 +80,18 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
           table_name, field_meta->name(), field_type, value_type);
         return rc;
       }
+
+      // check the value length
+      if (field_type == AttrType::CHARS) {
+        const int field_len = field_meta->len();
+        const int value_len = cur_values[i].length();
+
+        if (value_len > field_len) {
+          LOG_WARN("field length mismatch. table=%s, field=%s, field length=%d, value length=%d",
+                   table_name, field_meta->name(), field_len, value_len);
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+      }
     }
   }
 

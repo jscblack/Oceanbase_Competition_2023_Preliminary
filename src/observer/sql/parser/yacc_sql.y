@@ -428,7 +428,7 @@ nullable_marker:
     {
       $$ = false;
     }
-    | NULLABLE
+    | NULL_T
     {
       $$ = true;
     }
