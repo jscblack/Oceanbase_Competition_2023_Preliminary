@@ -305,7 +305,7 @@ public:
 
   int cell_num() const override { return expressions_.size(); }
 
-  RC cell_at(int index, Value &cell) const override // FIXME: 需要修改
+  RC cell_at(int index, Value &cell) const override
   {
     if (index < 0 || index >= static_cast<int>(expressions_.size())) {
       return RC::INTERNAL;
@@ -315,7 +315,7 @@ public:
     return expr->try_get_value(cell);
   }
 
-  RC find_cell(const TupleCellSpec &spec, Value &cell) const override // FIXME: 需要修改
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
     for (const std::unique_ptr<Expression> &expr : expressions_) {
       if (0 == strcmp(spec.alias(), expr->name().c_str())) {
@@ -330,8 +330,6 @@ public:
     tuple = nullptr;
     return RC::INTERNAL;
   }
-
-  const std::vector<std::unique_ptr<Expression>>& expressions() { return expressions_; }
 
 private:
   const std::vector<std::unique_ptr<Expression>> &expressions_;
