@@ -182,7 +182,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
             }
             // 暂时没法区分COUNT(*.*)和COUNT(*)，实在有需要就加个新的状态标明一下。
             if (is_table_star) {
-              expr = new AggregationExpr(cond->type, FieldExpr(nullptr, nullptr));
+              expr = new AggregationExpr(cond->type,new FieldExpr(nullptr, nullptr));
             } else {
               Table *table = nullptr;
               auto iter = tables->find(sub_cond->attr.relation_name);
@@ -194,7 +194,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
               if (OB_FAIL(rc)) {
                 return rc;
               }
-              expr = new AggregationExpr(cond->type, FieldExpr(table, nullptr));
+              expr = new AggregationExpr(cond->type,new FieldExpr(table, nullptr));
             }
           } else {
             rc   = cond_to_expr(db, default_table, tables, sub_cond, is_having, sub_expr);
