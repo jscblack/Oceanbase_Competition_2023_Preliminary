@@ -65,6 +65,11 @@ RC UpdatePhysicalOperator::open(Trx *trx)
           LOG_WARN("failed to get cell: %s", strrc(rc));
           return rc;
         }
+      } else if (rc == RC::RECORD_EOF) {
+        LOG_WARN("select result, no rows");
+        // 查无此记录，给个none
+        value.literal_value.set_type(AttrType::NONE);
+        value.value_from_select = false;  // 从select中拿到了值，不需要再计算了
       } else {
         LOG_WARN("failed to get next record: %s", strrc(rc));
         return rc;
