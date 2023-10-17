@@ -225,7 +225,9 @@ public:
 private:
   Record                  *record_ = nullptr;
   const Table             *table_  = nullptr;
-  std::vector<FieldExpr *> speces_;
+
+  // 旧版的tuple的field是由query_field一路往后传的，只能是
+  // std::vector<FieldExpr *> speces_;
 };
 
 /**

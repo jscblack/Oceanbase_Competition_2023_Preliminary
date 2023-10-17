@@ -68,7 +68,7 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     case StmtType::SELECT: {
       SelectStmt *select_stmt     = static_cast<SelectStmt *>(stmt);
       bool        with_table_name = select_stmt->tables().size() > 1;
-      // TODO: 临时fix aggregation 的表头输出，后续需要优化
+      // 临时fix aggregation 的表头输出，后续需要优化
       // if (select_stmt->aggregation_func().size() > 0) {
       //   for (const auto &aggregation_func : select_stmt->aggregation_func()) {
       //     std::string field_name = aggregation_func.first + "(" + aggregation_func.second.field_name() + ")";

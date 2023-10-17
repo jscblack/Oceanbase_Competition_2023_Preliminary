@@ -91,7 +91,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   const std::vector<Table *>      &tables                 = select_stmt->tables();
   const std::vector<Expression *> &all_fields_expressions = select_stmt->query_fields_expressions();
-  const std::vector<Field>        &all_fields             = select_stmt->query_fields();
+  // const std::vector<Field>        &all_fields             = select_stmt->query_fields();
   for (Table *table : tables) {
     std::vector<Field> fields;
     for (const Field &field : all_fields) {
