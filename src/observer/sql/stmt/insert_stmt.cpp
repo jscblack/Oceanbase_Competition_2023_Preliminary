@@ -61,7 +61,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
       const AttrType   value_type = cur_values[i].attr_type();
 
       // check the value length
-      if (field_type == AttrType::CHARS&&value_type == AttrType::CHARS) {
+      if (field_type == AttrType::CHARS && value_type == AttrType::CHARS) {
         const int field_len = field_meta->len();
         const int value_len = cur_values[i].length();
 
@@ -92,8 +92,6 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
           table_name, field_meta->name(), field_type, value_type);
         return rc;
       }
-
-      
     }
   }
 
