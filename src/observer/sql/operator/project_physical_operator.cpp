@@ -62,7 +62,7 @@ Tuple *ProjectPhysicalOperator::current_tuple()
 //   tuple_.add_cell_spec(spec);
 // }
 
-void ProjectPhysicalOperator::add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions)
+void ProjectPhysicalOperator::add_expressions(std::vector<std::unique_ptr<Expression>> &expressions)
 {
   tuple_.set_expressions(expressions);
 }
