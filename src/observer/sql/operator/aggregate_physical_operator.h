@@ -55,7 +55,7 @@ public:
   AggregatePhysicalOperator(const std::vector<Expression *> &fields_expressions,
       const std::vector<Expression *>                       &group_by_fields_expressions,
       std::unique_ptr<Expression>                            having_filters_expression = nullptr)
-      : fields_expressions_(fields_expressions_),
+      : fields_expressions_(fields_expressions),
         group_by_fields_expressions_(group_by_fields_expressions),
         having_filters_expression_(std::move(having_filters_expression))
   {}

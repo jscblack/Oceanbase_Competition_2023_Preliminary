@@ -29,7 +29,7 @@ See the Mulan PSL v2 for more details. */
 class ProjectLogicalOperator : public LogicalOperator
 {
 public:
-  ProjectLogicalOperator::ProjectLogicalOperator(const std::vector<Expression *> &fields_expressions);
+  ProjectLogicalOperator(const std::vector<Expression *> &fields_expressions);
   virtual ~ProjectLogicalOperator() = default;
 
   LogicalOperatorType type() const override { return LogicalOperatorType::PROJECTION; }

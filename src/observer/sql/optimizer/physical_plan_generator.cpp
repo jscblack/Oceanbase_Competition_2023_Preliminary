@@ -240,25 +240,22 @@ RC PhysicalPlanGenerator::create_plan(AggregateLogicalOperator &aggregate_oper, 
   vector<unique_ptr<Expression>> &expressions = aggregate_oper.expressions();
   if (expressions.empty()) {
     AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
-      aggregate_oper.fields_expressions(), aggregate_oper.group_by_fields_expressions());
-    
+        aggregate_oper.fields_expressions(), aggregate_oper.group_by_fields_expressions());
+
     if (child_phy_oper) {
       aggregate_operator->add_child(std::move(child_phy_oper));
     }
     oper = unique_ptr<PhysicalOperator>(aggregate_operator);
-  }
-  else { // 存在having子句
-    unique_ptr<Expression> expression = std::move(expressions.front());
+  } else {  // 存在having子句
+    unique_ptr<Expression>     expression         = std::move(expressions.front());
     AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
-      aggregate_oper.fields_expressions(), aggregate_oper.group_by_fields_expressions(), std::move(expression));
+        aggregate_oper.fields_expressions(), aggregate_oper.group_by_fields_expressions(), std::move(expression));
 
     if (child_phy_oper) {
       aggregate_operator->add_child(std::move(child_phy_oper));
     }
     oper = unique_ptr<PhysicalOperator>(aggregate_operator);
   }
-
-
 
   // AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
   //     aggregate_oper.aggregations(), aggregate_oper.fields(), aggregate_oper.fields_expressions());

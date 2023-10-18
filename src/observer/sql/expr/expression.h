@@ -21,9 +21,8 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "sql/parser/value.h"
 #include "sql/stmt/stmt.h"
-#include "sql/stmt/select_stmt.h"
+// #include "sql/stmt/select_stmt.h"
 #include "storage/field/field.h"
-#include "sql/parser/parse_defs.h"
 
 class Tuple;
 class FilterStmt;
@@ -456,6 +455,7 @@ public:
         }
       }
     }
+    return rc;
   }
 
 private:
@@ -498,18 +498,11 @@ public:
   RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override { return RC::INTERNAL; };
 
   ExprType type() const override { return ExprType::SELECT; }
-  AttrType value_type() const override
-  {
-    // 在select真正执行之前，是无法知道select的结果集的类型的
-    // return AttrType::UNDEFINED;
-
-    // TODO: 特判一下 select *
-    return (reinterpret_cast<SelectStmt *>(select_stmt_)->query_fields_expressions())[0]->value_type();
-  }
-  RC rewrite_stmt(Stmt *&original_stmt, const Tuple *row_tuple);
-  RC rewrite_expr(Expression *&original_expr, const Tuple *row_tuple);
-  RC recover_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
-  RC recover_expr(Expression *&rewrited_expr, const Tuple *row_tuple);
+  AttrType value_type() const override;
+  RC       rewrite_stmt(Stmt *&original_stmt, const Tuple *row_tuple);
+  RC       rewrite_expr(Expression *&original_expr, const Tuple *row_tuple);
+  RC       recover_stmt(Stmt *&rewrited_stmt, const Tuple *row_tuple);
+  RC       recover_expr(Expression *&rewrited_expr, const Tuple *row_tuple);
 
   Expression *clone() const override { return new SelectExpr(*this); }
 
@@ -719,12 +712,13 @@ public:
   const std::string alias(bool with_table_name) const
   {
     switch (agg_type_) {
-      case MAX: return "MAX(" + child_->alias(with_table_name) + ")";
-      case MIN: return "MIN(" + child_->alias(with_table_name) + ")";
-      case COUNT: return "COUNT(" + child_->alias(with_table_name) + ")";
-      case AVG: return "AVG(" + child_->alias(with_table_name) + ")";
-      case SUM: return "SUM(" + child_->alias(with_table_name) + ")";
+      case FuncName::MAX_FUNC_ENUM: return "MAX(" + child_->alias(with_table_name) + ")";
+      case FuncName::MIN_FUNC_ENUM: return "MIN(" + child_->alias(with_table_name) + ")";
+      case FuncName::COUNT_FUNC_ENUM: return "COUNT(" + child_->alias(with_table_name) + ")";
+      case FuncName::AVG_FUNC_ENUM: return "AVG(" + child_->alias(with_table_name) + ")";
+      case FuncName::SUM_FUNC_ENUM: return "SUM(" + child_->alias(with_table_name) + ")";
     }
+    return "UNKNOWN";
   }
 
   Expression *clone() const override;

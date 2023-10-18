@@ -20,7 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "sql/parser/value.h"
-#include "sql/expr/expression.h"
+// #include "sql/expr/expression.h"
 
 class Expression;
 
@@ -97,13 +97,13 @@ enum ArithOp
  */
 enum FuncName
 {
-  UNDEFINED_FUNC,
-  COUNT,  ///< "COUNT"
-  AVG,    ///< "AVG"
-  SUM,    ///< "SUM"
-  MAX,    ///< "MAX"
-  MIN,    ///< "MIN"
-  NO_FUNC
+  UNDEFINED_FUNC_ENUM,
+  COUNT_FUNC_ENUM,  ///< "COUNT"
+  AVG_FUNC_ENUM,    ///< "AVG"
+  SUM_FUNC_ENUM,    ///< "SUM"
+  MAX_FUNC_ENUM,    ///< "MAX"
+  MIN_FUNC_ENUM,    ///< "MIN"
+  NO_FUNC_ENUM
 };
 
 /**

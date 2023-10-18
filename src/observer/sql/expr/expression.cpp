@@ -123,7 +123,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC  rc = RC::SUCCESS;
+  RC rc = RC::SUCCESS;
   int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
   result = false;
   if (left.is_null() || right.is_null()) {
@@ -550,6 +550,15 @@ RC SelectExpr::rewrite_expr(Expression *&original_expr, const Tuple *tuple)
     return RC::INTERNAL;
   }
   return rc;
+}
+
+AttrType SelectExpr::value_type() const
+{
+  // 在select真正执行之前，是无法知道select的结果集的类型的
+  // return AttrType::UNDEFINED;
+
+  // TODO: 特判一下 select *
+  return (reinterpret_cast<SelectStmt *>(select_stmt_)->query_fields_expressions())[0]->value_type();
 }
 
 RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
@@ -1080,11 +1089,11 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
 
   RC rc = RC::SUCCESS;
   switch (agg_type_) {
-    case MAX: rc = do_max_aggregate(tuples, value, idx); break;
-    case MIN: rc = do_min_aggregate(tuples, value, idx); break;
-    case COUNT: rc = do_count_aggregate(tuples, value, idx); break;
-    case AVG: rc = do_avg_aggregate(tuples, value, idx); break;
-    case SUM: rc = do_sum_aggregate(tuples, value, idx); break;
+    case FuncName::MAX_FUNC_ENUM: rc = do_max_aggregate(tuples, value, idx); break;
+    case FuncName::MIN_FUNC_ENUM: rc = do_min_aggregate(tuples, value, idx); break;
+    case FuncName::COUNT_FUNC_ENUM: rc = do_count_aggregate(tuples, value, idx); break;
+    case FuncName::AVG_FUNC_ENUM: rc = do_avg_aggregate(tuples, value, idx); break;
+    case FuncName::SUM_FUNC_ENUM: rc = do_sum_aggregate(tuples, value, idx); break;
     default: rc = RC::INVALID_ARGUMENT; break;
   }
   return rc;
@@ -1125,6 +1134,7 @@ RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &
       value = cur_value;
     }
   }
+  return RC::SUCCESS;
 }
 
 RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
@@ -1162,6 +1172,7 @@ RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &
       value = cur_value;
     }
   }
+  return RC::SUCCESS;
 }
 
 RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
@@ -1242,8 +1253,8 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
     }
     value.set_float(sum / cnt);
   } else if (attr_type == CHARS) {
+    float sum = 0;
     for (auto t : tuples) {
-      float sum = 0;
       Value cur_value;
       t->cell_at(idx, cur_value);
       if (!cur_value.is_null()) {
@@ -1256,8 +1267,8 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
           cnt++;
         }
       }
-      value.set_float(sum / cnt);
     }
+    value.set_float(sum / cnt);
   } else {  // 其余类型无法求和
     return RC::INVALID_ARGUMENT;
   }
@@ -1312,8 +1323,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
     }
     value.set_float(sum);
   } else if (attr_type == CHARS) {
+    float sum = 0;
     for (auto t : tuples) {
-      float sum = 0;
       Value cur_value;
       t->cell_at(idx, cur_value);
       if (!cur_value.is_null()) {
@@ -1324,8 +1335,9 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
           sum += cur_value.get_float();
         }
       }
-      value.set_float(sum);
     }
+    value.set_float(sum);
+
   } else {  // 其余类型无法求和
     return RC::INVALID_ARGUMENT;
   }

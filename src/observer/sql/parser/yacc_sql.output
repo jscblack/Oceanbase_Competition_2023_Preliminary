@@ -417,7 +417,7 @@ Nonterminals, with rules where they appear
     c_expr <a_expr> (119)
         on left: 109 110 111 112 113
         on right: 88
-    value_list_LALR <value_list> (120)
+    value_list_LALR <a_expr> (120)
         on left: 114
         on right: 113
     select_stmt_with_paren <a_expr> (121)

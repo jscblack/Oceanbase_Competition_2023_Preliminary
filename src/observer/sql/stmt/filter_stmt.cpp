@@ -164,7 +164,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         Expression             *sub_expr;
         const ConditionSqlNode *sub_cond = cond->left_cond;
         // 目前判别有点简单，更好的做法是根据Funcname来判断可以有多少个参数，否则max这种可能是聚集也可能是普通函数。
-        if (cond->func >= COUNT && cond->func <= MIN) {  // Aggregation
+        if (cond->func >= FuncName::COUNT_FUNC_ENUM && cond->func <= FuncName::MIN_FUNC_ENUM) {  // Aggregation
           if (sub_cond->type != ConditionSqlNodeType::FIELD) {
             LOG_WARN("Aggregation's subexpr must be FieldExpr");
             return RC::SCHEMA_FIELD_TYPE_MISMATCH;
@@ -176,7 +176,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
               LOG_WARN("invalid field name while table is *. attr=%s", sub_cond->attr.attribute_name.c_str());
               return RC::SCHEMA_FIELD_MISSING;
             }
-            if (cond->func != COUNT) {
+            if (cond->func != FuncName::COUNT_FUNC_ENUM) {
               LOG_WARN("invalid aggregate while table/field is *.");
               return RC::SCHEMA_FIELD_MISSING;
             }
@@ -237,6 +237,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
       return RC::INVALID_ARGUMENT;
     } break;
   }
+  return rc;
 }
 
 RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,

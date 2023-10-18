@@ -83,7 +83,7 @@ bool is_equal(const char *a, const char *b) { return 0 == strcmp(a, b); }
  * @param [out] field
  * @return RC
  */
-RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+RC select_get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
 {
   if (common::is_blank(attr.relation_name.c_str())) {
@@ -143,7 +143,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       has_field              = true;
       Table           *table = nullptr;
       const FieldMeta *field = nullptr;
-      rc                     = get_table_and_field(db, default_table, tables, cond->attr, table, field);
+      rc                     = select_get_table_and_field(db, default_table, tables, cond->attr, table, field);
       if (rc != RC::SUCCESS) {
         LOG_WARN("cannot find table [%s] and attr [%s]", cond->attr.relation_name.c_str(), cond->attr.attribute_name.c_str());
         return rc;
@@ -194,7 +194,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       const ConditionSqlNode *sub_cond = cond->left_cond;
 
       // 目前判别有点简单，更好的做法是根据Funcname来判断可以有多少个参数，否则max这种可能是聚集也可能是普通函数。
-      if (cond->func >= COUNT && cond->func <= MIN) {  // Aggregation
+      if (cond->func >= FuncName::COUNT_FUNC_ENUM && cond->func <= FuncName::MIN_FUNC_ENUM) {  // Aggregation
         has_aggregation = true;
         has_field       = true;
         if (sub_cond->type != ConditionSqlNodeType::FIELD) {
@@ -208,7 +208,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
             LOG_WARN("invalid field name while table is *. attr=%s", sub_cond->attr.attribute_name.c_str());
             return RC::SCHEMA_FIELD_MISSING;
           }
-          if (cond->func != COUNT) {
+          if (cond->func != FuncName::COUNT_FUNC_ENUM) {
             LOG_WARN("invalid aggregate while table/field is *.");
             return RC::SCHEMA_FIELD_MISSING;
           }
@@ -241,6 +241,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       return RC::INVALID_ARGUMENT;
     } break;
   }
+  return rc;
 }
 
 // /**

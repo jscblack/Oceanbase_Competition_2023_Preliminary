@@ -31,22 +31,22 @@ int yyerror(YYLTYPE *llocp, const char *sql_string, ParsedSqlResult *sql_result,
   return 0;
 }
 
-// ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
-//                                              Expression *left,
-//                                              Expression *right,
-//                                              const char *sql_string,
-//                                              YYLTYPE *llocp)
-// {
-//   ArithmeticExpr *expr = new ArithmeticExpr(type, left, right);
-//   expr->set_name(token_name(sql_string, llocp));
-//   return expr;
-// }
+ArithmeticExpr *create_arithmetic_expression(ArithOp type,
+                                             Expression *left,
+                                             Expression *right,
+                                             const char *sql_string,
+                                             YYLTYPE *llocp)
+{
+  ArithmeticExpr *expr = new ArithmeticExpr(type, left, right);
+  expr->set_name(token_name(sql_string, llocp));
+  return expr;
+}
 
-ConditionSqlNode *create_arith_condition(ArithmeticExpr::Type type, const ConditionSqlNode *left_cond, const ConditionSqlNode *right_cond) {
+ConditionSqlNode *create_arith_condition(ArithOp type, ConditionSqlNode *left_cond, ConditionSqlNode *right_cond) {
   ConditionSqlNode *ret = new ConditionSqlNode;
   ret->type = ARITH;
   ret->arith = type;
-  if(type == NEGATIVE || type == POSITIVE) {
+  if(type == ArithOp::NEGATIVE || type == ArithOp::POSITIVE) {
     ret->binary = false;
     ret->left_cond = left_cond;
   } else {
@@ -57,7 +57,7 @@ ConditionSqlNode *create_arith_condition(ArithmeticExpr::Type type, const Condit
   return ret;
 }
 
-ConditionSqlNode *create_logic_condition(LogiOp op, const ConditionSqlNode *left_cond, const ConditionSqlNode *right_cond) {
+ConditionSqlNode *create_logic_condition(LogiOp op, ConditionSqlNode *left_cond, ConditionSqlNode *right_cond) {
   ConditionSqlNode *ret = new ConditionSqlNode;
   ret->type = LOGIC;
   ret->binary = true;
@@ -67,7 +67,7 @@ ConditionSqlNode *create_logic_condition(LogiOp op, const ConditionSqlNode *left
   return ret;
 }
 
-ConditionSqlNode *create_compare_condition(CompOp op, const ConditionSqlNode *left_cond, const ConditionSqlNode *right_cond) {
+ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_cond, ConditionSqlNode *right_cond) {
   ConditionSqlNode *ret = new ConditionSqlNode;
    ret->type = COMP;
    ret->comp = op;
@@ -215,7 +215,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, const ConditionSqlNode *le
 %type <insert_list>         insert_list
 %type <value_list>          value_list
 %type <value_list>          value_list_LA
-%type <value_list>          value_list_LALR
+%type <a_expr>              value_list_LALR
 %type <boolean>             unique_marker
 %type <boolean>             asc_or_desc
 %type <boolean>             nullable_marker
@@ -716,7 +716,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       if ($9 != nullptr) {
         // $$->selection.havings.swap(*$9);
         $$->selection.havings = $9;
-        delete $9;
+        // delete $9;
       }
 
       free($4);
@@ -754,8 +754,9 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
 
       if ($8 != nullptr) {
-        $$->selection.havings.swap(*$8);
-        delete $8;
+        // $$->selection.havings.swap(*$8);
+        $$->selection.havings = $8;
+        // delete $8;
       }
     }
     ;
@@ -830,16 +831,16 @@ expression_list: //保留给CALC
     ;
 expression: // 保留给CALC
     expression '+' expression {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
+      $$ = create_arithmetic_expression(ArithOp::ADD, $1, $3, sql_string, &@$);
     }
     | expression '-' expression {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
+      $$ = create_arithmetic_expression(ArithOp::SUB, $1, $3, sql_string, &@$);
     }
     | expression '*' expression {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
+      $$ = create_arithmetic_expression(ArithOp::MUL, $1, $3, sql_string, &@$);
     }
     | expression '/' expression {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
+      $$ = create_arithmetic_expression(ArithOp::DIV, $1, $3, sql_string, &@$);
     }
     | LBRACE expression RBRACE {
       $$ = $2;
@@ -867,7 +868,7 @@ expression: // 保留给CALC
       delete $1;
     }
     | '-' expression %prec UMINUS {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
+      $$ = create_arithmetic_expression(ArithOp::NEGATIVE, $2, nullptr, sql_string, &@$);
     }
     ;
 
@@ -897,25 +898,25 @@ a_expr:
       $$ = $1;
     }
     | '-' a_expr %prec UMINUS {
-      $$ = create_arith_condition(ArithmeticExpr::Type::NEGATIVE, $2, nullptr);
+      $$ = create_arith_condition(NEGATIVE, $2, nullptr);
     }
     | '+' a_expr %prec UMINUS { //TODO 原本没有要求的补充实现，物理层面尚未实现
-      $$ = create_arith_condition(ArithmeticExpr::Type::POSITIVE, $2, nullptr);
+      $$ = create_arith_condition(POSITIVE, $2, nullptr);
     } 
     | a_expr '+' a_expr {
-      $$ = create_arith_condition(ArithmeticExpr::Type::ADD, $1, $3);
+      $$ = create_arith_condition(ADD, $1, $3);
     }
     | a_expr '-' a_expr {
-      $$ = create_arith_condition(ArithmeticExpr::Type::SUB, $1, $3);
-      // $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
+      $$ = create_arith_condition(SUB, $1, $3);
+      // $$ = create_arithmetic_expression(ArithOpSUB, $1, $3, sql_string, &@$);
     }
     | a_expr '*' a_expr {
-      $$ = create_arith_condition(ArithmeticExpr::Type::MUL, $1, $3);
-      // $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
+      $$ = create_arith_condition(MUL, $1, $3);
+      // $$ = create_arithmetic_expression(ArithOpMUL, $1, $3, sql_string, &@$);
     }
     | a_expr '/' a_expr {
-      $$ = create_arith_condition(ArithmeticExpr::Type::DIV, $1, $3);
-      // $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
+      $$ = create_arith_condition(DIV, $1, $3);
+      // $$ = create_arithmetic_expression(ArithOpDIV, $1, $3, sql_string, &@$);
     }
     | a_expr AND a_expr {
       $$ = create_logic_condition(AND_ENUM, $1, $3);
@@ -1067,7 +1068,7 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FUNC_OR_AGG;
-      $$->func = COUNT;
+      $$->func = $1;
 
       ConditionSqlNode *sub_attr = new ConditionSqlNode;
       sub_attr->binary = false;
@@ -1097,19 +1098,19 @@ func_LA:
     ;
 func_name: 
     AGG_MAX  {
-      $$ = MAX;
+      $$ = MAX_FUNC_ENUM;
     } 
     | AGG_MIN {
-      $$ = MIN;
+      $$ = MIN_FUNC_ENUM;
     } 
     | AGG_COUNT {
-      $$ = COUNT;
+      $$ = COUNT_FUNC_ENUM;
     }
     | AGG_AVG {
-      $$ = AVG;
+      $$ = AVG_FUNC_ENUM;
     }
     | AGG_SUM {
-      $$ = SUM;
+      $$ = SUM_FUNC_ENUM;
     }
     ;
 rel_attr:
