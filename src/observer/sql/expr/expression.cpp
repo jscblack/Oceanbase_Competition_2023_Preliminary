@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression.h"
 #include "common/rc.h"
 #include "sql/expr/tuple.h"
+#include "sql/expr/tuple_cell.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/optimizer/logical_plan_generator.h"
@@ -22,7 +23,6 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/stmt.h"
-#include "sql/expr/tuple_cell.h"
 #include <regex>
 
 using namespace std;
@@ -572,6 +572,9 @@ RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
   RC              rc          = RC::SUCCESS;
   // 只要还有filter_unit，就一直处理
   // 因为就是要把filter_unit里面的filter obj修改
+  if (select_stmt->filter_stmt() == nullptr) {
+    return RC::SUCCESS;
+  }
   Expression *filter_expr = select_stmt->filter_stmt()->filter_expr();
   // 递归重写filter_stmt
   rc = rewrite_expr(filter_expr, tuple);
@@ -668,6 +671,9 @@ RC SelectExpr::recover_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
   RC              rc          = RC::SUCCESS;
   // 只要还有filter_unit，就一直处理
   // 因为就是要把filter_unit里面的filter obj修改
+  if (select_stmt->filter_stmt() == nullptr) {
+    return RC::SUCCESS;
+  }
   Expression *filter_expr = select_stmt->filter_stmt()->filter_expr();
 
   // 递归重写filter_stmt
@@ -1063,8 +1069,14 @@ Expression *AggregationExpr::clone() const
 RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
 {
   if (tuples.empty()) {
-    LOG_WARN("get value of tuples empty");
-    return RC::INTERNAL;
+    // LOG_WARN("get value of tuples empty");
+    // return RC::INTERNAL;
+    if (agg_type_ == FuncName::COUNT_FUNC_ENUM) {
+      value.set_int(0);
+    } else {
+      value.set_type(AttrType::NONE);
+    }
+    return RC::SUCCESS;
   }
 
   // 强转ProjectTuple，目的是为了拿到里面的expressions_，找到对哪一列做聚合
