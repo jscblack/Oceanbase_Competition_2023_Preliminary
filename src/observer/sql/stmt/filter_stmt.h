@@ -58,6 +58,9 @@ class FieldMeta;
 //   FilterObj obj_;
 // };
 
+RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+    const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field);
+
 RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const ConditionSqlNode *cond, bool is_having, Expression *&expr);
 

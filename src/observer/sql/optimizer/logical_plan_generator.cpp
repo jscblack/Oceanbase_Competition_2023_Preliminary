@@ -190,36 +190,29 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   //       new AggregateLogicalOperator(all_aggregations, all_fields, all_fields_expressions));
   //   aggregate_oper->add_child(std::move(project_oper));
   //   AggregateLogicalOperator *aggregate_oper_cast = dynamic_cast<AggregateLogicalOperator *>(aggregate_oper.get());
-
   //   HavingFilterStmt *having_filter_stmt = select_stmt->having_filter_stmt();
   //   if (!select_stmt->group_by_fields().empty()) {  // 存在group by子句
   //     aggregate_oper_cast->set_group_by_fields(select_stmt->group_by_fields());
   //   }
-
   //   if (!having_filter_stmt->filter_units().empty()) {  // 存在having子句
   //     std::vector<unique_ptr<Expression>>    cmp_exprs;
   //     const std::vector<HavingFilterUnit *> &filter_units = having_filter_stmt->filter_units();
   //     for (const HavingFilterUnit *filter_unit : filter_units) {
   //       const HavingFilterObj &filter_obj_left  = filter_unit->left();
   //       const HavingFilterObj &filter_obj_right = filter_unit->right();
-
   //       unique_ptr<Expression> left(
   //           filter_obj_left.is_attr ? static_cast<Expression *>(
   //                                         new AggregationExpr(filter_obj_left.field,
   //                                         filter_obj_left.aggregation_func_))
   //                                   : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
-
   //       unique_ptr<Expression> right(filter_obj_right.is_attr
   //                                        ? static_cast<Expression *>(new AggregationExpr(
   //                                              filter_obj_right.field, filter_obj_right.aggregation_func_))
   //                                        : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
-
   //       ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
   //       cmp_exprs.emplace_back(cmp_expr);
   //     }
-
   //     unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
-
   //     aggregate_oper_cast->set_having_filter_units(filter_units);
   //     aggregate_oper_cast->add_having_filters(std::move(conjunction_expr));
   //   }
