@@ -1077,29 +1077,31 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
     return RC::SUCCESS;
   }
 
-  int                                             idx         = 0;
-  const std::vector<std::unique_ptr<Expression>> &expressions = tpl_cast->expressions();
-  for (idx = 0; idx < tpl_cast->cell_num(); idx++) {
-    if (child_cast->alias(true) == expressions[idx]->alias(true)) {  // FIXME: 不确定这里的判断会不会漏掉情况
-      break;
-    }
-  }
+  // int                                             idx         = 0;
+  // const std::vector<std::unique_ptr<Expression>> &expressions = tpl_cast->expressions();
+  // for (idx = 0; idx < tpl_cast->cell_num(); idx++) {
+  //   if (child_cast->alias(true) == expressions[idx]->alias(true)) {  // FIXME: 不确定这里的判断会不会漏掉情况
+  //     break;
+  //   }
+  // }
+
+  TupleCellSpec tcs(child_cast->table_name(),child_cast->field_name());
 
   LOG_DEBUG("========== idx = %d ========== log by tyh", idx);
 
   RC rc = RC::SUCCESS;
   switch (agg_type_) {
-    case FuncName::MAX_FUNC_ENUM: rc = do_max_aggregate(tuples, value, idx); break;
-    case FuncName::MIN_FUNC_ENUM: rc = do_min_aggregate(tuples, value, idx); break;
-    case FuncName::COUNT_FUNC_ENUM: rc = do_count_aggregate(tuples, value, idx); break;
-    case FuncName::AVG_FUNC_ENUM: rc = do_avg_aggregate(tuples, value, idx); break;
-    case FuncName::SUM_FUNC_ENUM: rc = do_sum_aggregate(tuples, value, idx); break;
+    case FuncName::MAX_FUNC_ENUM: rc = do_max_aggregate(tuples, value, tcs); break;
+    case FuncName::MIN_FUNC_ENUM: rc = do_min_aggregate(tuples, value, tcs); break;
+    case FuncName::COUNT_FUNC_ENUM: rc = do_count_aggregate(tuples, value, tcs); break;
+    case FuncName::AVG_FUNC_ENUM: rc = do_avg_aggregate(tuples, value, tcs); break;
+    case FuncName::SUM_FUNC_ENUM: rc = do_sum_aggregate(tuples, value, tcs); break;
     default: rc = RC::INVALID_ARGUMENT; break;
   }
   return rc;
 }
 
-RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec tcs) const
 {
   // 检查是否为空
   if (tuples.empty()) {
@@ -1109,9 +1111,11 @@ RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &
 
   // 检查是否均为null
   bool all_null = true;
+
   for (auto t : tuples) {
     Value cur_value;
-    RC    rc = t->cell_at(idx, cur_value);
+    // RC    rc = t->cell_at(idx, cur_value);
+    RC rc = t->find_cell(tcs, cur_value);
     if (rc != RC::SUCCESS) {
       return rc;
     }
@@ -1125,7 +1129,7 @@ RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &
     return RC::SUCCESS;
   }
 
-  tuples[0]->cell_at(idx, value);
+  tuples[0]->cell_at(tcs, value);
 
   for (auto t : tuples) {
     Value cur_value;

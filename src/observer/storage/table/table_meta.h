@@ -47,6 +47,7 @@ public:
   const FieldMeta              *trx_field() const;
   const FieldMeta              *field(int index) const;
   const FieldMeta              *field(const char *name) const;
+  int                           find_field_index_by_name(const char *name) const;
   const FieldMeta              *find_field_by_offset(int offset) const;
   const std::vector<FieldMeta> *field_metas() const { return &fields_; }
   bool                          is_field_null(const char *data, const char *field_name) const;

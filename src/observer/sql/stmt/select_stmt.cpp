@@ -339,6 +339,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
             if (OB_FAIL(rc)) {
               return rc;
             }
+            query_fields_expressions.push_back(expr);
           }
         } else {                                    // 表名非空
           if (cond.attr.relation_name == "*") {     // 表名为*
@@ -364,6 +365,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
               if (OB_FAIL(rc)) {
                 return rc;
               }
+              query_fields_expressions.push_back(expr);
             }
           }
         }

@@ -168,7 +168,7 @@ public:
       return RC::INVALID_ARGUMENT;
     }
 
-    const FieldMeta *field_meta = table_->table_meta().find_field_by_offset(index);
+    const FieldMeta *field_meta = table_->table_meta().field(index);
     // 在这里需要判断一下，record当中，这个字段是否为空
     if (field_meta->nullable() && table_->table_meta().is_field_null(record_->data(), field_meta->name())) {
       // 为null
@@ -195,7 +195,7 @@ public:
       return RC::NOTFOUND;
     }
 
-    return cell_at(ret->offset(), cell);
+    return cell_at(table_->table_meta().find_field_index_by_name(field_name), cell);
 
     // for (size_t i = 0; i < speces_.size(); ++i) {
     //   const FieldExpr *field_expr = speces_[i];
@@ -265,7 +265,7 @@ public:
     //   delete spec;
     // }
     // speces_.clear();
-    delete tuple_;
+    // delete tuple_;
   }
 
   void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
