@@ -235,7 +235,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
     case SUB_SELECT:
     case LOGIC:
     case COMP:
-    case UNDEFINED:
+    case UNDEFINED_COND_SQL_NODE:
     default: {
       LOG_WARN("invalid ConditionSqlNode type in select attribute: %d", cond->type);
       return RC::INVALID_ARGUMENT;

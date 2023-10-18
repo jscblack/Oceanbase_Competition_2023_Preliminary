@@ -81,7 +81,7 @@ enum LogiOp
  */
 enum FuncName
 {
-  UNDEFINED,
+  UNDEFINED_FUNC,
   COUNT,  ///< "COUNT"
   AVG,    ///< "AVG"
   SUM,    ///< "SUM"
@@ -96,7 +96,7 @@ enum FuncName
  */
 enum ConditionSqlNodeType
 {
-  UNDEFINED = -1,  // 没有定义
+  UNDEFINED_COND_SQL_NODE = -1,  // 没有定义
   VALUE     = 0,   // 单个Value: 在YACC处转为ValueExpr / ValueListExpr， 对应_value
   FIELD,           // 单个Field: 在YACC处为RelAttrSqlNode，对应_attr
   SUB_SELECT,      // 单个子查询: _select
@@ -118,7 +118,7 @@ struct SelectSqlNode;
 struct ConditionSqlNode
 {
   bool                 binary = false;      ///< TRUE 如果有子表达式则为true，如果为单值则为false
-  ConditionSqlNodeType type   = UNDEFINED;  ///< TRUE if left-hand side is an attribute
+  ConditionSqlNodeType type   = UNDEFINED_COND_SQL_NODE;  ///< TRUE if left-hand side is an attribute
 
   RelAttrSqlNode    attr;                  ///< left-hand side attribute
   SelectSqlNode    *select     = nullptr;  ///< left-hand side select
