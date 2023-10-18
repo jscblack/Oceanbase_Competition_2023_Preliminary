@@ -124,6 +124,7 @@ class RowTuple : public Tuple
 {
 public:
   RowTuple() = default;
+  // RowTupe(const Table *table) : table_(table) {}
   virtual ~RowTuple()
   {
     delete record_;
@@ -138,6 +139,8 @@ public:
     Record *new_record = new Record(*record);
     this->record_      = new_record;
   }
+
+  void set_table(const Table *table) { table_ = table; }
 
   // void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
   // {
