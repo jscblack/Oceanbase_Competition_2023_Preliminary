@@ -168,8 +168,20 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     }
   }
 
-  if (select_stmt->has_aggregation()) {
+  if (select_stmt->has_aggregation()) { // 存在聚合子句
     // TODO: 还不知道怎么拿出havingfilterstmt中的expr
+    unique_ptr<LogicalOperator> aggregate_oper(new AggregateLogicalOperator(all_fields_expressions, select_stmt->group_by_fields_expressions()));
+    aggregate_oper->add_child(std::move(project_oper));
+    
+    if (select_stmt->having_filter_stmt()->filter_expr() != nullptr) { // 存在having子句
+      unique_ptr<Expression> having_filter_expr(select_stmt->having_filter_stmt()->filter_expr()->clone());
+      AggregateLogicalOperator *aggregate_oper_cast = dynamic_cast<AggregateLogicalOperator *>(aggregate_oper.get());
+      aggregate_oper_cast->add_having_filters_expression(std::move(having_filter_expr));
+    }
+    logical_operator.swap(aggregate_oper);
+  }
+  else {
+    logical_operator.swap(project_oper);
   }
 
   // const std::vector<std::pair<std::string, Field>> &all_aggregations = select_stmt->aggregation_func();

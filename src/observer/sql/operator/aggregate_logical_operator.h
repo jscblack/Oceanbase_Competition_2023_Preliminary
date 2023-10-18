@@ -31,8 +31,7 @@ class AggregateLogicalOperator : public LogicalOperator
 {
 public:
   AggregateLogicalOperator(const std::vector<Expression *> &fields_expressions,
-      const std::vector<Expression *>                      &group_by_fields_expressions,
-      std::unique_ptr<Expression>                           having_filters_expression);
+      const std::vector<Expression *>                      &group_by_fields_expressions);
   // AggregateLogicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations,
   //     const std::vector<Field> &fields, const std::vector<Expression *> &fields_expressions);
   virtual ~AggregateLogicalOperator() = default;
@@ -40,6 +39,11 @@ public:
   LogicalOperatorType              type() const override { return LogicalOperatorType::AGGREGATE; }
   const std::vector<Expression *> &fields_expressions() const { return fields_expressions_; }
   const std::vector<Expression *> &group_by_fields_expressions() const { return group_by_fields_expressions_; }
+
+  void add_having_filters_expression(std::unique_ptr<Expression> having_filters_expression) {
+    // NOTE: 分组筛选条件加入到基类的expressions_中
+    expressions_.emplace_back(std::move(having_filters_expression));
+  }
 
   // const std::vector<std::pair<std::string, Field>> &aggregations() const { return aggregations_; }
   // const std::vector<Field>                         &fields() const { return fields_; }
