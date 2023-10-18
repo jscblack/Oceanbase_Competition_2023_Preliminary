@@ -1016,7 +1016,7 @@ select_stmt_with_paren:
 value_list_LA: 
     value_list_LA COMMA value {
       $$ = $1;
-      $$->emplace_back($3);
+      $$->emplace_back(*$3);
       delete $3;
     }
     | value COMMA value {
