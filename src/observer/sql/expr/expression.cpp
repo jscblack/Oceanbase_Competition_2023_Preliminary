@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/stmt.h"
+#include "sql/expr/tuple_cell.h"
 #include <regex>
 
 using namespace std;
@@ -1073,7 +1074,8 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
   // 强转field expression，判断是否是count(*)
   FieldExpr *child_cast = dynamic_cast<FieldExpr *>(child_.get());
   if (child_cast->field().meta() == nullptr) {  // FIXME: 这里合并处理了table()是否为空的情况，即目前没有区分*.*  *  t.*
-    do_count_aggregate(tuples, value, -1);
+    TupleCellSpec tcs(nullptr, nullptr);
+    do_count_aggregate(tuples, value, tcs);
     return RC::SUCCESS;
   }
 
@@ -1084,10 +1086,9 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
   //     break;
   //   }
   // }
+  // LOG_DEBUG("========== idx = %d ========== log by tyh", idx);
 
-  TupleCellSpec tcs(child_cast->table_name(),child_cast->field_name());
-
-  LOG_DEBUG("========== idx = %d ========== log by tyh", idx);
+  TupleCellSpec tcs(child_cast->table_name(), child_cast->field_name());
 
   RC rc = RC::SUCCESS;
   switch (agg_type_) {
@@ -1101,7 +1102,7 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
   return rc;
 }
 
-RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec tcs) const
+RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const
 {
   // 检查是否为空
   if (tuples.empty()) {
@@ -1129,11 +1130,13 @@ RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &
     return RC::SUCCESS;
   }
 
-  tuples[0]->cell_at(tcs, value);
+  // tuples[0]->cell_at(tcs, value);
+  tuples[0]->find_cell(tcs, value);
 
   for (auto t : tuples) {
     Value cur_value;
-    t->cell_at(idx, cur_value);
+    // t->cell_at(idx, cur_value);
+    t->find_cell(tcs, cur_value);
     if (cur_value.compare(value) > 0) {
       value = cur_value;
     }
@@ -1141,7 +1144,7 @@ RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &
   return RC::SUCCESS;
 }
 
-RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const
 {
   // 检查是否为空
   if (tuples.empty()) {
@@ -1153,7 +1156,8 @@ RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &
   bool all_null = true;
   for (auto t : tuples) {
     Value cur_value;
-    RC    rc = t->cell_at(idx, cur_value);
+    // RC    rc = t->cell_at(idx, cur_value);
+    RC rc = t->find_cell(tcs, cur_value);
     if (rc != RC::SUCCESS) {
       return rc;
     }
@@ -1167,11 +1171,13 @@ RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &
     return RC::SUCCESS;
   }
 
-  tuples[0]->cell_at(idx, value);
+  // tuples[0]->cell_at(idx, value);
+  tuples[0]->find_cell(tcs, value);
 
   for (auto t : tuples) {
     Value cur_value;
-    t->cell_at(idx, cur_value);
+    // t->cell_at(idx, cur_value);
+    t->find_cell(tcs, cur_value);
     if (cur_value.compare(value) < 0) {
       value = cur_value;
     }
@@ -1179,11 +1185,11 @@ RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &
   return RC::SUCCESS;
 }
 
-RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const
 {
   int count = 0;
 
-  if (idx == -1) {  // count(*)
+  if (tcs.table_name() == nullptr && tcs.field_name() == nullptr) {  // count(*)
     LOG_DEBUG("========== do count(*) ========== log by tyh");
     count = tuples.size();
   } else {
@@ -1191,7 +1197,8 @@ RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value
     if (!tuples.empty()) {
       for (auto t : tuples) {
         Value cur_value;
-        t->cell_at(idx, cur_value);
+        // t->cell_at(idx, cur_value);
+        t->find_cell(tcs, cur_value);
         if (!cur_value.is_null()) {
           count++;
         }
@@ -1203,7 +1210,7 @@ RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value
   return RC::SUCCESS;
 }
 
-RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const
 {
   // 检查是否为空
   if (tuples.empty()) {
@@ -1215,7 +1222,8 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
   bool all_null = true;
   for (auto t : tuples) {
     Value cur_value;
-    t->cell_at(idx, cur_value);
+    // t->cell_at(idx, cur_value);
+    t->find_cell(tcs, cur_value);
     if (!cur_value.is_null()) {
       all_null = false;
       break;
@@ -1228,13 +1236,15 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
 
   int   cnt = 0;
   Value attr_value;
-  tuples[0]->cell_at(idx, attr_value);
+  // tuples[0]->cell_at(idx, attr_value);
+  tuples[0]->find_cell(tcs, attr_value);
   AttrType attr_type = attr_value.attr_type();
   if (attr_type == INTS) {
     int sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      t->cell_at(idx, cur_value);
+      // t->cell_at(idx, cur_value);
+      t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         sum += cur_value.get_int();
         cnt++;
@@ -1249,7 +1259,8 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
     float sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      t->cell_at(idx, cur_value);
+      // t->cell_at(idx, cur_value);
+      t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         sum += cur_value.get_float();
         cnt++;
@@ -1260,7 +1271,8 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
     float sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      t->cell_at(idx, cur_value);
+      // t->cell_at(idx, cur_value);
+      t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         cur_value.str_to_number();
         if (cur_value.attr_type() == INTS) {
@@ -1280,7 +1292,7 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
   return RC::SUCCESS;
 }
 
-RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
+RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const
 {
   // 检查是否为空
   if (tuples.empty()) {
@@ -1292,7 +1304,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
   bool all_null = true;
   for (auto t : tuples) {
     Value cur_value;
-    t->cell_at(idx, cur_value);
+    // t->cell_at(idx, cur_value);
+    t->find_cell(tcs, cur_value);
     if (!cur_value.is_null()) {
       all_null = false;
       break;
@@ -1304,13 +1317,15 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
   }
 
   Value attr_value;
-  tuples[0]->cell_at(idx, attr_value);
+  // tuples[0]->cell_at(idx, attr_value);
+  tuples[0]->find_cell(tcs, attr_value);
   AttrType attr_type = attr_value.attr_type();
   if (attr_type == INTS) {
     int sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      t->cell_at(idx, cur_value);
+      // t->cell_at(idx, cur_value);
+      t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         sum += cur_value.get_int();
       }
@@ -1320,7 +1335,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
     float sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      t->cell_at(idx, cur_value);
+      // t->cell_at(idx, cur_value);
+      t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         sum += cur_value.get_float();
       }
@@ -1330,7 +1346,8 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
     float sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      t->cell_at(idx, cur_value);
+      // t->cell_at(idx, cur_value);
+      t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         cur_value.str_to_number();
         if (cur_value.attr_type() == INTS) {

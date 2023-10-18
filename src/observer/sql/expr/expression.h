@@ -26,6 +26,7 @@ See the Mulan PSL v2 for more details. */
 
 class Tuple;
 class FilterStmt;
+class TupleCellSpec;
 
 /**
 //  * @brief 判别一个expr及其儿子中是否有符合条件的选项，有则返回true
@@ -750,11 +751,11 @@ private:
   FuncName                    agg_type_;
   std::unique_ptr<Expression> child_;
 
-  RC do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
-  RC do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
-  RC do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
-  RC do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
-  RC do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const;
+  RC do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const;
+  RC do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const;
+  RC do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const;
+  RC do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const;
+  RC do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const;
 
   // 废弃代码*********************************************************BEGIN
   // Field       field_;
