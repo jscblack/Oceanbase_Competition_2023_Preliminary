@@ -111,8 +111,20 @@ RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::str
   return RC::SUCCESS;
 }
 
+/**
+ * @brief 讲select ... from 将投影列表表达式化
+ * 
+ * @param db 
+ * @param default_table 
+ * @param tables 
+ * @param cond 
+ * @param [out] expr 
+ * @param [out] has_aggregation 表达式或其子表达式中是否有聚合: 注意，有aggregate必定也有field
+ * @param [out] has_field 表达式或其子表达式中是否有FIELD：注意，有field未必只是field
+ * @return RC 
+ */
 RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *cond, Expression *&expr)
+    const ConditionSqlNode *cond, Expression *&expr, bool &has_aggregation, bool &has_field)
 {  // 对attr内的单个ConditionSqlNode做解析
   RC rc = RC::SUCCESS;
   expr  = nullptr;
@@ -128,6 +140,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       //   LOG_WARN("STAR * cannot be subexpr of field");
       //   return RC::SCHEMA_FIELD_MISSING;
       // }
+      has_field = true;
       Table           *table = nullptr;
       const FieldMeta *field = nullptr;
       rc                     = get_table_and_field(db, default_table, tables, cond->attr, table, field);
@@ -143,12 +156,12 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       if (cond->binary) {
         Expression *left_expr;
         Expression *right_expr;
-        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, left_expr);
+        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, left_expr, has_aggregation, has_field);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Left . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
-        rc = attr_cond_to_expr(db, default_table, tables, cond->right_cond, right_expr);
+        rc = attr_cond_to_expr(db, default_table, tables, cond->right_cond, right_expr, has_aggregation, has_field);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Right . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -160,7 +173,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
         }
       } else {
         Expression *sub_expr;
-        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, sub_expr);
+        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, sub_expr, has_aggregation, has_field);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Sub . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -182,6 +195,8 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
 
       // 目前判别有点简单，更好的做法是根据Funcname来判断可以有多少个参数，否则max这种可能是聚集也可能是普通函数。
       if (cond->func >= COUNT && cond->func <= MIN) {  // Aggregation
+        has_aggregation = true;
+        has_field = true;
         if (sub_cond->type != ConditionSqlNodeType::FIELD) {
           LOG_WARN("Aggregation's subexpr must be FieldExpr");
           return RC::SCHEMA_FIELD_TYPE_MISMATCH;
@@ -211,7 +226,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
             expr     = new AggregationExpr(cond->func, sub_expr);
           }
         } else {
-          rc   = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr);
+          rc   = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr, has_aggregation, has_field);
           expr = new AggregationExpr(cond->func, sub_expr);
         }
       }
@@ -227,6 +242,37 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
     } break;
   }
 }
+
+// /**
+//  * @brief 判别一个expr及其儿子中是否有符合条件的选项，有则返回true; 想法很好但没实现child的访问统一接口，故而搁置
+//  *
+//  * @param expr
+//  * @param judge
+//  * @return true
+//  * @return false
+//  */
+// bool judge_attr_expr(Expression *expr, std::function<bool(ExprType)> judge)
+// {
+//   switch (expr->type()) {
+//     // 没有子表达式
+//     case ExprType::FIELD:
+//     case ExprType::SELECT:
+//     case ExprType::VALUE:
+//     case ExprType::VALUELIST: {
+//       return judge(expr->type());
+//     } break;
+//     case ExprType::AGGREGATION: {
+//       return judge(expr->type()) || judge_attr_expr(expr->child_,judge);
+//     }
+//     case ExprType::ARITHMETIC:
+//     case ExprType::FUNCTION:
+//     case ExprType::CAST:
+//     case ExprType::LOGICALCALC:
+//     case ExprType::COMPARISON:
+//     default:
+//     break;
+//   }
+// }
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
@@ -265,13 +311,18 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   std::vector<Expression *> query_fields_expressions;
+  bool attr_has_aggregation = false; // 是否存在聚集
+  bool attr_has_only_field= false; // 是否存在：只有field参与的属性值表达式，（不带aggregate）
   {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
       Expression             *expr = nullptr;
       const ConditionSqlNode &cond = select_sql.attributes[i];
+      bool has_aggregation = false;
+      bool has_field = false;
 
       // 最外层可以是*，所以需要特殊处理，而对于COUNT(*)在attr_cond_to_expr内部特判即可。
       if (cond.type == FIELD) {
+        attr_has_only_field = true; // 肯定有只包含fieldExpr，不包含agg的。
         if (common::is_blank(cond.attr.relation_name.c_str())) {  // 表名为空
           if (cond.attr.attribute_name == "*") {                  // 表名为空，且列名为* [].*
             // 将tables展开
@@ -283,7 +334,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
               LOG_WARN("invalid. I do not know the attr's table. attr=%s", cond.attr.attribute_name.c_str());
               return RC::SCHEMA_FIELD_MISSING;
             }
-            RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr);
+            RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr, has_aggregation, has_field);
             if (OB_FAIL(rc)) {
               return rc;
             }
@@ -308,7 +359,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
             if (cond.attr.attribute_name == "*") {  // t.*
               wildcard_fields(table, query_fields_expressions);
             } else {  // t.col
-              RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr);
+              RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr, has_aggregation, has_field);
               if (OB_FAIL(rc)) {
                 return rc;
               }
@@ -316,9 +367,14 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           }
         }
       } else {
-        RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr);
+        RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr, has_aggregation, has_field);
         if (OB_FAIL(rc)) {  // LOG_WARN在上面做
           return rc;
+        }
+        if (has_aggregation) {
+          attr_has_aggregation = true;
+        } else if (!has_aggregation && has_field) {
+          attr_has_only_field = true;
         }
         query_fields_expressions.push_back(expr);
       }
@@ -335,17 +391,17 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // group_by + aggregate 相关的语法合法性检测
   if (select_sql.groups.empty()) {  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
-    bool has_normal_field = false;
-    bool has_agg_field    = false;
-    for (auto query_fields_expr : query_fields_expressions) {
-      if (query_fields_expr->type() == ExprType::FIELD) {
-        has_normal_field = true;
-      }
-      if (query_fields_expr->type() == ExprType::AGGREGATION) {
-        has_agg_field = true;
-      }
-    }
-    if (has_agg_field && has_normal_field) {
+    // bool has_normal_field = false;
+    // bool has_agg_field    = false;
+    // for (auto query_fields_expr : query_fields_expressions) {
+    //   if (query_fields_expr->type() == ExprType::FIELD) {
+    //     has_normal_field = true;
+    //   }
+    //   if (query_fields_expr->type() == ExprType::AGGREGATION) {
+    //     has_agg_field = true;
+    //   }
+    // }
+    if (attr_has_aggregation && attr_has_only_field) {
       LOG_WARN("Aggregated-attr cannot appear with normal-attr without group-by");
       return RC::SQL_SYNTAX;
     }
@@ -583,6 +639,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     select_stmt->group_by_fields_.swap(group_by_fields);
     select_stmt->having_filter_stmt_ = having_filter_stmt;
     select_stmt->order_by_.swap(order_by);
+    select_stmt->has_aggregation = true;
   }
 
   stmt = select_stmt;

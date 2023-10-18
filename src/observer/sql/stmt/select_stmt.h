@@ -64,8 +64,10 @@ private:
 private:
   // 这玩意是子查询用的, create的进入和退出记得处理一下, 记录已经打开的表的信息.
   inline static std::unordered_map<std::string, Table *> table_map_;
-  std::vector<Expression *>                              group_by_fields_expressions_;
-  std::vector<Field>                                     group_by_fields_;
-  HavingFilterStmt                                      *having_filter_stmt_ = nullptr;
-  std::vector<std::pair<Field, bool>>                    order_by_;  // (Field, is_asc)
+
+  bool                                has_aggregation = false;
+  std::vector<Expression *>           group_by_fields_expressions_;
+  std::vector<Field>                  group_by_fields_;
+  HavingFilterStmt                   *having_filter_stmt_ = nullptr;
+  std::vector<std::pair<Field, bool>> order_by_;  // (Field, is_asc)
 };
