@@ -218,7 +218,9 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
             expr     = new AggregationExpr(cond->func, sub_expr);
           } else {
             Table *table;
-            RC     rc = is_table_legal(*tables, sub_cond->attr.relation_name, table);
+            RC     rc = is_table_legal(*tables,
+                sub_cond->attr.relation_name,
+                table);  // FIXME: select count(*) 这里出错，传进去的relation_name是空的
             if (OB_FAIL(rc)) {
               return rc;
             }
