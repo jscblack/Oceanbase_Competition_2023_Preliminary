@@ -82,8 +82,8 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
         LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
         return rc;
       }
-      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
-        LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
+      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields_expressions().size() != 1) {
+        LOG_WARN("invalid select statement. select_stmt->query_fields_expressions().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields_expressions().size());
         return RC::INVALID_ARGUMENT;
       }
       update_values.emplace_back(true, select_stmt);

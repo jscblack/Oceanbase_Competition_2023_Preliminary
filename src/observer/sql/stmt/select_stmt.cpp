@@ -639,7 +639,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     select_stmt->group_by_fields_.swap(group_by_fields);
     select_stmt->having_filter_stmt_ = having_filter_stmt;
     select_stmt->order_by_.swap(order_by);
-    select_stmt->has_aggregation = true;
+    select_stmt->has_aggregation_ = true;
   }
 
   stmt = select_stmt;
