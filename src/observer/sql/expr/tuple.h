@@ -302,7 +302,7 @@ public:
     ProjectTuple *project_tuple = new ProjectTuple();
     tuple_->clone(project_tuple->tuple_);
     for (int i = 0; i < expressions_.size(); i++) {
-      project_tuple->expressions_.push_back(unique_ptr<Expression>(expressions_[i]->clone()));
+      project_tuple->expressions_.push_back(std::unique_ptr<Expression>(expressions_[i]->clone()));
     }
 
     // for (auto s : speces_) {
