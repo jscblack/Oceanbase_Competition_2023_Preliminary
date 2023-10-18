@@ -398,7 +398,7 @@ public:
     const AttrType type_left  = left_expr->value_type();
     const AttrType type_right = right_expr->value_type();
 
-    if (LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) {
+    if (CompOp::LIKE_ENUM == comp || CompOp::NOT_LIKE_ENUM == comp) {
       if (left_expr_type == ExprType::FIELD && right_expr_type == ExprType::VALUE) {
         if (type_left != CHARS || type_right != CHARS) {
           LOG_WARN("attr LIKE/NOT LIKE value, attr and value must be CHARS");
@@ -503,7 +503,7 @@ public:
     // return AttrType::UNDEFINED;
 
     // TODO: 特判一下 select *
-    return reinterpret_cast<SelectStmt *>(select_stmt_)->query_fields_expressions()[0]->value_type();
+    return (reinterpret_cast<SelectStmt *>(select_stmt_)->query_fields_expressions())[0]->value_type();
   }
   RC rewrite_stmt(Stmt *&original_stmt, const Tuple *row_tuple);
   RC rewrite_expr(Expression *&original_expr, const Tuple *row_tuple);

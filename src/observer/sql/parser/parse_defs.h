@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "sql/parser/value.h"
+#include "sql/expr/expression.h"
 
 class Expression;
 
@@ -97,9 +98,9 @@ enum FuncName
 enum ConditionSqlNodeType
 {
   UNDEFINED_COND_SQL_NODE = -1,  // 没有定义
-  VALUE     = 0,   // 单个Value: 在YACC处转为ValueExpr / ValueListExpr， 对应_value
-  FIELD,           // 单个Field: 在YACC处为RelAttrSqlNode，对应_attr
-  SUB_SELECT,      // 单个子查询: _select
+  VALUE                   = 0,   // 单个Value: 在YACC处转为ValueExpr / ValueListExpr， 对应_value
+  FIELD,                         // 单个Field: 在YACC处为RelAttrSqlNode，对应_attr
+  SUB_SELECT,                    // 单个子查询: _select
   // 下面大多是binary-node，也有NOT这种unary的，并且会用到 sub_cond
   ARITH,        // 算术表达式: _cond + arith
   COMP,         // 比较表达式: _cond + comp
@@ -117,7 +118,7 @@ struct SelectSqlNode;
 // where 1:1 condition
 struct ConditionSqlNode
 {
-  bool                 binary = false;      ///< TRUE 如果有子表达式则为true，如果为单值则为false
+  bool                 binary = false;  ///< TRUE 如果有子表达式则为true，如果为单值则为false
   ConditionSqlNodeType type   = UNDEFINED_COND_SQL_NODE;  ///< TRUE if left-hand side is an attribute
 
   RelAttrSqlNode    attr;                  ///< left-hand side attribute
