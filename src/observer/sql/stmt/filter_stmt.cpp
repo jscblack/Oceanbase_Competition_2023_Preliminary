@@ -231,7 +231,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
           cond->logi_op, std::unique_ptr<Expression>(left_expr), std::unique_ptr<Expression>(right_expr));
     } break;
 
-    case UNDEFINED:
+    case UNDEFINED_COND_SQL_NODE:
     default: {
       LOG_WARN("invalid ConditionSqlNode type: %d", cond->type);
       return RC::INVALID_ARGUMENT;
