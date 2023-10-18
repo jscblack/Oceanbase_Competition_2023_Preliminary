@@ -701,8 +701,11 @@ public:
 
   AttrType value_type() const override
   {
-    // 在子表达式真正执行之前，是无法知道select的结果集的类型的，需要在执行完之后set一下吗？
-    return AttrType::UNDEFINED;
+    if (agg_type_ == FuncName::COUNT_FUNC_ENUM) {
+      return AttrType::INTS;
+    }
+    FieldExpr *field = dynamic_cast<FieldExpr *>(child_.get());
+    return field->value_type();
   }
 
   FuncName agg_type() const { return agg_type_; }
