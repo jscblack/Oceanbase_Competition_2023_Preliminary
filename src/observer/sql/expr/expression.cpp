@@ -312,11 +312,6 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   return rc;
 }
 
-Expression *ComparisonExpr::clone() const
-{
-  return new ComparisonExpr(comp_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>(right_->clone()));
-}
-
 RC ComparisonExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
 {
   Value left_value;
@@ -339,6 +334,11 @@ RC ComparisonExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) c
     value.set_boolean(bool_value);
   }
   return rc;
+}
+
+Expression *ComparisonExpr::clone() const
+{
+  return new ComparisonExpr(comp_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>(right_->clone()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -507,7 +507,9 @@ RC SelectExpr::rewrite_expr(Expression *&original_expr, const Tuple *tuple)
       }
       ValueExpr *value_expr     = new ValueExpr(tmp_value);
       recover_table[value_expr] = left_expr;
-      left_expr                 = value_expr;
+      // left_expr                 = value_expr;
+      comparison_expr->left().release();
+      comparison_expr->left().reset(value_expr);
     }
     if (right_expr != nullptr && right_expr->type() == ExprType::FIELD &&
         strcmp(dynamic_cast<FieldExpr *>(right_expr)->table_name(), row_tuple->table().name()) == 0) {
@@ -523,7 +525,9 @@ RC SelectExpr::rewrite_expr(Expression *&original_expr, const Tuple *tuple)
       }
       ValueExpr *value_expr     = new ValueExpr(tmp_value);
       recover_table[value_expr] = right_expr;
-      right_expr                = value_expr;
+      // right_expr                = value_expr;
+      comparison_expr->right().release();
+      comparison_expr->right().reset(value_expr);
     }
   } else if (original_expr->type() == ExprType::LOGICALCALC) {
     // 非叶子节点
@@ -551,15 +555,6 @@ RC SelectExpr::rewrite_expr(Expression *&original_expr, const Tuple *tuple)
     return RC::INTERNAL;
   }
   return rc;
-}
-
-AttrType SelectExpr::value_type() const
-{
-  // 在select真正执行之前，是无法知道select的结果集的类型的
-  // return AttrType::UNDEFINED;
-
-  // TODO: 特判一下 select *
-  return (reinterpret_cast<SelectStmt *>(select_stmt_)->query_fields_expressions())[0]->value_type();
 }
 
 RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
@@ -626,6 +621,8 @@ RC SelectExpr::recover_expr(Expression *&rewrited_expr, const Tuple *tuple)
       // 从tuples_里面找到这个tuple
       Expression *tmp_ptr = left_expr;
       left_expr           = recover_table[left_expr];
+      comparison_expr->right().release();
+      comparison_expr->right().reset(left_expr);
       recover_table.erase(tmp_ptr);
     }
     if (right_expr->type() == ExprType::VALUE && recover_table.find(right_expr) != recover_table.end() &&
@@ -634,6 +631,8 @@ RC SelectExpr::recover_expr(Expression *&rewrited_expr, const Tuple *tuple)
       // 从tuples_里面找到这个tuple
       Expression *tmp_ptr = right_expr;
       right_expr          = recover_table[right_expr];
+      comparison_expr->right().release();
+      comparison_expr->right().reset(right_expr);
       recover_table.erase(tmp_ptr);
     }
   } else if (rewrited_expr->type() == ExprType::LOGICALCALC) {
@@ -683,6 +682,15 @@ RC SelectExpr::recover_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
     return rc;
   }
   return RC::SUCCESS;
+}
+
+AttrType SelectExpr::value_type() const
+{
+  // 在select真正执行之前，是无法知道select的结果集的类型的
+  // return AttrType::UNDEFINED;
+
+  // TODO: 特判一下 select *
+  return (reinterpret_cast<SelectStmt *>(select_stmt_)->query_fields_expressions())[0]->value_type();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
