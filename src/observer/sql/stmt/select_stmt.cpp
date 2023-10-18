@@ -216,16 +216,17 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
           if (is_table_star) {
             sub_expr = new FieldExpr(nullptr, nullptr);
             expr     = new AggregationExpr(cond->func, sub_expr);
-          } else {
+          } else {  //
             Table *table;
             RC     rc = is_table_legal(*tables,
                 sub_cond->attr.relation_name,
                 table);  // FIXME: select count(*) 这里出错，传进去的relation_name是空的
-            if (OB_FAIL(rc)) {
-              return rc;
+            if (nullptr == table) {
+              sub_expr = new FieldExpr(nullptr, nullptr);
+            } else {
+              sub_expr = new FieldExpr(table, nullptr);
             }
-            sub_expr = new FieldExpr(table, nullptr);
-            expr     = new AggregationExpr(cond->func, sub_expr);
+            expr = new AggregationExpr(cond->func, sub_expr);
           }
         } else {
           rc   = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr, has_aggregation, has_field);
