@@ -101,6 +101,10 @@ RC AggregatePhysicalOperator::open(Trx *trx)
         Value v;
         expr->get_value(tuples_, v);
         result_value.emplace_back(v);
+      } else if (expr->type() == ExprType::ARITHMETIC) {
+        Value v;
+        expr->get_value(tuples_, v);
+        result_value.emplace_back(v);
       } else {
         ASSERT(false, "In AggregatePhysicalOperator::open(Trx *trx): non-group-by selection cannot have non-agg field");
       }
@@ -166,6 +170,9 @@ RC AggregatePhysicalOperator::open(Trx *trx)
         it->second.front()->cell_at(i, v);
         result_value.emplace_back(v);
       } else if (fields_expressions_[i]->type() == ExprType::AGGREGATION) {
+        fields_expressions_[i]->get_value(it->second, v);
+        result_value.emplace_back(v);
+      } else if(fields_expressions_[i]->type() == ExprType::ARITHMETIC) {
         fields_expressions_[i]->get_value(it->second, v);
         result_value.emplace_back(v);
       } else {
