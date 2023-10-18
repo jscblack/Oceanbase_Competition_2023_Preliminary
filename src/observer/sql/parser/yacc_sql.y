@@ -581,9 +581,11 @@ value:
     |NUMBER {
       $$ = new Value((int)$1);
       @$ = @1;
-      LOG_INFO("===============================LOG BY LOSK===============================\n"
-      "===============================看看位置信息输出了什么：%d===============================\n", @1);
     }
+    /* | '-' NUMBER {
+      $$ = new Value(-(int)$2);
+      @$ = @2;
+    } */
     |FLOAT {
       $$ = new Value((float)$1);
       @$ = @1;
@@ -1016,7 +1018,7 @@ select_stmt_with_paren:
 value_list_LA: 
     value_list_LA COMMA value {
       $$ = $1;
-      $$->emplace_back($3);
+      $$->emplace_back(*$3);
       delete $3;
     }
     | value COMMA value {
