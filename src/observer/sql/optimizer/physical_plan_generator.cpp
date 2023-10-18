@@ -237,25 +237,48 @@ RC PhysicalPlanGenerator::create_plan(AggregateLogicalOperator &aggregate_oper, 
     }
   }
 
-  AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
-      aggregate_oper.aggregations(), aggregate_oper.fields(), aggregate_oper.fields_expressions());
+  vector<unique_ptr<Expression>> &expressions = aggregate_oper.expressions();
+  if (expressions.empty()) {
+    AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
+      aggregate_oper.fields_expressions(), aggregate_oper.group_by_fields_expressions());
+    
+    if (child_phy_oper) {
+      aggregate_operator->add_child(std::move(child_phy_oper));
+    }
+    oper = unique_ptr<PhysicalOperator>(aggregate_operator);
+  }
+  else { // 存在having子句
+    unique_ptr<Expression> expression = std::move(expressions.front());
+    AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
+      aggregate_oper.fields_expressions(), aggregate_oper.group_by_fields_expressions(), std::move(expression));
 
-  if (!aggregate_oper.group_by_fields().empty()) {
-    aggregate_operator->set_group_by_fields(aggregate_oper.group_by_fields());
+    if (child_phy_oper) {
+      aggregate_operator->add_child(std::move(child_phy_oper));
+    }
+    oper = unique_ptr<PhysicalOperator>(aggregate_operator);
   }
 
-  if (!aggregate_oper.expressions().empty()) {
-    vector<unique_ptr<Expression>> &expressions = aggregate_oper.expressions();
-    unique_ptr<Expression>          expression  = std::move(expressions.front());
-    aggregate_operator->set_having_filter_units(aggregate_oper.having_filter_units());
-    aggregate_operator->set_having_filters(std::move(expression));
-  }
 
-  if (child_phy_oper) {
-    aggregate_operator->add_child(std::move(child_phy_oper));
-  }
 
-  oper = unique_ptr<PhysicalOperator>(aggregate_operator);
+  // AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
+  //     aggregate_oper.aggregations(), aggregate_oper.fields(), aggregate_oper.fields_expressions());
+
+  // if (!aggregate_oper.group_by_fields().empty()) {
+  //   aggregate_operator->set_group_by_fields(aggregate_oper.group_by_fields());
+  // }
+
+  // if (!aggregate_oper.expressions().empty()) {
+  //   vector<unique_ptr<Expression>> &expressions = aggregate_oper.expressions();
+  //   unique_ptr<Expression>          expression  = std::move(expressions.front());
+  //   aggregate_operator->set_having_filter_units(aggregate_oper.having_filter_units());
+  //   aggregate_operator->set_having_filters(std::move(expression));
+  // }
+
+  // if (child_phy_oper) {
+  //   aggregate_operator->add_child(std::move(child_phy_oper));
+  // }
+
+  // oper = unique_ptr<PhysicalOperator>(aggregate_operator);
 
   LOG_TRACE("create a aggregate physical operator");
   return rc;
