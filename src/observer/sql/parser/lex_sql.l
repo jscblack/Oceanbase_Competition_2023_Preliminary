@@ -76,10 +76,12 @@ QUOTE            [\'\"]
 
 {WHITE_SAPCE}                                        // ignore whitespace
 \n                                                   ;
+
 "+" |
 "-" |
 "*" |
 "/"                                     { return yytext[0]; }
+
 [\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
 [\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
 

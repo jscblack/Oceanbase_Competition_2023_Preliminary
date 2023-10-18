@@ -188,12 +188,10 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
               Table *table = nullptr;
               auto   iter  = tables->find(sub_cond->attr.relation_name);
               if (iter == tables->end()) {
-                LOG_WARN("no such table in from list: %s", sub_cond->attr.relation_name);
-                return RC::SCHEMA_TABLE_NOT_EXIST;
-              }
-              table = iter->second;
-              if (OB_FAIL(rc)) {
-                return rc;
+                sub_expr = new FieldExpr(nullptr, nullptr);
+              } else {
+                table    = iter->second;
+                sub_expr = new FieldExpr(table, nullptr);
               }
               sub_expr = new FieldExpr(table, nullptr);
               expr     = new AggregationExpr(cond->func, sub_expr);
