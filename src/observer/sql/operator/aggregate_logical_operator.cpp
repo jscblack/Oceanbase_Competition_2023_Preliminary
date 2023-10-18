@@ -14,7 +14,14 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/aggregate_logical_operator.h"
 
-AggregateLogicalOperator::AggregateLogicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations,
-    const std::vector<Field> &fields, const std::vector<Expression *> &fields_expressions)
-    : aggregations_(aggregations), fields_(fields), fields_expressions_(fields_expressions)
-{}
+AggregateLogicalOperator::AggregateLogicalOperator(const std::vector<Expression*> &fields_expressions, const std::vector<Expression*> &group_by_fields_expressions, std::unique_ptr<Expression> having_filters_expression)
+: fields_expressions_(fields_expressions), group_by_fields_expressions_(group_by_fields_expressions)
+{
+    // NOTE: 分组筛选条件加入到基类的expressions_中
+    expressions_.emplace_back(std::move(having_filters_expression));
+}
+
+// AggregateLogicalOperator::AggregateLogicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations,
+//     const std::vector<Field> &fields, const std::vector<Expression *> &fields_expressions)
+//     : aggregations_(aggregations), fields_(fields), fields_expressions_(fields_expressions)
+// {}

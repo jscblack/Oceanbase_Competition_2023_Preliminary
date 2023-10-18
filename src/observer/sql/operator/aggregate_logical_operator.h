@@ -30,15 +30,14 @@ See the Mulan PSL v2 for more details. */
 class AggregateLogicalOperator : public LogicalOperator
 {
 public:
-  AggregateLogicalOperator()
+  AggregateLogicalOperator(const std::vector<Expression*> &fields_expressions, const std::vector<Expression*> &group_by_fields_expressions, std::unique_ptr<Expression> having_filters_expression);
   // AggregateLogicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations,
   //     const std::vector<Field> &fields, const std::vector<Expression *> &fields_expressions);
   virtual ~AggregateLogicalOperator() = default;
 
   LogicalOperatorType                               type() const override { return LogicalOperatorType::AGGREGATE; }
   const std::vector<Expression *>                  &fields_expressions() const { return fields_expressions_; }
-
-
+  const std::vector<Expression *>                  &group_by_fields_expressions() const { return group_by_fields_expressions_; }
 
   // const std::vector<std::pair<std::string, Field>> &aggregations() const { return aggregations_; }
   // const std::vector<Field>                         &fields() const { return fields_; }
@@ -56,7 +55,7 @@ public:
 private:
   std::vector<Expression *>                  fields_expressions_;           //! select的字段 - 包含聚合的字段
   std::vector<Expression *>                  group_by_fields_expressions_;  //! 分组的字段
-  std::unique_ptr<Expression>                having_filters_expression_;    //! 分组筛选条件
+  // Expression*                                having_filters_expression_;    //! 分组筛选条件
 
   // std::vector<std::pair<std::string, Field>> aggregations_;  //! 聚合的字段 - 聚合类型
   // std::vector<Field>                         fields_;        //! 投影映射的字段名称

@@ -37,13 +37,15 @@ RC AggregatePhysicalOperator::open(Trx *trx)
       return RC::INTERNAL;
     }
 
-    // 拆分成value的写法 TODO: 为了aggregation-func的兼容，需要重构
-    const int          cell_num = tuple->cell_num();
-    std::vector<Value> values(cell_num);
-    for (int i = 0; i < cell_num; i++) {
-      tuple->cell_at(i, values[i]);
-    }
-    tuples_values_.emplace_back(values);
+    // 废弃代码*********************************************************BEGIN
+    // // 拆分成value的写法 TODO: 为了aggregation-func的兼容，需要重构
+    // const int          cell_num = tuple->cell_num();
+    // std::vector<Value> values(cell_num);
+    // for (int i = 0; i < cell_num; i++) {
+    //   tuple->cell_at(i, values[i]);
+    // }
+    // tuples_values_.emplace_back(values);
+      // 废弃代码*********************************************************END
 
     // clone tuple的写法
     Tuple *new_tuple = nullptr;
@@ -54,36 +56,45 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     return rc;
   }
 
-  LOG_DEBUG("========== tuples_.size() = %d ==========", tuples_.size());
+  LOG_DEBUG("========== tuples_.size() = %d ========== log by tyh", tuples_.size());
 
+  // 废弃代码*********************************************************BEGIN
   // LOG_DEBUG("========== tuples_values_.size() = %d ==========", tuples_values_.size());
   // LOG_DEBUG("========== tuples_values_[i].size() = %d ==========", tuples_values_[0].size());
 
-  if (group_by_fields_.empty()) {  // TODO: 为了aggregation-func的兼容，需要重构
-    for (auto &agg : aggregations_) {
-      if (agg.first == "MAX") {
-        do_max_aggregate(agg.second);
-      } else if (agg.first == "MIN") {
-        do_min_aggregate(agg.second);
-      } else if (agg.first == "COUNT") {
-        do_count_aggregate(agg.second);
-      } else if (agg.first == "AVG") {
-        do_avg_aggregate(agg.second);
-      } else if (agg.first == "SUM") {
-        do_sum_aggregate(agg.second);
-      } else {
-        return RC::INVALID_ARGUMENT;
-      }
-    }
+  // if (group_by_fields_.empty()) {  // TODO: 为了aggregation-func的兼容，需要重构
+  //   for (auto &agg : aggregations_) {
+  //     if (agg.first == "MAX") {
+  //       do_max_aggregate(agg.second);
+  //     } else if (agg.first == "MIN") {
+  //       do_min_aggregate(agg.second);
+  //     } else if (agg.first == "COUNT") {
+  //       do_count_aggregate(agg.second);
+  //     } else if (agg.first == "AVG") {
+  //       do_avg_aggregate(agg.second);
+  //     } else if (agg.first == "SUM") {
+  //       do_sum_aggregate(agg.second);
+  //     } else {
+  //       return RC::INVALID_ARGUMENT;
+  //     }
+  //   }
+  //   // 构造返回的value list tuple
+  //   std::vector<Value> result_value;
+  //   for (int i = 0; i < aggregate_results_.size(); i++) {
+  //     result_value.emplace_back(aggregate_results_[i]);
+  //   }
+  //   ValueListTuple vlt;
+  //   vlt.set_cells(result_value);
+  //   return_results_.emplace_back(vlt);
+  //   return RC::SUCCESS;
+  // }
 
-    // 构造返回的value list tuple
-    std::vector<Value> result_value;
-    for (int i = 0; i < aggregate_results_.size(); i++) {
-      result_value.emplace_back(aggregate_results_[i]);
-    }
-    ValueListTuple vlt;
-    vlt.set_cells(result_value);
-    return_results_.emplace_back(vlt);
+  // 废弃代码*********************************************************END
+
+
+  // need group by or not?
+  if (group_by_fields_expressions_.empty()) {
+
     return RC::SUCCESS;
   }
 
