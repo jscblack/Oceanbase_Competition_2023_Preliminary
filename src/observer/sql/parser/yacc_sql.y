@@ -978,19 +978,19 @@ c_expr:
     | function {
       $$ = $1;
     }
-    | EXISTS LBRACE a_expr RBRACE {
-      ASSERT(SUB_SELECT == $3->type, "EXIST(a_expr), a_expr must be sub_select");
+    | EXISTS a_expr {
+      ASSERT(SUB_SELECT == $2->type, "EXIST(a_expr), a_expr must be sub_select");
       $$->binary = false;
       $$->type = COMP;
       $$->comp = EXISTS_ENUM;
-      $$->left_cond = $3;
+      $$->left_cond = $2;
     }
-    | NOT_EXISTS LBRACE a_expr RBRACE {
-      ASSERT(SUB_SELECT == $3->type, "NOT EXIST(a_expr), a_expr must be sub_select");
+    | NOT_EXISTS a_expr {
+      ASSERT(SUB_SELECT == $2->type, "NOT EXIST(a_expr), a_expr must be sub_select");
       $$->binary = false;
       $$->type = COMP;
       $$->comp = NOT_EXISTS_ENUM;
-      $$->left_cond = $3;
+      $$->left_cond = $2;
     }
     | value_list_LALR %prec UMINUS {
       $$ = $1;
