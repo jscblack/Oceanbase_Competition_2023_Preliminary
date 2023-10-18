@@ -158,7 +158,7 @@ RC AggregatePhysicalOperator::open(Trx *trx)
 
   // 3. 分组聚集
   // 3.1
-  for (auto it = group_tuples_.begin(); it != group_tuples_.end();) {
+  for (auto it = group_tuples_.begin(); it != group_tuples_.end(); it++) {
     std::vector<Value> result_value;
     Value              v;
     for (int i = 0; i < fields_expressions_.size(); i++) {
