@@ -77,6 +77,21 @@ enum LogiOp
 };
 
 /**
+ * @brief 描述算术运算符
+ *
+ */
+enum ArithOp
+{
+  ADD,
+  SUB,
+  MUL,
+  DIV,
+  NEGATIVE,
+  POSITIVE,
+  // PAREN,  // 括号 似乎用不上
+};
+
+/**
  * @brief 描述函数名, 排在UNDEFINE和NO_FUNC之间的是聚集函数, 随后才是其他函数
  * @ingroup SQLParser
  */
@@ -127,10 +142,10 @@ struct ConditionSqlNode
   ConditionSqlNode *left_cond  = nullptr;  ///< right-hand side sub-cond, 即sub-expr
   ConditionSqlNode *right_cond = nullptr;  ///< right-hand side sub-cond
 
-  CompOp               comp;     ///< comparison operator
-  FuncName             func;     ///< function operator
-  ArithmeticExpr::Type arith;    ///< arithmetic operator
-  LogiOp               logi_op;  ///< logic operator
+  CompOp   comp;     ///< comparison operator
+  FuncName func;     ///< function operator
+  ArithOp  arith;    ///< arithmetic operator
+  LogiOp   logi_op;  ///< logic operator
   // ConditionSqlNodeType right_type = UNDEFINED;
   // RelAttrSqlNode       right_attr;              ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   // SelectSqlNode       *right_select = nullptr;  ///< right-hand side select

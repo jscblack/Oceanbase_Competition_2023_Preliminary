@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "storage/field/field.h"
+#include "sql/parser/parse_defs.h"
 
 class Tuple;
 class FilterStmt;
@@ -599,20 +600,8 @@ private:
 class ArithmeticExpr : public Expression
 {
 public:
-  enum class Type
-  {
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    NEGATIVE,
-    POSITIVE,
-    // PAREN,  // 括号 似乎用不上
-  };
-
-public:
-  ArithmeticExpr(Type type, Expression *left, Expression *right);
-  ArithmeticExpr(Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
+  ArithmeticExpr(ArithOp type, Expression *left, Expression *right);
+  ArithmeticExpr(ArithOp type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
   ArithmeticExpr(const ArithmeticExpr &expr)            = delete;
   ArithmeticExpr &operator=(const ArithmeticExpr &expr) = delete;
 
@@ -627,7 +616,7 @@ public:
   RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override;
   RC try_get_value(Value &value) const override;
 
-  Type arithmetic_type() const { return arithmetic_type_; }
+  ArithOp arithmetic_type() const { return arithmetic_type_; }
 
   /**
    * @brief Resolve Stage对算术表达式生成时的合法性检验。
@@ -639,16 +628,16 @@ public:
    * @return false 非法，需要报错
    */
   // TODO 未完成，未处理NULL， 未判断表达式类型是否可计算
-  static bool is_legal_subexpr(Type type, const Expression *left, const Expression *right)
+  static bool is_legal_subexpr(ArithOp type, const Expression *left, const Expression *right)
   {
 
     if (nullptr == left) {
       return false;
     } else if (nullptr == right) {
-      return (type == Type::POSITIVE || type == Type::NEGATIVE) && (left->type() != ExprType::VALUELIST) &&
+      return (type == ArithOp::POSITIVE || type == ArithOp::NEGATIVE) && (left->type() != ExprType::VALUELIST) &&
              (left->value_type() >= CHARS && left->value_type() <= FLOATS);
     } else {
-      return (type >= Type::ADD && type <= Type::DIV) &&
+      return (type >= ArithOp::ADD && type <= ArithOp::DIV) &&
              (left->value_type() >= CHARS && left->value_type() <= FLOATS) &&
              (right->value_type() >= CHARS && right->value_type() <= FLOATS);
     }
@@ -664,22 +653,22 @@ public:
     std::string right_alias = (right_ != nullptr) ? right_->alias(with_table_name) : "";
 
     switch (arithmetic_type_) {
-      case Type::ADD: {
+      case ArithOp::ADD: {
         return left_alias + "+" + right_alias;
       } break;
-      case Type::SUB: {
+      case ArithOp::SUB: {
         return left_alias + "-" + right_alias;
       } break;
-      case Type::MUL: {
+      case ArithOp::MUL: {
         return left_alias + "*" + right_alias;
       } break;
-      case Type::DIV: {
+      case ArithOp::DIV: {
         return left_alias + "/" + right_alias;
       } break;
-      case Type::NEGATIVE: {
+      case ArithOp::NEGATIVE: {
         return "-" + left_alias;
       } break;
-      case Type::POSITIVE: {
+      case ArithOp::POSITIVE: {
         return left_alias;
       } break;
       default: {
@@ -695,7 +684,7 @@ private:
   RC calc_value(const Value &left_value, const Value &right_value, Value &value) const;
 
 private:
-  Type                        arithmetic_type_;
+  ArithOp                     arithmetic_type_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
 };
@@ -776,5 +765,5 @@ private:
   // 废弃代码*********************************************************BEGIN
   // Field       field_;
   // std::string aggregation_func_;
-  //废弃代码*********************************************************END
+  // 废弃代码*********************************************************END
 };

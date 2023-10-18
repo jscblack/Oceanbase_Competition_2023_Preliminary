@@ -871,11 +871,11 @@ Expression *FunctionExpr::clone() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, Expression *left, Expression *right)
+ArithmeticExpr::ArithmeticExpr(ArithOp type, Expression *left, Expression *right)
     : arithmetic_type_(type), left_(left), right_(right)
 {}
 
-ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, unique_ptr<Expression> left, unique_ptr<Expression> right)
+ArithmeticExpr::ArithmeticExpr(ArithOp type, unique_ptr<Expression> left, unique_ptr<Expression> right)
     : arithmetic_type_(type), left_(std::move(left)), right_(std::move(right))
 {}
 
@@ -886,7 +886,7 @@ AttrType ArithmeticExpr::value_type() const
   }
 
   if (left_->value_type() == AttrType::INTS && right_->value_type() == AttrType::INTS &&
-      arithmetic_type_ != Type::DIV) {
+      arithmetic_type_ != ArithOp::DIV) {
     return AttrType::INTS;
   }
 
@@ -900,7 +900,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
   const AttrType target_type = value_type();
 
   switch (arithmetic_type_) {
-    case Type::ADD: {
+    case ArithOp::ADD: {
       if (target_type == AttrType::INTS) {
         value.set_int(left_value.get_int() + right_value.get_int());
       } else {
@@ -908,7 +908,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
       }
     } break;
 
-    case Type::SUB: {
+    case ArithOp::SUB: {
       if (target_type == AttrType::INTS) {
         value.set_int(left_value.get_int() - right_value.get_int());
       } else {
@@ -916,7 +916,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
       }
     } break;
 
-    case Type::MUL: {
+    case ArithOp::MUL: {
       if (target_type == AttrType::INTS) {
         value.set_int(left_value.get_int() * right_value.get_int());
       } else {
@@ -924,7 +924,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
       }
     } break;
 
-    case Type::DIV: {
+    case ArithOp::DIV: {
       if (target_type == AttrType::INTS) {
         if (right_value.get_int() == 0) {
           // NOTE:
@@ -944,7 +944,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
       }
     } break;
 
-    case Type::NEGATIVE: {
+    case ArithOp::NEGATIVE: {
       if (target_type == AttrType::INTS) {
         value.set_int(-left_value.get_int());
       } else {
@@ -952,7 +952,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
       }
     } break;
 
-    case Type::POSITIVE: {
+    case ArithOp::POSITIVE: {
       if (target_type == AttrType::INTS) {
         value.set_int(left_value.get_int());
       } else {
