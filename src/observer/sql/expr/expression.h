@@ -27,6 +27,16 @@ class Tuple;
 class FilterStmt;
 
 /**
+//  * @brief 判别一个expr及其儿子中是否有符合条件的选项，有则返回true
+//  *
+//  * @param expr
+//  * @param judge
+//  * @return true
+//  * @return false
+//  */
+// bool judge_attr_expr(Expression *expr, std::function<bool(ExprType)> judge);
+
+/**
  * @defgroup Expression
  * @brief 表达式
  */
@@ -69,6 +79,8 @@ enum class ExprType
  */
 class Expression
 {
+// public:
+//   friend bool judge_attr_expr(Expression *expr, std::function<bool(ExprType)> judge);
 public:
   Expression() = default;
   virtual ~Expression(){};
