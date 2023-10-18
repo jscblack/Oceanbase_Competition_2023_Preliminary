@@ -52,8 +52,12 @@ struct GroupByValues
 class AggregatePhysicalOperator : public PhysicalOperator
 {
 public:
-  AggregatePhysicalOperator(const std::vector<Expression*> &fields_expressions, const std::vector<Expression*> &group_by_fields_expressions, std::unique_ptr<Expression> having_filters_expression = nullptr)
-  : fields_expressions_(fields_expressions_), group_by_fields_expressions_(group_by_fields_expressions), having_filters_expression_(std::move(having_filters_expression))
+  AggregatePhysicalOperator(const std::vector<Expression *> &fields_expressions,
+      const std::vector<Expression *>                       &group_by_fields_expressions,
+      std::unique_ptr<Expression>                            having_filters_expression = nullptr)
+      : fields_expressions_(fields_expressions_),
+        group_by_fields_expressions_(group_by_fields_expressions),
+        having_filters_expression_(std::move(having_filters_expression))
   {}
 
   virtual ~AggregatePhysicalOperator() = default;
@@ -81,20 +85,19 @@ public:
   // {
   //   having_filter_units_ = having_filter_units;
   // }
-  
+
   // 废弃代码*********************************************************END
 
 private:
-  std::vector<Expression *>                                fields_expressions_;
-  std::vector<Expression *>                                group_by_fields_expressions_;
-  std::unique_ptr<Expression>                              having_filters_expression_;
-
+  std::vector<Expression *>   fields_expressions_;
+  std::vector<Expression *>   group_by_fields_expressions_;
+  std::unique_ptr<Expression> having_filters_expression_;
 
   std::vector<Tuple *>                          tuples_;        // 从project算子拿上来的tuples
   std::map<GroupByValues, std::vector<Tuple *>> group_tuples_;  // 分组之后的tuples
 
-  std::vector<ValueListTuple>                return_results_;   // 构造返回结果 ValueListTuple
-  int                                        return_results_idx = -1;
+  std::vector<ValueListTuple> return_results_;  // 构造返回结果 ValueListTuple
+  int                         return_results_idx = -1;
 
   // 废弃代码*********************************************************BEGIN
 

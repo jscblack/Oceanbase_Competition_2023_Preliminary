@@ -91,9 +91,8 @@ RC AggregatePhysicalOperator::open(Trx *trx)
 
   // 废弃代码*********************************************************END
 
-
   // need group by or not?
-  if (group_by_fields_expressions_.empty()) { // no group by
+  if (group_by_fields_expressions_.empty()) {  // no group by
     // 构造聚合的结果
     std::vector<Value> result_value;
     // 聚合属性
@@ -102,8 +101,7 @@ RC AggregatePhysicalOperator::open(Trx *trx)
         Value v;
         expr->get_value(tuples_, v);
         result_value.emplace_back(v);
-      }
-      else {
+      } else {
         ASSERT(false, "In AggregatePhysicalOperator::open(Trx *trx): non-group-by selection cannot have non-agg field");
       }
     }
@@ -116,7 +114,7 @@ RC AggregatePhysicalOperator::open(Trx *trx)
   // need group by
   // 1. 分组
   // 1.1 首先找到分组属性在每行tuple的位置
-  std::vector<int>  group_by_idx;
+  std::vector<int> group_by_idx;
   for (auto &group_by_field_expression : group_by_fields_expressions_) {
     for (int idx = 0; idx < fields_expressions_.size(); idx++) {
       if (group_by_field_expression->alias(true) == fields_expressions_[idx]->alias(true)) {
@@ -143,8 +141,9 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     }
   }
 
-  // 2. having分组筛选 TODO: 可优化，因为having的聚合可能和分组的聚合是重复的，规范做法是先聚集再筛选，但目前先筛选会比较好实现
-  // need having or not?
+  // 2. having分组筛选 TODO:
+  // 可优化，因为having的聚合可能和分组的聚合是重复的，规范做法是先聚集再筛选，但目前先筛选会比较好实现 need having or
+  // not?
   if (having_filters_expression_ != nullptr) {  // need having
     for (auto it = group_tuples_.begin(); it != group_tuples_.end();) {
       Value value;
@@ -158,20 +157,18 @@ RC AggregatePhysicalOperator::open(Trx *trx)
   }
 
   // 3. 分组聚集
-  // 3.1 
+  // 3.1
   for (auto it = group_tuples_.begin(); it != group_tuples_.end();) {
     std::vector<Value> result_value;
-    Value v;
+    Value              v;
     for (int i = 0; i < fields_expressions_.size(); i++) {
       if (fields_expressions_[i]->type() == ExprType::FIELD) {
         it->second.front()->cell_at(i, v);
         result_value.emplace_back(v);
-      }
-      else if (fields_expressions_[i]->type() == ExprType::AGGREGATION) {
+      } else if (fields_expressions_[i]->type() == ExprType::AGGREGATION) {
         fields_expressions_[i]->get_value(it->second, v);
         result_value.emplace_back(v);
-      }
-      else {
+      } else {
         ASSERT(false, "In AggregatePhysicalOperator::open(Trx *trx): non-group-by selection cannot have non-agg field");
       }
     }
@@ -179,8 +176,6 @@ RC AggregatePhysicalOperator::open(Trx *trx)
     vlt.set_cells(result_value);
     return_results_.emplace_back(vlt);
   }
-
-
 
   // 废弃代码*********************************************************BEGIN
   // // 分组

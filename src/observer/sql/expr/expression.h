@@ -80,8 +80,8 @@ enum class ExprType
  */
 class Expression
 {
-// public:
-//   friend bool judge_attr_expr(Expression *expr, std::function<bool(ExprType)> judge);
+  // public:
+  //   friend bool judge_attr_expr(Expression *expr, std::function<bool(ExprType)> judge);
 public:
   Expression() = default;
   virtual ~Expression(){};

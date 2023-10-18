@@ -168,8 +168,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     }
   }
 
-  if(select_stmt->has_aggregation()) {
-    
+  if (select_stmt->has_aggregation()) {
+    // TODO: 还不知道怎么拿出havingfilterstmt中的expr
   }
 
   // const std::vector<std::pair<std::string, Field>> &all_aggregations = select_stmt->aggregation_func();
@@ -193,7 +193,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   //       unique_ptr<Expression> left(
   //           filter_obj_left.is_attr ? static_cast<Expression *>(
-  //                                         new AggregationExpr(filter_obj_left.field, filter_obj_left.aggregation_func_))
+  //                                         new AggregationExpr(filter_obj_left.field,
+  //                                         filter_obj_left.aggregation_func_))
   //                                   : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
 
   //       unique_ptr<Expression> right(filter_obj_right.is_attr

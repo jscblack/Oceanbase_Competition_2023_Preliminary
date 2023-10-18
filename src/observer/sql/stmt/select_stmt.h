@@ -49,8 +49,8 @@ public:
   FilterStmt *filter_stmt() const { return filter_stmt_; }
   // const std::vector<std::pair<std::string, Field>> &aggregation_func() const { return aggregation_func_; }
   const std::vector<Expression *> &group_by_fields_expressions() const { return group_by_fields_expressions_; }
-  const std::vector<Field>        &group_by_fields() const { return group_by_fields_; }
-  HavingFilterStmt                *having_filter_stmt() const { return having_filter_stmt_; }
+  // const std::vector<Field>        &group_by_fields() const { return group_by_fields_; }
+  HavingFilterStmt                          *having_filter_stmt() const { return having_filter_stmt_; }
   const std::vector<std::pair<Field, bool>> &order_by() const { return order_by_; }
   bool                                       has_aggregation() const { return has_aggregation_; }
 
@@ -66,9 +66,9 @@ private:
   // 这玩意是子查询用的, create的进入和退出记得处理一下, 记录已经打开的表的信息.
   inline static std::unordered_map<std::string, Table *> table_map_;
 
-  bool                                has_aggregation_ = false;
-  std::vector<Expression *>           group_by_fields_expressions_;
-  std::vector<Field>                  group_by_fields_;
+  bool                      has_aggregation_ = false;
+  std::vector<Expression *> group_by_fields_expressions_;
+  // std::vector<Field>                  group_by_fields_;
   HavingFilterStmt                   *having_filter_stmt_ = nullptr;
   std::vector<std::pair<Field, bool>> order_by_;  // (Field, is_asc)
 };
