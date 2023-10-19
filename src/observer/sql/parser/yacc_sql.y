@@ -97,6 +97,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 
 //标识tokens
 %token  SEMICOLON
+        AS
         CREATE
         DROP
         TABLE
@@ -115,7 +116,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
         FUNC_DATE
         FUNC_ROUND
         GROUP_BY
-        /* NULLABLE */
+        NULLABLE
         UNNULLABLE
         SHOW
         SYNC
@@ -188,6 +189,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
   std::vector<ConditionSqlNode> *   a_expr_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<std::pair<std::string, std::string>>* relation_to_alias;
   std::pair<std::vector<std::string>,ConditionSqlNode *> * join_list; //TODO：待检查是否已重构完成 // relateion_list + condition_list，
   std::pair<std::vector<std::string>,std::vector<ComplexValue>> * update_expr;
   char *                            string;
@@ -207,8 +209,10 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <number>              type
 /* %type <condition>           condition  //TODO：待检查是否已重构完成 */
+%type <string>              alias
 %type <value>               value
 %type <value>               value_with_MINUS
+%type <relation_to_alias>   rel_list_with_alias
 %type <number>              number
 /* %type <comp>                comp_op */
 %type <func_name>           func_name
@@ -733,45 +737,62 @@ update_expr_list:
         delete $4;
     }
     ;
-
+alias:
+    /* empty */ {
+      char *empty = (char*) malloc(1);
+      empty[0] = '\0';
+      $$ = empty;
+    }
+    | AS ID {
+      $$ = $2;
+    }
+    ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where order group_by having
+    SELECT select_attr FROM ID alias rel_list_with_alias where order group_by having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
         $$->selection.attributes.swap(*$2);
         delete $2;
       }
-      if ($5 != nullptr) {
-        LOG_INFO("rel_list not here");
-        $$->selection.relations.swap(*$5);
-        delete $5;
-      }
-      LOG_INFO("id:=%s", $4);
-      $$->selection.relations.push_back($4);
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
- 
+
       if ($6 != nullptr) {
-        $$->selection.conditions = $6;
+        $$->selection.relation_to_alias.swap(*$6);
+        delete $6;
       }
+      $$->selection.relation_to_alias.push_back(std::make_pair(std::string($4), std::string($5)));
+
+      // if ($5 != nullptr) {
+      //   LOG_INFO("rel_list not here");
+      //   $$->selection.relations.swap(*$5);
+      //   delete $5;
+      // }
+      // LOG_INFO("id:=%s", $4);
+      // $$->selection.relations.push_back($4);
+      // std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+
       if ($7 != nullptr) {
-        $$->selection.orders.swap(*$7);
+        $$->selection.conditions = $7;
+      }
+      if ($8 != nullptr) {
+        $$->selection.orders.swap(*$8);
         delete $7;
       }
 
-      if ($8 != nullptr) {
-        $$->selection.groups.swap(*$8);
+      if ($9 != nullptr) {
+        $$->selection.groups.swap(*$9);
         std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
-        delete $8;
+        delete $9;
       }
 
-      if ($9 != nullptr) {
+      if ($10 != nullptr) {
         // $$->selection.havings.swap(*$9);
-        $$->selection.havings = $9;
+        $$->selection.havings = $10;
         // delete $9;
       }
 
       free($4);
+      free($5);
     }
     | SELECT select_attr FROM join where order group_by having
     {
@@ -1050,7 +1071,11 @@ a_expr:
     } */
     ;
 c_expr:
-    LBRACE a_expr RBRACE {
+    | a_expr alias {
+      $$ = $1;
+      $$->alias = $2;
+    }
+    | LBRACE a_expr RBRACE {
       $$ = $2;
     } 
     | function {
@@ -1252,6 +1277,21 @@ a_expr_list:
 
       $$->emplace_back(*$2); // 最后再reverse顺序(例如select_attr)
       delete $2;
+    }
+    ;
+rel_list_with_alias:
+    /* empty */ {
+      $$ = nullptr;
+    }
+    | COMMA ID alias rel_list_with_alias {
+      if($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<std::pair<std::string, std::string>>;
+      }
+      $$->push_back(std::make_pair(std::string($2), std::string($3)));
+      free($2);
+      free($3);
     }
     ;
 rel_list:
