@@ -111,8 +111,11 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
         AGG_COUNT
         AGG_AVG
         AGG_SUM
+        FUNC_LENGTH
+        FUNC_DATE
+        FUNC_ROUND
         GROUP_BY
-        NULLABLE
+        /* NULLABLE */
         UNNULLABLE
         SHOW
         SYNC
@@ -321,7 +324,6 @@ exit_stmt:
       (void)yynerrs;  // 这么写为了消除yynerrs未使用的告警。如果你有更好的方法欢迎提PR
       $$ = new ParsedSqlNode(SCF_EXIT);
     };
-
 help_stmt:
     HELP {
       $$ = new ParsedSqlNode(SCF_HELP);
@@ -357,7 +359,6 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
       $$->drop_table.relation_name = $3;
       free($3);
     };
-
 show_tables_stmt:
     SHOW TABLES {
       $$ = new ParsedSqlNode(SCF_SHOW_TABLES);
@@ -371,7 +372,6 @@ show_index_stmt:
       free($4);
     }
     ;
-
 desc_table_stmt:
     DESC ID  {
       $$ = new ParsedSqlNode(SCF_DESC_TABLE);
@@ -1130,7 +1130,7 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
       $$->func = $1;
       $$->left_cond = $2;
     }
-    | func_LA '*' RBRACE {  
+    | func_LA '*' RBRACE {  // COUNT(*)
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FUNC_OR_AGG;
@@ -1142,6 +1142,27 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
       sub_attr->attr.relation_name = "";
       sub_attr->attr.attribute_name = "*";
       $$->left_cond = sub_attr;
+    }
+    | func_LA rel_attr COMMA value_with_MINUS RBRACE { // ROUND / DATE-FORMAT
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FUNC_OR_AGG;
+      $$->func = $1;
+
+      ConditionSqlNode *sub_attr = new ConditionSqlNode;
+      sub_attr->binary = false;
+      sub_attr->type = FIELD;
+      sub_attr->attr.relation_name = $2->relation_name;
+      sub_attr->attr.attribute_name = $2->attribute_name;
+      $$->left_cond = sub_attr;
+
+      ConditionSqlNode *func_arg = new ConditionSqlNode;
+      func_arg->binary = false;
+      func_arg->type = VALUE;
+      func_arg->value = new ValueExpr(*$4);
+      $$->right_cond = func_arg;
+
+      delete $4;
     }
     /* | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*) 好像有差别 // 会有移进规约冲突 因为a_expr也可以是NUMBER，所以在后面解决
       $$ = new ConditionSqlNode;
@@ -1177,6 +1198,15 @@ func_name:
     }
     | AGG_SUM {
       $$ = SUM_FUNC_ENUM;
+    }
+    | FUNC_LENGTH {
+      $$ = LENGTH_FUNC_NUM;
+    }
+    | FUNC_ROUND {
+      $$ = ROUND_FUNC_NUM;
+    }
+    | FUNC_DATE {
+      $$ = DATE_FUNC_NUM;
     }
     ;
 rel_attr:

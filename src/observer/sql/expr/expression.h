@@ -553,14 +553,7 @@ private:
 class FunctionExpr : public Expression
 {
 public:
-  enum class FuncType
-  {
-    MAX,
-    MIN,
-  };
-
-public:
-  FunctionExpr(FuncType func_type, std::vector<std::unique_ptr<Expression>> &expr_list);
+  FunctionExpr(FuncName func_type, std::vector<std::unique_ptr<Expression>> &expr_list);
   FunctionExpr(const FunctionExpr &expr)            = delete;
   FunctionExpr &operator=(const FunctionExpr &expr) = delete;
 
@@ -568,22 +561,18 @@ public:
 
   ExprType type() const override { return ExprType::FUNCTION; }
 
-  AttrType value_type() const override
-  {
-    // 在子表达式真正执行之前，是无法知道select的结果集的类型的
-    return AttrType::UNDEFINED;
-  }
+  AttrType value_type() const override;
 
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
-  FuncType func_type() const { return func_type_; }
+  FuncName func_type() const { return func_type_; }
 
   std::vector<std::unique_ptr<Expression>> &expr_list() { return expr_list_; }
 
   Expression *clone() const override;
 
 private:
-  FuncType                                 func_type_;
+  FuncName                                 func_type_;
   std::vector<std::unique_ptr<Expression>> expr_list_;
 };
 

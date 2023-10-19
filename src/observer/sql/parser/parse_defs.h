@@ -103,6 +103,9 @@ enum FuncName
   SUM_FUNC_ENUM,    ///< "SUM"
   MAX_FUNC_ENUM,    ///< "MAX"
   MIN_FUNC_ENUM,    ///< "MIN"
+  LENGTH_FUNC_NUM,
+  ROUND_FUNC_NUM,
+  DATE_FUNC_NUM,
   NO_FUNC_ENUM
 };
 
