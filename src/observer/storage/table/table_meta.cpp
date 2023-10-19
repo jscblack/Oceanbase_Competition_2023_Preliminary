@@ -125,6 +125,23 @@ const std::pair<const FieldMeta *, int> TableMeta::trx_fields() const
 }
 
 const FieldMeta *TableMeta::field(int index) const { return &fields_[index]; }
+
+// TODO 根据name找index
+int TableMeta::find_field_index_by_name(const char *name) const
+{
+  if (nullptr == name) {
+    return -1;
+  }
+  int i = 0;
+  for (const FieldMeta &field : fields_) {
+    if (0 == strcmp(field.name(), name)) {
+      return i;
+    }
+    i++;
+  }
+  return -1;
+}
+
 const FieldMeta *TableMeta::field(const char *name) const
 {
   if (nullptr == name) {

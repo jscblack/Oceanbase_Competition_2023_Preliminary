@@ -79,7 +79,9 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(VALUE_DATE_INVALID)          \
   DEFINE_RC(VALUE_CAST_FAILED)           \
   DEFINE_RC(VALUE_NOT_NUMBER)            \
-  DEFINE_RC(LOGBUF_FULL)
+  DEFINE_RC(SUBQUERY_EXEC_FAILED)        \
+  DEFINE_RC(LOGBUF_FULL)                 \
+  DEFINE_RC(EXPR_TYPE_MISMATCH)
 
 enum class RC
 {

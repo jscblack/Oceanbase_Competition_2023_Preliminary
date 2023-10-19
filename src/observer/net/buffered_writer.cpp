@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <algorithm>
+#include <fcntl.h>
 #include <sys/errno.h>
 #include <unistd.h>
 
@@ -93,11 +94,11 @@ RC BufferedWriter::flush()
 
 RC BufferedWriter::clear()
 {
-  if (fd_ < 0) {
-    return RC::INVALID_ARGUMENT;
-  }
-
-  buffer_.forward(buffer_.size());
+  int tmp_fd = fd_;
+  fd_        = ::open("/dev/null", O_WRONLY);
+  flush();
+  ::close(fd_);
+  fd_ = tmp_fd;
   return RC::SUCCESS;
 }
 

@@ -52,6 +52,7 @@ public:
   explicit Value(float val);
   explicit Value(bool val);
   explicit Value(const char *s, int len = 0);
+  Value make_null() const;
 
   Value(const Value &other)            = default;
   Value &operator=(const Value &other) = default;
@@ -87,7 +88,7 @@ public:
   float       get_float() const;
   std::string get_string() const;
   bool        get_boolean() const;
-  bool        is_null() const { return attr_type_ == NONE; }
+  bool        is_null() const { return attr_type_ == AttrType::NONE; }
 
 public:
   /**
@@ -102,7 +103,7 @@ public:
   RC auto_cast(AttrType field_type) const;
 
 private:
-  AttrType attr_type_ = UNDEFINED;
+  AttrType attr_type_ = AttrType::UNDEFINED;
   int      length_    = 0;
 
   union

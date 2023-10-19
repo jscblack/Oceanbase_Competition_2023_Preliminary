@@ -27,8 +27,8 @@ public:
 
   virtual ~ProjectPhysicalOperator() = default;
 
-  void add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions) {}
-  void add_projection(const Table *table, const FieldMeta *field);
+  void add_expressions(std::vector<std::unique_ptr<Expression>> &expressions);
+  // void add_projection(const Table *table, const FieldMeta *field);
 
   PhysicalOperatorType type() const override { return PhysicalOperatorType::PROJECT; }
 

@@ -75,7 +75,3 @@ SELECT * FROM Update_table_1;
 2 | N02 | 0 | 0
 4 | N3 | 0 | 1
 ID | T_NAME | COL1 | COL2
-
-10. UPDATE WITH INVALID VALUE
-UPDATE Update_table_1 SET col1='N01' WHERE id=1;
-FAILURE

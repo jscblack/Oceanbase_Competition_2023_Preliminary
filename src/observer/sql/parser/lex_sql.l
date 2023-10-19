@@ -77,8 +77,13 @@ QUOTE            [\'\"]
 {WHITE_SAPCE}                                        // ignore whitespace
 \n                                                   ;
 
-{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
-{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+"+" |
+"-" |
+"*" |
+"/"                                     { return yytext[0]; }
+
+{DIGIT}+                                yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
+{DIGIT}+{DOT}{DIGIT}+                   yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
 
 ";"                                     RETURN_TOKEN(SEMICOLON);   
 {DOT}                                   RETURN_TOKEN(DOT);
@@ -91,6 +96,7 @@ MIN                                     RETURN_TOKEN(AGG_MIN);
 COUNT                                   RETURN_TOKEN(AGG_COUNT);
 AVG                                     RETURN_TOKEN(AGG_AVG);
 SUM                                     RETURN_TOKEN(AGG_SUM);
+GROUP{WHITE_SAPCE}+BY                   RETURN_TOKEN(GROUP_BY);
 CREATE                                  RETURN_TOKEN(CREATE);
 DROP                                    RETURN_TOKEN(DROP);
 TABLE                                   RETURN_TOKEN(TABLE);
@@ -103,7 +109,9 @@ SELECT                                  RETURN_TOKEN(SELECT);
 CALC                                    RETURN_TOKEN(CALC);
 FROM                                    RETURN_TOKEN(FROM);
 WHERE                                   RETURN_TOKEN(WHERE);
+HAVING                                  RETURN_TOKEN(HAVING);
 AND                                     RETURN_TOKEN(AND);
+OR                                      RETURN_TOKEN(OR);
 INSERT                                  RETURN_TOKEN(INSERT);
 INTO                                    RETURN_TOKEN(INTO);
 VALUES                                  RETURN_TOKEN(VALUES);
@@ -136,10 +144,9 @@ INNER{WHITE_SAPCE}+JOIN                 RETURN_TOKEN(INNER_JOIN);
 NOT{WHITE_SAPCE}+IN                     RETURN_TOKEN(NOT_IN); 
 IN                                      RETURN_TOKEN(IN);     
 ORDER{WHITE_SAPCE}+BY                   RETURN_TOKEN(ORDER_BY);
-{ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
+{ID}                                    yylval->string=strdup(yytext); LOG_DEBUG("ID=%s",yylval->string); RETURN_TOKEN(ID);
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);
-
 ","                                     RETURN_TOKEN(COMMA);
 "="                                     RETURN_TOKEN(EQ);
 "<="                                    RETURN_TOKEN(LE);
@@ -149,10 +156,7 @@ ORDER{WHITE_SAPCE}+BY                   RETURN_TOKEN(ORDER_BY);
 ">="                                    RETURN_TOKEN(GE);
 ">"                                     RETURN_TOKEN(GT);
 
-"+" |
-"-" |
-"*" |
-"/"                                     { return yytext[0]; }
+
 \"[^"]*\"                               yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 '[^']*\'                                yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 

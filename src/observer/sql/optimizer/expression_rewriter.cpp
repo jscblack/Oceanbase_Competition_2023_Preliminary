@@ -13,14 +13,14 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/optimizer/expression_rewriter.h"
-#include "sql/optimizer/comparison_simplification_rule.h"
-#include "sql/optimizer/conjunction_simplification_rule.h"
 #include "common/log/log.h"
+#include "sql/optimizer/comparison_simplification_rule.h"
+#include "sql/optimizer/logicalcalc_simplification_rule.h"
 
 ExpressionRewriter::ExpressionRewriter()
 {
   expr_rewrite_rules_.emplace_back(new ComparisonSimplificationRule);
-  expr_rewrite_rules_.emplace_back(new ConjunctionSimplificationRule);
+  expr_rewrite_rules_.emplace_back(new LogicalCalcSimplificationRule);
 }
 
 RC ExpressionRewriter::rewrite(std::unique_ptr<LogicalOperator> &oper, bool &change_made)
@@ -111,21 +111,24 @@ RC ExpressionRewriter::rewrite_expression(std::unique_ptr<Expression> &expr, boo
       }
     } break;
 
-    case ExprType::CONJUNCTION: {
-      auto                                      conjunction_expr = static_cast<ConjunctionExpr *>(expr.get());
-      std::vector<std::unique_ptr<Expression>> &children         = conjunction_expr->children();
-      for (std::unique_ptr<Expression> &child_expr : children) {
-        bool sub_change_made = false;
-        rc                   = rewrite_expression(child_expr, sub_change_made);
-        if (rc != RC::SUCCESS) {
-
-          LOG_WARN("failed to rewriter conjunction sub expression. rc=%s", strrc(rc));
-          return rc;
-        }
-
-        if (sub_change_made && !change_made) {
-          change_made = true;
-        }
+    case ExprType::LOGICALCALC: {
+      auto                         logical_calc_expr = static_cast<LogicalCalcExpr *>(expr.get());
+      std::unique_ptr<Expression> &left_expr         = logical_calc_expr->left();
+      std::unique_ptr<Expression> &right_expr        = logical_calc_expr->right();
+      bool                         left_change_made  = false;
+      bool                         right_change_made = false;
+      rc                                             = rewrite_expression(left_expr, left_change_made);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewriter logical calc left expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      rc = rewrite_expression(right_expr, right_change_made);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to rewriter logical calc right expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      if (left_change_made || right_change_made) {
+        change_made = true;
       }
     } break;
 
