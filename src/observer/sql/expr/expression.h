@@ -665,6 +665,9 @@ public:
       case ArithOp::POSITIVE: {
         return left_alias;
       } break;
+      case ArithOp::PAREN: {
+        return "(" + left_alias + ")";
+      } break;
       default: {
         ASSERT(false, "ArithmeticExpr::const std::string alias(bool with_table_name) UNREACHABLE!!!");
         return "";

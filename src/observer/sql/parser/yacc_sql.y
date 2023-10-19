@@ -46,7 +46,7 @@ ConditionSqlNode *create_arith_condition(ArithOp type, ConditionSqlNode *left_co
   ConditionSqlNode *ret = new ConditionSqlNode;
   ret->type = ARITH;
   ret->arith = type;
-  if(type == ArithOp::NEGATIVE || type == ArithOp::POSITIVE) {
+  if(type == ArithOp::NEGATIVE || type == ArithOp::POSITIVE || type == ArithOp::PAREN) {
     ret->binary = false;
     ret->left_cond = left_cond;
   } else {
@@ -1049,7 +1049,7 @@ a_expr:
     ;
 c_expr:
     LBRACE a_expr RBRACE {
-      $$ = $2;
+      $$ = create_arith_condition(PAREN, $2, nullptr);
     } 
     | function {
       $$ = $1;

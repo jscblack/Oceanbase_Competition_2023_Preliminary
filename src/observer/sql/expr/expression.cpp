@@ -983,6 +983,14 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
         value.set_float(left_value.get_float());
       }
     } break;
+
+    case ArithOp::PAREN: {
+      if (target_type == AttrType::INTS) {
+        value.set_int(left_value.get_int());
+      } else {
+        value.set_float(left_value.get_float());
+      }
+    }
     default: {
       rc = RC::INTERNAL;
       LOG_WARN("unsupported arithmetic type. %d", arithmetic_type_);
