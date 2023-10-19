@@ -292,7 +292,6 @@ RC AggregatePhysicalOperator::next()
   return_results_idx++;
 
   // LOG_DEBUG("========== return_results_idx = %d ==========", return_results_idx);
-
   if (0 <= return_results_idx && return_results_idx < return_results_.size()) {
     return RC::SUCCESS;
   } else {

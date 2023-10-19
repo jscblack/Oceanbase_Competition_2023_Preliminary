@@ -24,7 +24,7 @@ const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates",
 
 const char *attr_type_to_string(AttrType type)
 {
-  if (type >= AttrType::UNDEFINED && type <= AttrType::DATES) {
+  if (type >= AttrType::UNDEFINED && type <= AttrType::TEXTS) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
@@ -111,7 +111,7 @@ void Value::set_boolean(bool val)
   num_value_.bool_value_ = val;
   length_                = sizeof(val);
 }
-void Value::set_text(const char *s, int len /*= 4096*/)
+void Value::set_text(const char *s, int len /*= 65535*/)
 {
   attr_type_ = AttrType::TEXTS;
   if (len > 0) {
@@ -199,7 +199,7 @@ std::string Value::to_string() const
       os << num_value_.int_value_;
     } break;
     case AttrType::FLOATS: {
-      os << common::double_to_str(num_value_.float_value_);
+      os << common::float_to_str(num_value_.float_value_);
     } break;
     case AttrType::BOOLEANS: {
       os << num_value_.bool_value_;
@@ -501,7 +501,7 @@ RC Value::number_to_str() const
     bypass_const_p->set_string(tmp_str.c_str(), tmp_str.length());
     return RC::SUCCESS;
   } else if (bypass_const_p->attr_type() == AttrType::FLOATS) {
-    std::string tmp_str = common::double_to_str(bypass_const_p->get_float());
+    std::string tmp_str = common::float_to_str(bypass_const_p->get_float());
     bypass_const_p->set_string(tmp_str.c_str(), tmp_str.length());
     return RC::SUCCESS;
 
@@ -537,8 +537,11 @@ RC Value::auto_cast(AttrType field_type) const
   RC       rc             = RC::SUCCESS;
 
   if (value_type == AttrType::CHARS && field_type == AttrType::TEXTS) {
+    if (bypass_const_p->length() > 65535) {
+      return RC::VALUE_CAST_FAILED;
+    }
     bypass_const_p->attr_type_ = AttrType::TEXTS;
-    bypass_const_p->length_    = 4096;
+    bypass_const_p->length_    = 65535;
     return RC::SUCCESS;
   }
 

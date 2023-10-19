@@ -428,7 +428,7 @@ nullable_marker:
     {
       $$ = false;
     }
-    | NULLABLE
+    | NULL_T
     {
       $$ = true;
     }
@@ -470,13 +470,13 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type nullable_marker LBRACE number RBRACE 
+    ID type LBRACE number RBRACE nullable_marker
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = $5;
-      $$->nullable=$3;
+      $$->length = $4;
+      $$->nullable=$6;
       free($1);
     }
     | ID type nullable_marker
@@ -489,7 +489,7 @@ attr_def:
         $$->length = 10;//XXXX-XX-XX
       }
       if ($$->type == TEXTS) {
-        $$->length = 4096;
+        $$->length = 65535;
       }
       $$->nullable=$3;
       free($1);

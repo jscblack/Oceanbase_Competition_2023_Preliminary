@@ -57,18 +57,18 @@ RC SortPhysicalOperator::open(Trx *trx)
     return true;
   };
 
-  for (auto i = sorted_tuples_.begin(); i < sorted_tuples_.end() - 1; i++) {
-    bool          res   = cmp(*i, *(i + 1));
-    Field        &field = orders_[0].first;
-    TupleCellSpec spec(field.table_name(), field.field_name(), field.field_name());
-    Value         v_a, v_b;
-    (*i)->find_cell(spec, v_a);
-    (*i)->find_cell(spec, v_b);
+  // for (auto i = sorted_tuples_.begin(); i < sorted_tuples_.end() - 1; i++) {
+  //   bool          res   = cmp(*i, *(i + 1));
+  //   Field        &field = orders_[0].first;
+  //   TupleCellSpec spec(field.table_name(), field.field_name(), field.field_name());
+  //   Value         v_a, v_b;
+  //   (*i)->find_cell(spec, v_a);
+  //   (*i)->find_cell(spec, v_b);
 
-    LOG_INFO("------------%d",res);
-  }
+  //   LOG_INFO("------------%d",res);
+  // }
 
-  auto cmp_test = [&](const Tuple *a, const Tuple *b) -> bool { return true; };
+  // auto cmp_test = [&](const Tuple *a, const Tuple *b) -> bool { return true; };
 
   std::sort(sorted_tuples_.begin(), sorted_tuples_.end(), cmp);
 

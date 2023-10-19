@@ -298,10 +298,10 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     rc = compare_value(left_value, right_values, bool_value);
   } else {
     // 需要在这里处理一下子查询返回不是一个的情况，因为是一个value的比较
-    if (left_->type() == ExprType::SELECT && left_values.size() != 1) {
+    if (left_->type() == ExprType::SELECT && left_values.size() > 1) {
       return RC::SUBQUERY_EXEC_FAILED;
     }
-    if (right_->type() == ExprType::SELECT && right_values.size() != 1) {
+    if (right_->type() == ExprType::SELECT && right_values.size() > 1) {
       return RC::SUBQUERY_EXEC_FAILED;
     }
     rc = compare_value(left_value, right_value, bool_value);
@@ -1253,13 +1253,15 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
   }
 
   // 检查是否均为null
-  bool all_null = true;
+  bool     all_null = true;
+  AttrType attr_type;
   for (auto t : tuples) {
     Value cur_value;
     // t->cell_at(idx, cur_value);
     t->find_cell(tcs, cur_value);
     if (!cur_value.is_null()) {
-      all_null = false;
+      attr_type = cur_value.attr_type();
+      all_null  = false;
       break;
     }
   }
@@ -1270,9 +1272,7 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
 
   int   cnt = 0;
   Value attr_value;
-  // tuples[0]->cell_at(idx, attr_value);
-  tuples[0]->find_cell(tcs, attr_value);
-  AttrType attr_type = attr_value.attr_type();
+
   if (attr_type == INTS) {
     int sum = 0;
     for (auto t : tuples) {
@@ -1335,13 +1335,15 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
   }
 
   // 检查是否均为null
-  bool all_null = true;
+  bool     all_null = true;
+  AttrType attr_type;
   for (auto t : tuples) {
     Value cur_value;
     // t->cell_at(idx, cur_value);
     t->find_cell(tcs, cur_value);
     if (!cur_value.is_null()) {
-      all_null = false;
+      all_null  = false;
+      attr_type = cur_value.attr_type();
       break;
     }
   }
@@ -1351,9 +1353,6 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
   }
 
   Value attr_value;
-  // tuples[0]->cell_at(idx, attr_value);
-  tuples[0]->find_cell(tcs, attr_value);
-  AttrType attr_type = attr_value.attr_type();
   if (attr_type == INTS) {
     int sum = 0;
     for (auto t : tuples) {
