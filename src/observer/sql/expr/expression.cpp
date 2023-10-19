@@ -621,8 +621,8 @@ RC SelectExpr::recover_expr(Expression *&rewrited_expr, const Tuple *tuple)
       // 从tuples_里面找到这个tuple
       Expression *tmp_ptr = left_expr;
       left_expr           = recover_table[left_expr];
-      comparison_expr->right().release();
-      comparison_expr->right().reset(left_expr);
+      comparison_expr->left().release();
+      comparison_expr->left().reset(left_expr);
       recover_table.erase(tmp_ptr);
     }
     if (right_expr->type() == ExprType::VALUE && recover_table.find(right_expr) != recover_table.end() &&

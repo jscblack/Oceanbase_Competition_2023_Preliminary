@@ -1020,9 +1020,10 @@ a_expr:
       $$->comp = EXISTS_ENUM;
 
       ConditionSqlNode * sub = new ConditionSqlNode;
-      $$->binary = false;
-      $$->type = SUB_SELECT;
-      $$->select = &($3->selection);
+      sub->binary = false;
+      sub->type = SUB_SELECT;
+      sub->select = &($3->selection);
+      
       $$->left_cond = sub;
     }
     | NOT_EXISTS LBRACE select_stmt RBRACE {
@@ -1033,9 +1034,10 @@ a_expr:
       $$->comp = NOT_EXISTS_ENUM;
 
       ConditionSqlNode * sub = new ConditionSqlNode;
-      $$->binary = false;
-      $$->type = SUB_SELECT;
-      $$->select = &($3->selection);
+      sub->binary = false;
+      sub->type = SUB_SELECT;
+      sub->select = &($3->selection);
+      
       $$->left_cond = sub;
     } 
     /* | a_expr comp_op a_expr %prec COMPARE { // 正规fix是需要展开正规comp_op, 否则无法知道优先级
