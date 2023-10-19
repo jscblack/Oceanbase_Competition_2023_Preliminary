@@ -112,11 +112,11 @@ template <class T>
 void val_to_str(const T &val, std::string &str, std::ios_base &(*radix)(std::ios_base &) = std::dec);
 
 /**
- * Double to string
+ * Float to string
  * @param v
  * @return
  */
-std::string double_to_str(double v);
+std::string float_to_str(float v);
 
 bool is_blank(const char *s);
 

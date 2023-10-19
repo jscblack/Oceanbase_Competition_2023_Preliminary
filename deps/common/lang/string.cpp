@@ -266,11 +266,11 @@ char *substr(const char *s, int n1, int n2)
 }
 
 /**
- * double to string
+ * float to string
  * @param v
  * @return
  */
-std::string double_to_str(double v)
+std::string float_to_str(float v)
 {
   char buf[256];
   snprintf(buf, sizeof(buf), "%.2f", v);

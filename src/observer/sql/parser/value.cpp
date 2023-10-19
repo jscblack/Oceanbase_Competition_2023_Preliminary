@@ -199,7 +199,7 @@ std::string Value::to_string() const
       os << num_value_.int_value_;
     } break;
     case AttrType::FLOATS: {
-      os << common::double_to_str(num_value_.float_value_);
+      os << common::float_to_str(num_value_.float_value_);
     } break;
     case AttrType::BOOLEANS: {
       os << num_value_.bool_value_;
@@ -501,7 +501,7 @@ RC Value::number_to_str() const
     bypass_const_p->set_string(tmp_str.c_str(), tmp_str.length());
     return RC::SUCCESS;
   } else if (bypass_const_p->attr_type() == AttrType::FLOATS) {
-    std::string tmp_str = common::double_to_str(bypass_const_p->get_float());
+    std::string tmp_str = common::float_to_str(bypass_const_p->get_float());
     bypass_const_p->set_string(tmp_str.c_str(), tmp_str.length());
     return RC::SUCCESS;
 

@@ -50,7 +50,7 @@ RC UpdatePhysicalOperator::next()
 
   PhysicalOperator *child = children_[0].get();
 
-  bool value_got = false;// 标记是否已经拿到了select中的值
+  bool value_got = false;  // 标记是否已经拿到了select中的值
 
   while (RC::SUCCESS == (rc = child->next())) {
     Tuple *tuple = child->current_tuple();  // 拿上来每一行
