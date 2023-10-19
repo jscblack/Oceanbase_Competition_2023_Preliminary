@@ -292,7 +292,9 @@ RC AggregatePhysicalOperator::next()
   return_results_idx++;
 
   // LOG_DEBUG("========== return_results_idx = %d ==========", return_results_idx);
-
+  if (return_results_.empty()) {
+    return RC::SUBQUERY_EXEC_FAILED;  // 抛出给上层，并清空缓冲区
+  }
   if (0 <= return_results_idx && return_results_idx < return_results_.size()) {
     return RC::SUCCESS;
   } else {
