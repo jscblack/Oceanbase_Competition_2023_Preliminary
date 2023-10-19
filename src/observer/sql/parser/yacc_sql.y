@@ -205,6 +205,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 %type <number>              type
 /* %type <condition>           condition  //TODO：待检查是否已重构完成 */
 %type <value>               value
+%type <value>               value_with_MINUS
 %type <number>              number
 /* %type <comp>                comp_op */
 %type <func_name>           func_name
@@ -213,8 +214,9 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
 %type <insert_list>         insert_list
-%type <value_list>          value_list
+/* %type <value_list>          value_list */
 %type <value_list>          value_list_LA
+%type <value_list>          value_list_with_MINUS
 %type <a_expr>              value_list_LALR
 %type <boolean>             unique_marker
 %type <boolean>             asc_or_desc
@@ -504,7 +506,7 @@ type:
     | DATE_T  { $$=DATES; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
-    INSERT INTO ID VALUES LBRACE value value_list RBRACE insert_list
+    INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list
     {
       $$ = new ParsedSqlNode(SCF_INSERT);
       $$->insertion.relation_name = $3;
@@ -535,7 +537,7 @@ insert_list:
     {
       $$ = nullptr;
     }
-    | COMMA LBRACE value value_list RBRACE insert_list {
+    | COMMA LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list {
       if ($6 != nullptr) {
         $$ = $6;
       } else {
@@ -558,8 +560,53 @@ insert_list:
       // delete $3;
     }
     ;
-value_list:
+
+value_list_with_MINUS: // 不可被用作表达式中
     /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA value_with_MINUS value_list_with_MINUS  { 
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<Value>;
+      }
+      $$->emplace_back(*$2);
+      delete $2;
+    }
+    ;
+value_with_MINUS:
+    NULL_T {
+      $$ = new Value();
+      $$->set_type(AttrType::NONE);
+    }
+    |NUMBER {
+      $$ = new Value((int)$1);
+      @$ = @1;
+    }
+    | '-' NUMBER {
+      $$ = new Value(-(int)$2);
+      @$ = @2;
+    }
+    |FLOAT {
+      $$ = new Value((float)$1);
+      @$ = @1;
+    }
+    |DATE {
+      char *tmpDate = common::substr($1,1,strlen($1)-2);/*trim the*/
+      $$ = new Value(tmpDate);
+      free(tmpDate);
+    }
+    |SSS {
+      char *tmp = common::substr($1,1,strlen($1)-2);
+      $$ = new Value(tmp);
+      free(tmp);
+      free($1);
+    }
+    ;
+/* value_list:
+    // empty 
     {
       $$ = nullptr;
     }
@@ -572,7 +619,7 @@ value_list:
       $$->emplace_back(*$2);
       delete $2;
     }
-    ;
+    ; */
 value:
     NULL_T {
       $$ = new Value();
@@ -599,6 +646,7 @@ value:
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
+      free($1);
     }
     ;
     
@@ -695,9 +743,11 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       if ($5 != nullptr) {
+        LOG_INFO("rel_list not here");
         $$->selection.relations.swap(*$5);
         delete $5;
       }
+      LOG_INFO("id:=%s", $4);
       $$->selection.relations.push_back($4);
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
  
@@ -962,6 +1012,32 @@ a_expr:
     | a_expr IN a_expr {
       $$ = create_compare_condition(IN_ENUM, $1, $3);
     }
+    | EXISTS LBRACE select_stmt RBRACE {
+      // ASSERT(SUB_SELECT == $2->type, "EXIST(a_expr), a_expr must be sub_select");
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = COMP;
+      $$->comp = EXISTS_ENUM;
+
+      ConditionSqlNode * sub = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = SUB_SELECT;
+      $$->select = &($3->selection);
+      $$->left_cond = sub;
+    }
+    | NOT_EXISTS LBRACE select_stmt RBRACE {
+      // ASSERT(SUB_SELECT == $2->type, "NOT EXIST(a_expr), a_expr must be sub_select");
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = COMP;
+      $$->comp = NOT_EXISTS_ENUM;
+
+      ConditionSqlNode * sub = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = SUB_SELECT;
+      $$->select = &($3->selection);
+      $$->left_cond = sub;
+    } 
     /* | a_expr comp_op a_expr %prec COMPARE { // 正规fix是需要展开正规comp_op, 否则无法知道优先级
       $$ = new ConditionSqlNode;
       $$->binary = true;
@@ -977,20 +1053,6 @@ c_expr:
     } 
     | function {
       $$ = $1;
-    }
-    | EXISTS a_expr {
-      ASSERT(SUB_SELECT == $2->type, "EXIST(a_expr), a_expr must be sub_select");
-      $$->binary = false;
-      $$->type = COMP;
-      $$->comp = EXISTS_ENUM;
-      $$->left_cond = $2;
-    }
-    | NOT_EXISTS a_expr {
-      ASSERT(SUB_SELECT == $2->type, "NOT EXIST(a_expr), a_expr must be sub_select");
-      $$->binary = false;
-      $$->type = COMP;
-      $$->comp = NOT_EXISTS_ENUM;
-      $$->left_cond = $2;
     }
     | value_list_LALR %prec UMINUS {
       $$ = $1;
@@ -1450,6 +1512,7 @@ load_data_stmt:
       $$->load_data.file_name = tmp_file_name;
       free($7);
       free(tmp_file_name);
+      free($4);
     }
     ;
 

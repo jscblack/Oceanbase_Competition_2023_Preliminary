@@ -82,8 +82,8 @@ QUOTE            [\'\"]
 "*" |
 "/"                                     { return yytext[0]; }
 
-[\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
-[\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+{DIGIT}+                                yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
+{DIGIT}+{DOT}{DIGIT}+                   yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
 
 ";"                                     RETURN_TOKEN(SEMICOLON);   
 {DOT}                                   RETURN_TOKEN(DOT);
@@ -144,7 +144,7 @@ INNER{WHITE_SAPCE}+JOIN                 RETURN_TOKEN(INNER_JOIN);
 NOT{WHITE_SAPCE}+IN                     RETURN_TOKEN(NOT_IN); 
 IN                                      RETURN_TOKEN(IN);     
 ORDER{WHITE_SAPCE}+BY                   RETURN_TOKEN(ORDER_BY);
-{ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
+{ID}                                    yylval->string=strdup(yytext); LOG_DEBUG("ID=%s",yylval->string); RETURN_TOKEN(ID);
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);
 ","                                     RETURN_TOKEN(COMMA);

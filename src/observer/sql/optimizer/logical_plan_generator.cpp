@@ -273,6 +273,8 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
   unique_ptr<PredicateLogicalOperator> predicate_oper;
   if (filter_stmt && filter_stmt->filter_expr()) {
     unique_ptr<Expression> filter_expr(filter_stmt->filter_expr()->clone());
+    // unique_ptr<Expression> filter_expr(filter_stmt->filter_expr());
+
     predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(filter_expr)));
   }
 

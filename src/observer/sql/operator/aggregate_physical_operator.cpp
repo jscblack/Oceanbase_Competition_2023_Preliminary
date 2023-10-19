@@ -172,7 +172,7 @@ RC AggregatePhysicalOperator::open(Trx *trx)
       } else if (fields_expressions_[i]->type() == ExprType::AGGREGATION) {
         fields_expressions_[i]->get_value(it->second, v);
         result_value.emplace_back(v);
-      } else if(fields_expressions_[i]->type() == ExprType::ARITHMETIC) {
+      } else if (fields_expressions_[i]->type() == ExprType::ARITHMETIC) {
         fields_expressions_[i]->get_value(it->second, v);
         result_value.emplace_back(v);
       } else {
