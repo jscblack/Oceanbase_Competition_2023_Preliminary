@@ -24,7 +24,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/stmt.h"
 #include <regex>
-
+#include <cmath>
+#include <ctime>
 using namespace std;
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
@@ -124,7 +125,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC rc = RC::SUCCESS;
+  RC  rc = RC::SUCCESS;
   int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
   result = false;
   if (left.is_null() || right.is_null()) {
@@ -822,6 +823,33 @@ FunctionExpr::FunctionExpr(FuncName func_type, std::vector<std::unique_ptr<Expre
   }
 }
 
+AttrType FunctionExpr::value_type() const
+{
+  switch (func_type_) {
+    case FuncName::LENGTH_FUNC_NUM: {
+      return AttrType::INTS;
+    } break;
+    case FuncName::ROUND_FUNC_NUM: {
+      return AttrType::FLOATS;  // FIXME 如果是整数调用ROUND呢？
+    } break;
+    case FuncName::DATE_FUNC_NUM: {
+      return AttrType::CHARS;
+    } break;
+    case FuncName::MIN_FUNC_ENUM:
+    case FuncName::MAX_FUNC_ENUM: {
+      if (expr_list_.size() > 0) {
+        Expression *expr = expr_list_[0].get();
+        return expr->value_type();
+      } else {
+        return AttrType::UNDEFINED;
+      }
+    }
+    default: {
+      return AttrType::UNDEFINED;
+    } break;
+  }
+}
+
 RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   RC rc = RC::SUCCESS;
@@ -830,24 +858,70 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     Expression *expr = expr_list_[0].get();
 
     Value expr_value;
-    Value ret_value;
-
     rc = expr->get_value(tuple, expr_value, trx);
     if (OB_FAIL(rc)) {
       return rc;
     }
 
+    Value ret_value;
     ret_value.set_type(AttrType::INTS);
     ret_value.set_int(expr_value.get_string().size());
     return rc;
   }
 
   if (func_type_ == FuncName::ROUND_FUNC_NUM) {
-    ASSERT(expr_list_.size() == 2, "Function(Round) must have exact two arguement");
+    ASSERT(expr_list_.size() == 2 || expr_list_.size() == 1, "Function(Round) must have exact two arguement");
+    Expression *float_expr = expr_list_[0].get();
+    Value       float_number;
+    rc = float_expr->get_value(tuple, float_number, trx);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+
+    int round_digit = 0;  // 舍入位数
+    if (expr_list_.size() == 2) {
+      Value round_number;
+      rc          = expr_list_[1]->get_value(tuple, round_number, trx);
+      round_digit = round_number.get_int();
+      if (round_digit < 0) {
+        return RC::INTERNAL;
+      }
+    }
+
+    Value ret_value;
+    // FIXME 不太清楚round(x,0)的情况是否要视作整数
+    ret_value.set_type(AttrType::FLOATS);
+    ret_value.set_float(std::roundf(float_number.get_float() * std::pow(static_cast<float>(10), round_digit)) /
+                        std::pow(static_cast<float>(10), round_digit));
+    return rc;
   }
 
   if (func_type_ == FuncName::DATE_FUNC_NUM) {
     ASSERT(expr_list_.size() == 2, "Function(date-format) must have exact two arguement");
+    Expression *date_expr = expr_list_[0].get();
+    Value       date_str;
+    rc = date_expr->get_value(tuple, date_str, trx);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+    Expression *format_expr = expr_list_[0].get();
+    Value       format_str;
+    rc = format_expr->get_value(tuple, format_str, trx);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+
+    int year, month, day;
+    sscanf(date_str.get_string().c_str(), "%d-%d-%d", &year, &month, &day);
+    struct tm date = {.tm_mday = day, .tm_mon = month - 1, .tm_year = year - 1900};
+
+    char *tmp = (char *)malloc(16);  // 随便一个size
+    strftime(tmp, 16, format_str.get_string().c_str(), &date);
+
+    Value ret_value;
+    ret_value.set_type(AttrType::CHARS);
+    ret_value.set_string(tmp, 16);
+    return rc;
   }
 
   // 下面是MAX和MIN此前的旧代码

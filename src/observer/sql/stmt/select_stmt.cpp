@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/filter_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include <algorithm>
 
 SelectStmt::~SelectStmt()
 {
@@ -244,6 +245,8 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       return RC::INVALID_ARGUMENT;
     } break;
   }
+
+  expr->set_alias(cond->alias);  // 默认为""
   return rc;
 }
 
@@ -286,10 +289,23 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect tables in `from` statement
-  std::vector<Table *>                     tables;
-  std::unordered_map<std::string, Table *> table_map;
-  for (size_t i = 0; i < select_sql.relations.size(); i++) {
-    const char *table_name = select_sql.relations[i].c_str();
+  std::vector<Table *>                                    tables;
+  std::unordered_map<std::string, Table *>                table_map;
+  std::unordered_map<std::string, std::string>            alias_to_tablename;
+  const std::vector<std::pair<std::string, std::string>> &relation_to_alias = select_sql.relation_to_alias;
+  for (size_t i = 0; i < select_sql.relation_to_alias.size(); i++) {
+    const char *table_name            = select_sql.relation_to_alias[i].first.c_str();
+    auto        find_table_same_level = [&](std::pair<std::string, std::string> it) -> bool {
+      return relation_to_alias[i].second == it.first;
+    };
+
+    if (alias_to_tablename.count(select_sql.relation_to_alias[i].second) != 0 ||
+        std::find_if(relation_to_alias.begin(), relation_to_alias.end(), find_table_same_level) !=
+            std::end(relation_to_alias)) {
+      return RC::SCHEMA_TABLE_EXIST;  // 表名的alias重复了, 或者是与同层级的table-name同名
+    } else {
+      alias_to_tablename[select_sql.relation_to_alias[i].second] = select_sql.relation_to_alias[i].first;
+    }
     if (nullptr == table_name) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
       return RC::INVALID_ARGUMENT;
@@ -302,10 +318,21 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
 
     tables.push_back(table);
-    table_map.insert(std::pair<std::string, Table *>(table_name, table));
+    if (relation_to_alias[i].second == "") {
+      table_map.insert(std::pair<std::string, Table *>(table_name, table));
+    } else {
+      // 假设使用别名之后就无法使用原名（除非外层select有）
+      table_map.insert(std::pair<std::string, Table *>(relation_to_alias[i].second, table));
+    }
   }
   for (auto table : table_map) {
-    table_map_.insert(table);
+    if (table_map_.count(table.first) != 0) {
+      stash_table_map_.insert(std::pair(table.first, table_map_[table.first]));
+      table_map_.erase(table.first);
+      table_map_.insert(table);
+    } else {
+      table_map_.insert(table);
+    }
   }
 
   Table *default_table = nullptr;
@@ -652,6 +679,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // remove table_map_
   for (auto table : table_map) {
     table_map_.erase(table.first);
+  }
+  for (auto stash_table : stash_table_map_) {
+    table_map_.insert(stash_table);
+    stash_table_map_.erase(stash_table.first);
   }
   return RC::SUCCESS;
 }

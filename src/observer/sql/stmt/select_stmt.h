@@ -65,7 +65,8 @@ private:
 private:
   // 这玩意是子查询用的, create的进入和退出记得处理一下, 记录已经打开的表的信息.
   inline static std::unordered_map<std::string, Table *> table_map_;
-  inline static std::unordered_map<std::string, Table *> stash_table_map_; // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
+  inline static std::unordered_map<std::string, Table *>
+      stash_table_map_;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
 
   bool                      has_aggregation_ = false;
   std::vector<Expression *> group_by_fields_expressions_;

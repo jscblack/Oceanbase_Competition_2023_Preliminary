@@ -203,7 +203,6 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         }
       } else {  // Where子句中需要对func进行处理 （max和min）
         // TODO: 补一下 funcExpr的构造
-        
       }
     } break;
 
