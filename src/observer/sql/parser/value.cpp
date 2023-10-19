@@ -537,6 +537,9 @@ RC Value::auto_cast(AttrType field_type) const
   RC       rc             = RC::SUCCESS;
 
   if (value_type == AttrType::CHARS && field_type == AttrType::TEXTS) {
+    if (bypass_const_p->length() > 65535) {
+      return RC::VALUE_CAST_FAILED;
+    }
     bypass_const_p->attr_type_ = AttrType::TEXTS;
     bypass_const_p->length_    = 65535;
     return RC::SUCCESS;
