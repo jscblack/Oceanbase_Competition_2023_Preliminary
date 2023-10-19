@@ -24,7 +24,7 @@ const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates",
 
 const char *attr_type_to_string(AttrType type)
 {
-  if (type >= AttrType::UNDEFINED && type <= AttrType::DATES) {
+  if (type >= AttrType::UNDEFINED && type <= AttrType::TEXTS) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
@@ -111,7 +111,7 @@ void Value::set_boolean(bool val)
   num_value_.bool_value_ = val;
   length_                = sizeof(val);
 }
-void Value::set_text(const char *s, int len /*= 4096*/)
+void Value::set_text(const char *s, int len /*= 65535*/)
 {
   attr_type_ = AttrType::TEXTS;
   if (len > 0) {
@@ -538,7 +538,7 @@ RC Value::auto_cast(AttrType field_type) const
 
   if (value_type == AttrType::CHARS && field_type == AttrType::TEXTS) {
     bypass_const_p->attr_type_ = AttrType::TEXTS;
-    bypass_const_p->length_    = 4096;
+    bypass_const_p->length_    = 65535;
     return RC::SUCCESS;
   }
 

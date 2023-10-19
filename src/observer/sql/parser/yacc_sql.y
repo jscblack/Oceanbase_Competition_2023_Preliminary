@@ -489,7 +489,7 @@ attr_def:
         $$->length = 10;//XXXX-XX-XX
       }
       if ($$->type == TEXTS) {
-        $$->length = 4096;
+        $$->length = 65535;
       }
       $$->nullable=$3;
       free($1);

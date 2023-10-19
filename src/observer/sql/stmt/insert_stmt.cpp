@@ -84,7 +84,6 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
             continue;
           }
         }
-
         rc = cur_values[i].auto_cast(field_type);
         if (rc == RC::SUCCESS) {
           continue;

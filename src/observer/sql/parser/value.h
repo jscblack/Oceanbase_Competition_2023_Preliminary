@@ -66,7 +66,7 @@ public:
   void set_float(float val);
   void set_boolean(bool val);
   void set_string(const char *s, int len = 0);
-  void set_text(const char *s, int len = 4096);
+  void set_text(const char *s, int len = 65535);
   void set_date(const char *s, int len = 10);
   void set_value(const Value &value);
 
