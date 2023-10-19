@@ -1071,12 +1071,10 @@ a_expr:
     } */
     ;
 c_expr:
-    | a_expr alias {
-      $$ = $1;
-      $$->alias = $2;
-    }
-    | LBRACE a_expr RBRACE {
+    LBRACE a_expr RBRACE alias{
       $$ = $2;
+      $$->alias = $4;
+      free($4);
     } 
     | function {
       $$ = $1;
