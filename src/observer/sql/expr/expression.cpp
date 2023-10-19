@@ -923,6 +923,11 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
 
   const AttrType target_type = value_type();
 
+  if (left_value.attr_type() == NONE || right_value.attr_type() == NONE) {
+    value.set_type(NONE);
+    return rc;
+  }
+
   switch (arithmetic_type_) {
     case ArithOp::ADD: {
       if (target_type == AttrType::INTS) {
@@ -949,11 +954,12 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
     } break;
 
     case ArithOp::DIV: {
+      // divied by zero
       if (target_type == AttrType::INTS) {
         if (right_value.get_int() == 0) {
           // NOTE:
           // 设置为整数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为整数最大值。
-          value.set_int(numeric_limits<int>::max());
+          value.set_type(NONE);
         } else {
           value.set_int(left_value.get_int() / right_value.get_int());
         }
@@ -961,7 +967,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
         if (right_value.get_float() > -EPSILON && right_value.get_float() < EPSILON) {
           // NOTE:
           // 设置为浮点数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为浮点数最大值。
-          value.set_float(numeric_limits<float>::max());
+          value.set_type(NONE);
         } else {
           value.set_float(left_value.get_float() / right_value.get_float());
         }
@@ -1011,10 +1017,12 @@ RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
+  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE) {
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
   }
   return calc_value(left_value, right_value, value);
 }
@@ -1031,10 +1039,12 @@ RC ArithmeticExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) c
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  rc = right_->get_value(tuples, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
+  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE) {
+    rc = right_->get_value(tuples, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
   }
   return calc_value(left_value, right_value, value);
 }
@@ -1065,6 +1075,10 @@ RC ArithmeticExpr::try_get_value(Value &value) const
 
 Expression *ArithmeticExpr::clone() const
 {
+  if (arithmetic_type_ == POSITIVE || arithmetic_type_ == NEGATIVE) {
+    return new ArithmeticExpr(arithmetic_type_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>());
+  }
+
   return new ArithmeticExpr(
       arithmetic_type_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>(right_->clone()));
 }
