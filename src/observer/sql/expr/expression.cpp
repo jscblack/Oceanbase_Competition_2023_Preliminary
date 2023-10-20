@@ -941,9 +941,6 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   if (func_type_ == FuncName::DATE_FUNC_NUM) {
     ASSERT(expr_list_.size() == 2, "Function(date-format) must have exact two arguement");
     Expression *date_expr = expr_list_[0].get();
-    if (date_expr->value_type() != AttrType::DATES) {
-      return RC::FUNC_TYPE_MISMATCH;
-    }
 
     Value date_str;
     rc = date_expr->get_value(tuple, date_str, trx);
@@ -953,6 +950,9 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 
     rc = date_str.auto_cast(AttrType::DATES);
     if (OB_FAIL(rc)) {
+      if(rc == RC::VALUE_DATE_INVALID) {
+        return RC::FUNC_TYPE_MISMATCH;
+      }
       return rc;
     }
 
