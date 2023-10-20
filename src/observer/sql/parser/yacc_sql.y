@@ -1212,6 +1212,27 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
 
       delete $4;
     }
+    | func_LA value_with_MINUS COMMA value_with_MINUS RBRACE {
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FUNC_OR_AGG;
+      $$->func = $1;
+
+      ConditionSqlNode *func_arg1 = new ConditionSqlNode;
+      func_arg1->binary = false;
+      func_arg1->type = VALUE;
+      func_arg1->value = new ValueExpr(*$2);
+      $$->left_cond = func_arg1;
+
+      ConditionSqlNode *func_arg2 = new ConditionSqlNode;
+      func_arg2->binary = false;
+      func_arg2->type = VALUE;
+      func_arg2->value = new ValueExpr(*$4);
+      $$->right_cond = func_arg2;
+
+      delete $2;
+      delete $4;
+    }
     /* | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*) 好像有差别 // 会有移进规约冲突 因为a_expr也可以是NUMBER，所以在后面解决
       $$ = new ConditionSqlNode;
       $$->binary = false;
