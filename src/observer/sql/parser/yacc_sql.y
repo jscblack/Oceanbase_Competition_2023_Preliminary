@@ -973,14 +973,13 @@ a_expr:
 
       delete $1;
     }
-    | rel_attr alias {
+    | rel_attr {
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FIELD;
       $$->attr = *$1;
-      $$->alias = $2;
-
-      free($2);
+      // $$->alias = $2;
+      // free($2);
       delete $1;
     }
     | select_stmt_with_paren {
@@ -1090,15 +1089,15 @@ a_expr:
     } */
     ;
 c_expr:
-    LBRACE a_expr RBRACE alias{
+    LBRACE a_expr RBRACE {
       $$ = $2;
-      $$->alias = $4;
-      free($4);
+      // $$->alias = $4;
+      // free($4);
     } 
-    | function alias{
+    | function {
       $$ = $1;
-      $$->alias = $2;
-      free($2);
+      // $$->alias = $2;
+      // free($2);
     }
     | value_list_LALR %prec UMINUS {
       $$ = $1;
@@ -1153,15 +1152,16 @@ select_attr:
 
       $$->emplace_back(attr);
     }
-    | a_expr a_expr_list {
-      if ($2 != nullptr) {
-        $$ = $2;
+    | a_expr alias a_expr_list {
+      if ($3 != nullptr) {
+        $$ = $3;
       } else {
         $$ = new std::vector<ConditionSqlNode>;
       }
-
+      $1->alias = $2;
       $$->emplace_back(*$1);
       delete $1;
+      free($2);
     }
     ;
 // 是否为合法的聚集表达式，将在Resolve阶段判断
@@ -1293,15 +1293,17 @@ a_expr_list:
     {
       $$ = nullptr;
     }
-    | COMMA a_expr a_expr_list {
-      if ($3 != nullptr) {
-        $$ = $3;
+    | COMMA a_expr alias a_expr_list {
+      if ($4 != nullptr) {
+        $$ = $4;
       } else {
         $$ = new std::vector<ConditionSqlNode>;
       }
 
+      $2->alias = $3;
       $$->emplace_back(*$2); // 最后再reverse顺序(例如select_attr)
       delete $2;
+      free($3);
     }
     ;
 rel_list_with_alias:
