@@ -14,11 +14,11 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <vector>
 #include <memory>
+#include <vector>
 
-#include "sql/operator/logical_operator.h"
 #include "sql/expr/expression.h"
+#include "sql/operator/logical_operator.h"
 #include "storage/field/field.h"
 
 /**
@@ -29,7 +29,7 @@ See the Mulan PSL v2 for more details. */
 class ProjectLogicalOperator : public LogicalOperator
 {
 public:
-  ProjectLogicalOperator(const std::vector<Expression *> &fields_expressions);
+  ProjectLogicalOperator(const std::vector<Expression *> &fields_expressions, bool no_table_select = false);
   virtual ~ProjectLogicalOperator() = default;
 
   LogicalOperatorType type() const override { return LogicalOperatorType::PROJECTION; }
@@ -37,6 +37,7 @@ public:
   std::vector<std::unique_ptr<Expression>>       &expressions() { return expressions_; }
   const std::vector<std::unique_ptr<Expression>> &expressions() const { return expressions_; }
 
+  bool no_table_select() const { return no_table_select_; }
   // const std::vector<Field>                       &fields() const { return fields_; }
   // const std::vector<Expression *> &fields_expressions() const { return fields_expresions_; }
 
@@ -49,4 +50,6 @@ public:
   // std::vector<Expression *> fields_expressions_;
 
   // 不需要一个新的fields_expressions, 用基类LogicalOperator中的即可
+private:
+  bool no_table_select_ = false;
 };

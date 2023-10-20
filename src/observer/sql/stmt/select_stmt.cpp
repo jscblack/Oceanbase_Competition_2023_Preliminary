@@ -13,12 +13,10 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/select_stmt.h"
-#include "sql/stmt/filter_stmt.h"
-#include "sql/stmt/having_filter_stmt.h"
-#include "common/log/log.h"
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/stmt/having_filter_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 #include <algorithm>
@@ -304,7 +302,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return RC::INVALID_ARGUMENT;
   }
 
-  if (select_sql.relation_to_alias.size() == 0) {  // 特殊处理 select func();
+  if (select_sql.is_simple_select) {  // 特殊处理 select func();
     RC                        rc = RC::SUCCESS;
     std::vector<Expression *> query_fields_expressions;
 
@@ -323,7 +321,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
     SelectStmt *select_stmt = new SelectStmt();
     select_stmt->query_fields_expressions_.swap(query_fields_expressions);
-    stmt = select_stmt;
+    select_stmt->is_simple_select_ = true;
+    stmt                           = select_stmt;
     return rc;
   }
 

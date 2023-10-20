@@ -211,6 +211,7 @@ struct OrderSqlNode
 
 struct SelectSqlNode
 {
+  bool is_simple_select = false;  // 是否是不带from的最简单的select 调用func的语句
   std::vector<ConditionSqlNode>                    attributes;            ///< attributes in select clause
   std::vector<std::pair<std::string, std::string>> relation_to_alias;     ///< alias默认为空串
   ConditionSqlNode                                *conditions = nullptr;  ///< 查询条件树

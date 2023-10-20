@@ -800,6 +800,7 @@ alias:
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_attr {
       $$ = new ParsedSqlNode(SCF_SELECT);
+      $$->selection.is_simple_select=true;
       if ($2 != nullptr) {
         $$->selection.attributes.swap(*$2);
         delete $2;

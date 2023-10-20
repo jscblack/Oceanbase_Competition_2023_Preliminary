@@ -33,12 +33,12 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/predicate_physical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/project_physical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
+#include "sql/operator/sort_physical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/table_scan_physical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 #include "sql/operator/update_physical_operator.h"
-#include "sql/operator/sort_logical_operator.h"
-#include "sql/operator/sort_physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
 
 using namespace std;
@@ -210,7 +210,7 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
   //   project_operator->add_projection(field.table(), field.meta());
   // }
   project_operator->add_expressions(project_oper.expressions());
-
+  project_operator->set_no_table_select(project_oper.no_table_select());
   if (child_phy_oper) {
     project_operator->add_child(std::move(child_phy_oper));
   }

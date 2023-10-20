@@ -289,14 +289,12 @@ public:
     if (index < 0 || index >= static_cast<int>(expressions_.size())) {
       return RC::INTERNAL;
     }
+    if (is_func_) {
+      RowTuple tmp_tuple;
+      return expressions_[index]->get_value(tmp_tuple, cell);
+    }
     if (tuple_ == nullptr) {
-      if (expressions_[index]->type() == ExprType::FUNCTION) {
-        // 为 select func(); 的特殊处理
-        RowTuple tmp_tuple;
-        return expressions_[index]->get_value(tmp_tuple, cell);
-      } else {
-        return RC::INTERNAL;
-      }
+      return RC::INTERNAL;
     }
 
     return expressions_[index]->get_value(*tuple_, cell);
@@ -321,6 +319,9 @@ public:
     return RC::SUCCESS;
   }
 
+public:
+  void set_is_func(bool is_func) { is_func_ = is_func; }
+
 #if 0
   RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
   {
@@ -334,7 +335,8 @@ public:
 private:
   // std::vector<TupleCellSpec *> speces_;
   std::vector<std::unique_ptr<Expression>> expressions_;
-  Tuple                                   *tuple_ = nullptr;
+  Tuple                                   *tuple_   = nullptr;
+  bool                                     is_func_ = false;
 };
 
 class ExpressionTuple : public Tuple
