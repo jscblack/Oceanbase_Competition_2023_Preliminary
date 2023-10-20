@@ -45,14 +45,10 @@ public:
   void set_stmt(Stmt *stmt) { stmt_ = stmt; }
   void set_operator(std::unique_ptr<PhysicalOperator> oper) { operator_ = std::move(oper); }
 
-  static const std::vector<ParsedSqlNode> &all_views() { return all_views_; }
-
 private:
   SessionEvent                     *session_event_ = nullptr;
   std::string                       sql_;             ///< 处理的SQL语句
   std::unique_ptr<ParsedSqlNode>    sql_node_;        ///< 语法解析后的SQL命令
   Stmt                             *stmt_ = nullptr;  ///< Resolver之后生成的数据结构
   std::unique_ptr<PhysicalOperator> operator_;        ///< 生成的执行计划，也可能没有
-
-  static std::vector<ParsedSqlNode> all_views_;       ///< 所有的视图
 };
