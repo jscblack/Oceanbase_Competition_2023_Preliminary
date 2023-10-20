@@ -293,6 +293,18 @@ struct AttrInfoSqlNode
 };
 
 /**
+ * @brief 描述一个create view语句
+ * @ingroup SQLParser
+ * @details 根据select子句构造视图
+ * 注意有可能根据视图来构建视图，在语法层无法区分是根据view构建还是根据table构建
+ */
+struct CreateViewSqlNode
+{
+  std::string                  view_name;      ///< View name
+  SelectSqlNode                from_select;    ///< select clause
+};
+
+/**
  * @brief 描述一个create table语句
  * @ingroup SQLParser
  * @details 这里也做了很多简化。
@@ -416,6 +428,7 @@ enum SqlCommandFlag
   SCF_INSERT,
   SCF_UPDATE,
   SCF_DELETE,
+  SCF_CREATE_VIEW,
   SCF_CREATE_TABLE,
   SCF_DROP_TABLE,
   SCF_CREATE_INDEX,
@@ -448,6 +461,7 @@ public:
   InsertSqlNode       insertion;
   DeleteSqlNode       deletion;
   UpdateSqlNode       update;
+  CreateViewSqlNode   create_view;
   CreateTableSqlNode  create_table;
   DropTableSqlNode    drop_table;
   CreateIndexSqlNode  create_index;

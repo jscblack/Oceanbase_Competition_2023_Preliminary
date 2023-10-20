@@ -249,6 +249,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 %type <sql_node>            insert_stmt
 %type <sql_node>            update_stmt
 %type <sql_node>            delete_stmt
+%type <sql_node>            create_view_stmt
 %type <sql_node>            create_table_stmt
 %type <sql_node>            drop_table_stmt
 %type <sql_node>            show_tables_stmt
@@ -299,6 +300,7 @@ command_wrapper:
   | insert_stmt
   | update_stmt
   | delete_stmt
+  | create_view_stmt
   | create_table_stmt
   | drop_table_stmt
   | show_tables_stmt
@@ -432,6 +434,17 @@ nullable_marker:
     | NULL_T
     {
       $$ = true;
+    }
+    ;
+
+create_view_stmt:
+    CREATE VIEW ID as_marker select_stmt
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_VIEW);
+      $$->create_view.view_name = $3;
+      free($3);
+
+      $$->create_view.from_select = $5->selection;
     }
     ;
 
