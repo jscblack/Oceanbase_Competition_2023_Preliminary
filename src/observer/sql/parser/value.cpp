@@ -536,6 +536,10 @@ RC Value::auto_cast(AttrType field_type) const
   AttrType value_type     = this->attr_type();
   RC       rc             = RC::SUCCESS;
 
+  if (value_type == field_type) {
+    return RC::SUCCESS;
+  }
+
   if (value_type == AttrType::CHARS && field_type == AttrType::TEXTS) {
     bypass_const_p->attr_type_ = AttrType::TEXTS;
     bypass_const_p->length_    = 4096;
