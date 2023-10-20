@@ -87,7 +87,7 @@ bool is_equal(const char *a, const char *b) { return 0 == strcmp(a, b); }
 RC select_get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
 {
-  if (nullptr == default_table || nullptr == tables) {
+  if (nullptr == tables) {
     LOG_WARN("No such table: attr.relation_name: %s", attr.relation_name.c_str());
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }

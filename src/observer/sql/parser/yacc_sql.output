@@ -140,7 +140,7 @@ Grammar
    94           | '-' expression
 
    95 a_expr: value
-   96       | rel_attr alias
+   96       | rel_attr
    97       | select_stmt_with_paren
    98       | c_expr
    99       | '-' a_expr
@@ -166,8 +166,8 @@ Grammar
   119       | EXISTS LBRACE select_stmt RBRACE
   120       | NOT_EXISTS LBRACE select_stmt RBRACE
 
-  121 c_expr: LBRACE a_expr RBRACE alias
-  122       | function alias
+  121 c_expr: LBRACE a_expr RBRACE
+  122       | function
   123       | value_list_LALR
 
   124 value_list_LALR: LBRACE value_list_LA RBRACE
@@ -178,7 +178,7 @@ Grammar
   127              | value COMMA value
 
   128 select_attr: '*' a_expr_list
-  129            | a_expr a_expr_list
+  129            | a_expr alias a_expr_list
 
   130 function: func_LA a_expr RBRACE
   131         | func_LA '*' RBRACE
@@ -203,7 +203,7 @@ Grammar
   146          | COMMA rel_attr attr_list
 
   147 a_expr_list: ε
-  148            | COMMA a_expr a_expr_list
+  148            | COMMA a_expr alias a_expr_list
 
   149 rel_list_with_alias: ε
   150                    | COMMA ID alias rel_list_with_alias
@@ -424,7 +424,7 @@ Nonterminals, with rules where they appear
         on right: 69 70 72 73
     alias <string> (116)
         on left: 74 75 76
-        on right: 78 80 81 96 121 122 150
+        on right: 78 80 81 129 148 150
     select_stmt <sql_node> (117)
         on left: 77 78 79
         on right: 3 69 72 119 120 125
@@ -1143,7 +1143,7 @@ State 64
 
 State 65
 
-  121 c_expr: LBRACE • a_expr RBRACE alias
+  121 c_expr: LBRACE • a_expr RBRACE
   124 value_list_LALR: LBRACE • value_list_LA RBRACE
   125 select_stmt_with_paren: LBRACE • select_stmt RBRACE
 
@@ -1314,31 +1314,32 @@ State 73
   116       | a_expr • IS a_expr
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
-  129 select_attr: a_expr • a_expr_list
+  129 select_attr: a_expr • alias a_expr_list
 
-    COMMA     shift, and go to state 114
-    OR        shift, and go to state 116
-    AND       shift, and go to state 117
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    AS        shift, and go to state 116
+    OR        shift, and go to state 117
+    AND       shift, and go to state 118
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    ID        shift, and go to state 131
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
-    $default  reduce using rule 147 (a_expr_list)
+    $default  reduce using rule 74 (alias)
 
-    a_expr_list  go to state 134
+    alias  go to state 136
 
 
 State 74
@@ -1368,21 +1369,16 @@ State 77
    78            | SELECT select_attr • FROM ID alias rel_list_with_alias where order group_by having
    79            | SELECT select_attr • FROM join where order group_by having
 
-    FROM  shift, and go to state 135
+    FROM  shift, and go to state 137
 
     $default  reduce using rule 77 (select_stmt)
 
 
 State 78
 
-  122 c_expr: function • alias
+  122 c_expr: function •
 
-    AS  shift, and go to state 136
-    ID  shift, and go to state 137
-
-    $default  reduce using rule 74 (alias)
-
-    alias  go to state 138
+    $default  reduce using rule 122 (c_expr)
 
 
 State 79
@@ -1410,36 +1406,31 @@ State 79
     SSS          shift, and go to state 52
     '+'          shift, and go to state 69
     '-'          shift, and go to state 70
-    '*'          shift, and go to state 139
+    '*'          shift, and go to state 138
 
     value                   go to state 72
-    a_expr                  go to state 140
+    a_expr                  go to state 139
     c_expr                  go to state 74
     value_list_LALR         go to state 75
     select_stmt_with_paren  go to state 76
     function                go to state 78
     func_LA                 go to state 79
     func_name               go to state 80
-    rel_attr                go to state 141
+    rel_attr                go to state 140
 
 
 State 80
 
   133 func_LA: func_name • LBRACE
 
-    LBRACE  shift, and go to state 142
+    LBRACE  shift, and go to state 141
 
 
 State 81
 
-   96 a_expr: rel_attr • alias
+   96 a_expr: rel_attr •
 
-    AS  shift, and go to state 136
-    ID  shift, and go to state 137
-
-    $default  reduce using rule 74 (alias)
-
-    alias  go to state 143
+    $default  reduce using rule 96 (a_expr)
 
 
 State 82
@@ -1460,42 +1451,42 @@ State 84
 
    31 show_index_stmt: SHOW INDEX • FROM ID
 
-    FROM  shift, and go to state 144
+    FROM  shift, and go to state 142
 
 
 State 85
 
    51 insert_stmt: INSERT INTO • ID VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list
 
-    ID  shift, and go to state 145
+    ID  shift, and go to state 143
 
 
 State 86
 
    67 delete_stmt: DELETE FROM • ID where
 
-    ID  shift, and go to state 146
+    ID  shift, and go to state 144
 
 
 State 87
 
    68 update_stmt: UPDATE ID • SET update_expr where
 
-    SET  shift, and go to state 147
+    SET  shift, and go to state 145
 
 
 State 88
 
   168 set_variable_stmt: SET ID • EQ value
 
-    EQ  shift, and go to state 148
+    EQ  shift, and go to state 146
 
 
 State 89
 
   166 load_data_stmt: LOAD DATA • INFILE SSS INTO TABLE ID
 
-    INFILE  shift, and go to state 149
+    INFILE  shift, and go to state 147
 
 
 State 90
@@ -1530,14 +1521,14 @@ State 94
 
    40 create_table_stmt: CREATE TABLE ID • LBRACE attr_def attr_def_list RBRACE
 
-    LBRACE  shift, and go to state 150
+    LBRACE  shift, and go to state 148
 
 
 State 95
 
    35 create_index_stmt: CREATE unique_marker INDEX • ID ON ID LBRACE ID rel_list RBRACE
 
-    ID  shift, and go to state 151
+    ID  shift, and go to state 149
 
 
 State 96
@@ -1551,7 +1542,7 @@ State 97
 
    36 drop_index_stmt: DROP INDEX ID • ON ID
 
-    ON  shift, and go to state 152
+    ON  shift, and go to state 150
 
 
 State 98
@@ -1562,7 +1553,7 @@ State 98
    91           | expression • '/' expression
    92           | LBRACE expression • RBRACE
 
-    RBRACE  shift, and go to state 153
+    RBRACE  shift, and go to state 151
     '+'     shift, and go to state 101
     '-'     shift, and go to state 102
     '*'     shift, and go to state 103
@@ -1598,7 +1589,7 @@ State 100
     '-'     shift, and go to state 53
 
     value            go to state 54
-    expression_list  go to state 154
+    expression_list  go to state 152
     expression       go to state 56
 
 
@@ -1615,7 +1606,7 @@ State 101
     '-'     shift, and go to state 53
 
     value       go to state 54
-    expression  go to state 155
+    expression  go to state 153
 
 
 State 102
@@ -1631,7 +1622,7 @@ State 102
     '-'     shift, and go to state 53
 
     value       go to state 54
-    expression  go to state 156
+    expression  go to state 154
 
 
 State 103
@@ -1647,7 +1638,7 @@ State 103
     '-'     shift, and go to state 53
 
     value       go to state 54
-    expression  go to state 157
+    expression  go to state 155
 
 
 State 104
@@ -1663,7 +1654,7 @@ State 104
     '-'     shift, and go to state 53
 
     value       go to state 54
-    expression  go to state 158
+    expression  go to state 156
 
 
 State 105
@@ -1671,7 +1662,7 @@ State 105
    95 a_expr: value •  [RBRACE, OR, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, NOT_IN, IN, '+', '-', '*', '/']
   127 value_list_LA: value • COMMA value
 
-    COMMA  shift, and go to state 159
+    COMMA  shift, and go to state 157
 
     $default  reduce using rule 95 (a_expr)
 
@@ -1680,7 +1671,7 @@ State 106
 
   125 select_stmt_with_paren: LBRACE select_stmt • RBRACE
 
-    RBRACE  shift, and go to state 160
+    RBRACE  shift, and go to state 158
 
 
 State 107
@@ -1703,27 +1694,27 @@ State 107
   116       | a_expr • IS a_expr
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
-  121 c_expr: LBRACE a_expr • RBRACE alias
+  121 c_expr: LBRACE a_expr • RBRACE
 
-    RBRACE    shift, and go to state 161
-    OR        shift, and go to state 116
-    AND       shift, and go to state 117
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    RBRACE    shift, and go to state 159
+    OR        shift, and go to state 117
+    AND       shift, and go to state 118
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
 
 State 108
@@ -1731,8 +1722,8 @@ State 108
   124 value_list_LALR: LBRACE value_list_LA • RBRACE
   126 value_list_LA: value_list_LA • COMMA value
 
-    RBRACE  shift, and go to state 162
-    COMMA   shift, and go to state 163
+    RBRACE  shift, and go to state 160
+    COMMA   shift, and go to state 161
 
 
 State 109
@@ -1741,7 +1732,7 @@ State 109
 
     SELECT  shift, and go to state 4
 
-    select_stmt  go to state 164
+    select_stmt  go to state 162
 
 
 State 110
@@ -1750,7 +1741,7 @@ State 110
 
     SELECT  shift, and go to state 4
 
-    select_stmt  go to state 165
+    select_stmt  go to state 163
 
 
 State 111
@@ -1758,13 +1749,13 @@ State 111
   143 rel_attr: ID DOT • ID
   144         | ID DOT • '*'
 
-    ID   shift, and go to state 166
-    '*'  shift, and go to state 167
+    ID   shift, and go to state 164
+    '*'  shift, and go to state 165
 
 
 State 112
 
-  100 a_expr: '+' a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, '+', '-', '*', '/']
+  100 a_expr: '+' a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID, '+', '-', '*', '/']
   101       | a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
   103       | a_expr • '*' a_expr
@@ -1808,7 +1799,7 @@ State 112
 
 State 113
 
-   99 a_expr: '-' a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, '+', '-', '*', '/']
+   99 a_expr: '-' a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID, '+', '-', '*', '/']
   101       | a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
   103       | a_expr • '*' a_expr
@@ -1852,7 +1843,56 @@ State 113
 
 State 114
 
-  148 a_expr_list: COMMA • a_expr a_expr_list
+  148 a_expr_list: COMMA • a_expr alias a_expr_list
+
+    AGG_MAX      shift, and go to state 57
+    AGG_MIN      shift, and go to state 58
+    AGG_COUNT    shift, and go to state 59
+    AGG_AVG      shift, and go to state 60
+    AGG_SUM      shift, and go to state 61
+    FUNC_LENGTH  shift, and go to state 62
+    FUNC_DATE    shift, and go to state 63
+    FUNC_ROUND   shift, and go to state 64
+    LBRACE       shift, and go to state 65
+    NULL_T       shift, and go to state 48
+    NOT_EXISTS   shift, and go to state 66
+    EXISTS       shift, and go to state 67
+    NUMBER       shift, and go to state 49
+    FLOAT        shift, and go to state 50
+    DATE         shift, and go to state 51
+    ID           shift, and go to state 68
+    SSS          shift, and go to state 52
+    '+'          shift, and go to state 69
+    '-'          shift, and go to state 70
+
+    value                   go to state 72
+    a_expr                  go to state 166
+    c_expr                  go to state 74
+    value_list_LALR         go to state 75
+    select_stmt_with_paren  go to state 76
+    function                go to state 78
+    func_LA                 go to state 79
+    func_name               go to state 80
+    rel_attr                go to state 81
+
+
+State 115
+
+  128 select_attr: '*' a_expr_list •
+
+    $default  reduce using rule 128 (select_attr)
+
+
+State 116
+
+   75 alias: AS • ID
+
+    ID  shift, and go to state 167
+
+
+State 117
+
+  106 a_expr: a_expr OR • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -1885,16 +1925,9 @@ State 114
     rel_attr                go to state 81
 
 
-State 115
+State 118
 
-  128 select_attr: '*' a_expr_list •
-
-    $default  reduce using rule 128 (select_attr)
-
-
-State 116
-
-  106 a_expr: a_expr OR • a_expr
+  105 a_expr: a_expr AND • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -1927,9 +1960,9 @@ State 116
     rel_attr                go to state 81
 
 
-State 117
+State 119
 
-  105 a_expr: a_expr AND • a_expr
+  107 a_expr: a_expr EQ • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -1962,9 +1995,9 @@ State 117
     rel_attr                go to state 81
 
 
-State 118
+State 120
 
-  107 a_expr: a_expr EQ • a_expr
+  108 a_expr: a_expr LT • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -1997,9 +2030,9 @@ State 118
     rel_attr                go to state 81
 
 
-State 119
+State 121
 
-  108 a_expr: a_expr LT • a_expr
+  109 a_expr: a_expr GT • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2032,9 +2065,9 @@ State 119
     rel_attr                go to state 81
 
 
-State 120
+State 122
 
-  109 a_expr: a_expr GT • a_expr
+  110 a_expr: a_expr LE • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2067,9 +2100,9 @@ State 120
     rel_attr                go to state 81
 
 
-State 121
+State 123
 
-  110 a_expr: a_expr LE • a_expr
+  111 a_expr: a_expr GE • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2102,9 +2135,9 @@ State 121
     rel_attr                go to state 81
 
 
-State 122
+State 124
 
-  111 a_expr: a_expr GE • a_expr
+  112 a_expr: a_expr NE • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2137,9 +2170,9 @@ State 122
     rel_attr                go to state 81
 
 
-State 123
+State 125
 
-  112 a_expr: a_expr NE • a_expr
+  113 a_expr: a_expr LIKE • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2172,9 +2205,9 @@ State 123
     rel_attr                go to state 81
 
 
-State 124
+State 126
 
-  113 a_expr: a_expr LIKE • a_expr
+  114 a_expr: a_expr NOT_LIKE • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2207,9 +2240,9 @@ State 124
     rel_attr                go to state 81
 
 
-State 125
+State 127
 
-  114 a_expr: a_expr NOT_LIKE • a_expr
+  116 a_expr: a_expr IS • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2242,9 +2275,9 @@ State 125
     rel_attr                go to state 81
 
 
-State 126
+State 128
 
-  116 a_expr: a_expr IS • a_expr
+  115 a_expr: a_expr IS_NOT • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2277,9 +2310,9 @@ State 126
     rel_attr                go to state 81
 
 
-State 127
+State 129
 
-  115 a_expr: a_expr IS_NOT • a_expr
+  117 a_expr: a_expr NOT_IN • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2312,9 +2345,9 @@ State 127
     rel_attr                go to state 81
 
 
-State 128
+State 130
 
-  117 a_expr: a_expr NOT_IN • a_expr
+  118 a_expr: a_expr IN • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2347,9 +2380,16 @@ State 128
     rel_attr                go to state 81
 
 
-State 129
+State 131
 
-  118 a_expr: a_expr IN • a_expr
+   76 alias: ID •
+
+    $default  reduce using rule 76 (alias)
+
+
+State 132
+
+  101 a_expr: a_expr '+' • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2382,9 +2422,9 @@ State 129
     rel_attr                go to state 81
 
 
-State 130
+State 133
 
-  101 a_expr: a_expr '+' • a_expr
+  102 a_expr: a_expr '-' • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2417,9 +2457,9 @@ State 130
     rel_attr                go to state 81
 
 
-State 131
+State 134
 
-  102 a_expr: a_expr '-' • a_expr
+  103 a_expr: a_expr '*' • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2452,9 +2492,9 @@ State 131
     rel_attr                go to state 81
 
 
-State 132
+State 135
 
-  103 a_expr: a_expr '*' • a_expr
+  104 a_expr: a_expr '/' • a_expr
 
     AGG_MAX      shift, and go to state 57
     AGG_MIN      shift, and go to state 58
@@ -2487,49 +2527,18 @@ State 132
     rel_attr                go to state 81
 
 
-State 133
+State 136
 
-  104 a_expr: a_expr '/' • a_expr
+  129 select_attr: a_expr alias • a_expr_list
 
-    AGG_MAX      shift, and go to state 57
-    AGG_MIN      shift, and go to state 58
-    AGG_COUNT    shift, and go to state 59
-    AGG_AVG      shift, and go to state 60
-    AGG_SUM      shift, and go to state 61
-    FUNC_LENGTH  shift, and go to state 62
-    FUNC_DATE    shift, and go to state 63
-    FUNC_ROUND   shift, and go to state 64
-    LBRACE       shift, and go to state 65
-    NULL_T       shift, and go to state 48
-    NOT_EXISTS   shift, and go to state 66
-    EXISTS       shift, and go to state 67
-    NUMBER       shift, and go to state 49
-    FLOAT        shift, and go to state 50
-    DATE         shift, and go to state 51
-    ID           shift, and go to state 68
-    SSS          shift, and go to state 52
-    '+'          shift, and go to state 69
-    '-'          shift, and go to state 70
+    COMMA  shift, and go to state 114
 
-    value                   go to state 72
-    a_expr                  go to state 186
-    c_expr                  go to state 74
-    value_list_LALR         go to state 75
-    select_stmt_with_paren  go to state 76
-    function                go to state 78
-    func_LA                 go to state 79
-    func_name               go to state 80
-    rel_attr                go to state 81
+    $default  reduce using rule 147 (a_expr_list)
+
+    a_expr_list  go to state 186
 
 
-State 134
-
-  129 select_attr: a_expr a_expr_list •
-
-    $default  reduce using rule 129 (select_attr)
-
-
-State 135
+State 137
 
    78 select_stmt: SELECT select_attr FROM • ID alias rel_list_with_alias where order group_by having
    79            | SELECT select_attr FROM • join where order group_by having
@@ -2539,35 +2548,14 @@ State 135
     join  go to state 188
 
 
-State 136
-
-   75 alias: AS • ID
-
-    ID  shift, and go to state 189
-
-
-State 137
-
-   76 alias: ID •
-
-    $default  reduce using rule 76 (alias)
-
-
 State 138
-
-  122 c_expr: function alias •
-
-    $default  reduce using rule 122 (c_expr)
-
-
-State 139
 
   131 function: func_LA '*' • RBRACE
 
-    RBRACE  shift, and go to state 190
+    RBRACE  shift, and go to state 189
 
 
-State 140
+State 139
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -2589,90 +2577,79 @@ State 140
   118       | a_expr • IN a_expr
   130 function: func_LA a_expr • RBRACE
 
-    RBRACE    shift, and go to state 191
-    OR        shift, and go to state 116
-    AND       shift, and go to state 117
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    RBRACE    shift, and go to state 190
+    OR        shift, and go to state 117
+    AND       shift, and go to state 118
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
+
+
+State 140
+
+   96 a_expr: rel_attr •  [RBRACE, OR, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, NOT_IN, IN, '+', '-', '*', '/']
+  132 function: func_LA rel_attr • COMMA value_with_MINUS RBRACE
+
+    COMMA  shift, and go to state 191
+
+    $default  reduce using rule 96 (a_expr)
 
 
 State 141
-
-   96 a_expr: rel_attr • alias
-  132 function: func_LA rel_attr • COMMA value_with_MINUS RBRACE
-
-    AS     shift, and go to state 136
-    COMMA  shift, and go to state 192
-    ID     shift, and go to state 137
-
-    $default  reduce using rule 74 (alias)
-
-    alias  go to state 143
-
-
-State 142
 
   133 func_LA: func_name LBRACE •
 
     $default  reduce using rule 133 (func_LA)
 
 
+State 142
+
+   31 show_index_stmt: SHOW INDEX FROM • ID
+
+    ID  shift, and go to state 192
+
+
 State 143
 
-   96 a_expr: rel_attr alias •
+   51 insert_stmt: INSERT INTO ID • VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list
 
-    $default  reduce using rule 96 (a_expr)
+    VALUES  shift, and go to state 193
 
 
 State 144
 
-   31 show_index_stmt: SHOW INDEX FROM • ID
+   67 delete_stmt: DELETE FROM ID • where
 
-    ID  shift, and go to state 193
+    WHERE  shift, and go to state 194
+
+    $default  reduce using rule 164 (where)
+
+    where  go to state 195
 
 
 State 145
 
-   51 insert_stmt: INSERT INTO ID • VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list
+   68 update_stmt: UPDATE ID SET • update_expr where
 
-    VALUES  shift, and go to state 194
+    ID  shift, and go to state 196
+
+    update_expr  go to state 197
 
 
 State 146
-
-   67 delete_stmt: DELETE FROM ID • where
-
-    WHERE  shift, and go to state 195
-
-    $default  reduce using rule 164 (where)
-
-    where  go to state 196
-
-
-State 147
-
-   68 update_stmt: UPDATE ID SET • update_expr where
-
-    ID  shift, and go to state 197
-
-    update_expr  go to state 198
-
-
-State 148
 
   168 set_variable_stmt: SET ID EQ • value
 
@@ -2682,54 +2659,54 @@ State 148
     DATE    shift, and go to state 51
     SSS     shift, and go to state 52
 
-    value  go to state 199
+    value  go to state 198
+
+
+State 147
+
+  166 load_data_stmt: LOAD DATA INFILE • SSS INTO TABLE ID
+
+    SSS  shift, and go to state 199
+
+
+State 148
+
+   40 create_table_stmt: CREATE TABLE ID LBRACE • attr_def attr_def_list RBRACE
+
+    ID  shift, and go to state 200
+
+    attr_def  go to state 201
 
 
 State 149
 
-  166 load_data_stmt: LOAD DATA INFILE • SSS INTO TABLE ID
+   35 create_index_stmt: CREATE unique_marker INDEX ID • ON ID LBRACE ID rel_list RBRACE
 
-    SSS  shift, and go to state 200
+    ON  shift, and go to state 202
 
 
 State 150
 
-   40 create_table_stmt: CREATE TABLE ID LBRACE • attr_def attr_def_list RBRACE
+   36 drop_index_stmt: DROP INDEX ID ON • ID
 
-    ID  shift, and go to state 201
-
-    attr_def  go to state 202
+    ID  shift, and go to state 203
 
 
 State 151
-
-   35 create_index_stmt: CREATE unique_marker INDEX ID • ON ID LBRACE ID rel_list RBRACE
-
-    ON  shift, and go to state 203
-
-
-State 152
-
-   36 drop_index_stmt: DROP INDEX ID ON • ID
-
-    ID  shift, and go to state 204
-
-
-State 153
 
    92 expression: LBRACE expression RBRACE •
 
     $default  reduce using rule 92 (expression)
 
 
-State 154
+State 152
 
    87 expression_list: expression COMMA expression_list •
 
     $default  reduce using rule 87 (expression_list)
 
 
-State 155
+State 153
 
    88 expression: expression • '+' expression
    88           | expression '+' expression •  [$end, SEMICOLON, RBRACE, COMMA, '+', '-']
@@ -2748,7 +2725,7 @@ State 155
     Conflict between rule 88 and token '/' resolved as shift ('+' < '/').
 
 
-State 156
+State 154
 
    88 expression: expression • '+' expression
    89           | expression • '-' expression
@@ -2767,7 +2744,7 @@ State 156
     Conflict between rule 89 and token '/' resolved as shift ('-' < '/').
 
 
-State 157
+State 155
 
    88 expression: expression • '+' expression
    89           | expression • '-' expression
@@ -2783,7 +2760,7 @@ State 157
     Conflict between rule 90 and token '/' resolved as reduce (%left '/').
 
 
-State 158
+State 156
 
    88 expression: expression • '+' expression
    89           | expression • '-' expression
@@ -2799,9 +2776,43 @@ State 158
     Conflict between rule 91 and token '/' resolved as reduce (%left '/').
 
 
-State 159
+State 157
 
   127 value_list_LA: value COMMA • value
+
+    NULL_T  shift, and go to state 48
+    NUMBER  shift, and go to state 49
+    FLOAT   shift, and go to state 50
+    DATE    shift, and go to state 51
+    SSS     shift, and go to state 52
+
+    value  go to state 204
+
+
+State 158
+
+  125 select_stmt_with_paren: LBRACE select_stmt RBRACE •
+
+    $default  reduce using rule 125 (select_stmt_with_paren)
+
+
+State 159
+
+  121 c_expr: LBRACE a_expr RBRACE •
+
+    $default  reduce using rule 121 (c_expr)
+
+
+State 160
+
+  124 value_list_LALR: LBRACE value_list_LA RBRACE •
+
+    $default  reduce using rule 124 (value_list_LALR)
+
+
+State 161
+
+  126 value_list_LA: value_list_LA COMMA • value
 
     NULL_T  shift, and go to state 48
     NUMBER  shift, and go to state 49
@@ -2812,71 +2823,87 @@ State 159
     value  go to state 205
 
 
-State 160
-
-  125 select_stmt_with_paren: LBRACE select_stmt RBRACE •
-
-    $default  reduce using rule 125 (select_stmt_with_paren)
-
-
-State 161
-
-  121 c_expr: LBRACE a_expr RBRACE • alias
-
-    AS  shift, and go to state 136
-    ID  shift, and go to state 137
-
-    $default  reduce using rule 74 (alias)
-
-    alias  go to state 206
-
-
 State 162
 
-  124 value_list_LALR: LBRACE value_list_LA RBRACE •
+  120 a_expr: NOT_EXISTS LBRACE select_stmt • RBRACE
 
-    $default  reduce using rule 124 (value_list_LALR)
+    RBRACE  shift, and go to state 206
 
 
 State 163
 
-  126 value_list_LA: value_list_LA COMMA • value
+  119 a_expr: EXISTS LBRACE select_stmt • RBRACE
 
-    NULL_T  shift, and go to state 48
-    NUMBER  shift, and go to state 49
-    FLOAT   shift, and go to state 50
-    DATE    shift, and go to state 51
-    SSS     shift, and go to state 52
-
-    value  go to state 207
+    RBRACE  shift, and go to state 207
 
 
 State 164
-
-  120 a_expr: NOT_EXISTS LBRACE select_stmt • RBRACE
-
-    RBRACE  shift, and go to state 208
-
-
-State 165
-
-  119 a_expr: EXISTS LBRACE select_stmt • RBRACE
-
-    RBRACE  shift, and go to state 209
-
-
-State 166
 
   143 rel_attr: ID DOT ID •
 
     $default  reduce using rule 143 (rel_attr)
 
 
-State 167
+State 165
 
   144 rel_attr: ID DOT '*' •
 
     $default  reduce using rule 144 (rel_attr)
+
+
+State 166
+
+  101 a_expr: a_expr • '+' a_expr
+  102       | a_expr • '-' a_expr
+  103       | a_expr • '*' a_expr
+  104       | a_expr • '/' a_expr
+  105       | a_expr • AND a_expr
+  106       | a_expr • OR a_expr
+  107       | a_expr • EQ a_expr
+  108       | a_expr • LT a_expr
+  109       | a_expr • GT a_expr
+  110       | a_expr • LE a_expr
+  111       | a_expr • GE a_expr
+  112       | a_expr • NE a_expr
+  113       | a_expr • LIKE a_expr
+  114       | a_expr • NOT_LIKE a_expr
+  115       | a_expr • IS_NOT a_expr
+  116       | a_expr • IS a_expr
+  117       | a_expr • NOT_IN a_expr
+  118       | a_expr • IN a_expr
+  148 a_expr_list: COMMA a_expr • alias a_expr_list
+
+    AS        shift, and go to state 116
+    OR        shift, and go to state 117
+    AND       shift, and go to state 118
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    ID        shift, and go to state 131
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
+
+    $default  reduce using rule 74 (alias)
+
+    alias  go to state 208
+
+
+State 167
+
+   75 alias: AS ID •
+
+    $default  reduce using rule 75 (alias)
 
 
 State 168
@@ -2887,54 +2914,7 @@ State 168
   104       | a_expr • '/' a_expr
   105       | a_expr • AND a_expr
   106       | a_expr • OR a_expr
-  107       | a_expr • EQ a_expr
-  108       | a_expr • LT a_expr
-  109       | a_expr • GT a_expr
-  110       | a_expr • LE a_expr
-  111       | a_expr • GE a_expr
-  112       | a_expr • NE a_expr
-  113       | a_expr • LIKE a_expr
-  114       | a_expr • NOT_LIKE a_expr
-  115       | a_expr • IS_NOT a_expr
-  116       | a_expr • IS a_expr
-  117       | a_expr • NOT_IN a_expr
-  118       | a_expr • IN a_expr
-  148 a_expr_list: COMMA a_expr • a_expr_list
-
-    COMMA     shift, and go to state 114
-    OR        shift, and go to state 116
-    AND       shift, and go to state 117
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
-
-    $default  reduce using rule 147 (a_expr_list)
-
-    a_expr_list  go to state 210
-
-
-State 169
-
-  101 a_expr: a_expr • '+' a_expr
-  102       | a_expr • '-' a_expr
-  103       | a_expr • '*' a_expr
-  104       | a_expr • '/' a_expr
-  105       | a_expr • AND a_expr
-  106       | a_expr • OR a_expr
-  106       | a_expr OR a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, INNER_JOIN, ORDER_BY]
+  106       | a_expr OR a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, INNER_JOIN, ORDER_BY, ID]
   107       | a_expr • EQ a_expr
   108       | a_expr • LT a_expr
   109       | a_expr • GT a_expr
@@ -2948,23 +2928,23 @@ State 169
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    AND       shift, and go to state 117
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    AND       shift, and go to state 118
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 106 (a_expr)
 
@@ -2988,14 +2968,14 @@ State 169
     Conflict between rule 106 and token '/' resolved as shift (OR < '/').
 
 
-State 170
+State 169
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
   103       | a_expr • '*' a_expr
   104       | a_expr • '/' a_expr
   105       | a_expr • AND a_expr
-  105       | a_expr AND a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, INNER_JOIN, ORDER_BY]
+  105       | a_expr AND a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, INNER_JOIN, ORDER_BY, ID]
   106       | a_expr • OR a_expr
   107       | a_expr • EQ a_expr
   108       | a_expr • LT a_expr
@@ -3010,22 +2990,22 @@ State 170
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 105 (a_expr)
 
@@ -3049,7 +3029,7 @@ State 170
     Conflict between rule 105 and token '/' resolved as shift (AND < '/').
 
 
-State 171
+State 170
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3058,7 +3038,7 @@ State 171
   105       | a_expr • AND a_expr
   106       | a_expr • OR a_expr
   107       | a_expr • EQ a_expr
-  107       | a_expr EQ a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY]
+  107       | a_expr EQ a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY, ID]
   108       | a_expr • LT a_expr
   109       | a_expr • GT a_expr
   110       | a_expr • LE a_expr
@@ -3071,14 +3051,14 @@ State 171
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 107 (a_expr)
 
@@ -3102,7 +3082,7 @@ State 171
     Conflict between rule 107 and token '/' resolved as shift (EQ < '/').
 
 
-State 172
+State 171
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3112,7 +3092,7 @@ State 172
   106       | a_expr • OR a_expr
   107       | a_expr • EQ a_expr
   108       | a_expr • LT a_expr
-  108       | a_expr LT a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY]
+  108       | a_expr LT a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY, ID]
   109       | a_expr • GT a_expr
   110       | a_expr • LE a_expr
   111       | a_expr • GE a_expr
@@ -3124,14 +3104,14 @@ State 172
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 108 (a_expr)
 
@@ -3155,7 +3135,7 @@ State 172
     Conflict between rule 108 and token '/' resolved as shift (LT < '/').
 
 
-State 173
+State 172
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3166,7 +3146,7 @@ State 173
   107       | a_expr • EQ a_expr
   108       | a_expr • LT a_expr
   109       | a_expr • GT a_expr
-  109       | a_expr GT a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY]
+  109       | a_expr GT a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY, ID]
   110       | a_expr • LE a_expr
   111       | a_expr • GE a_expr
   112       | a_expr • NE a_expr
@@ -3177,14 +3157,14 @@ State 173
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 109 (a_expr)
 
@@ -3208,7 +3188,7 @@ State 173
     Conflict between rule 109 and token '/' resolved as shift (GT < '/').
 
 
-State 174
+State 173
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3220,7 +3200,7 @@ State 174
   108       | a_expr • LT a_expr
   109       | a_expr • GT a_expr
   110       | a_expr • LE a_expr
-  110       | a_expr LE a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY]
+  110       | a_expr LE a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY, ID]
   111       | a_expr • GE a_expr
   112       | a_expr • NE a_expr
   113       | a_expr • LIKE a_expr
@@ -3230,14 +3210,14 @@ State 174
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 110 (a_expr)
 
@@ -3261,7 +3241,7 @@ State 174
     Conflict between rule 110 and token '/' resolved as shift (LE < '/').
 
 
-State 175
+State 174
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3274,7 +3254,7 @@ State 175
   109       | a_expr • GT a_expr
   110       | a_expr • LE a_expr
   111       | a_expr • GE a_expr
-  111       | a_expr GE a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY]
+  111       | a_expr GE a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY, ID]
   112       | a_expr • NE a_expr
   113       | a_expr • LIKE a_expr
   114       | a_expr • NOT_LIKE a_expr
@@ -3283,14 +3263,14 @@ State 175
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 111 (a_expr)
 
@@ -3314,7 +3294,7 @@ State 175
     Conflict between rule 111 and token '/' resolved as shift (GE < '/').
 
 
-State 176
+State 175
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3328,7 +3308,7 @@ State 176
   110       | a_expr • LE a_expr
   111       | a_expr • GE a_expr
   112       | a_expr • NE a_expr
-  112       | a_expr NE a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY]
+  112       | a_expr NE a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, ORDER_BY, ID]
   113       | a_expr • LIKE a_expr
   114       | a_expr • NOT_LIKE a_expr
   115       | a_expr • IS_NOT a_expr
@@ -3336,14 +3316,14 @@ State 176
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 112 (a_expr)
 
@@ -3367,7 +3347,7 @@ State 176
     Conflict between rule 112 and token '/' resolved as shift (NE < '/').
 
 
-State 177
+State 176
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3382,17 +3362,17 @@ State 177
   111       | a_expr • GE a_expr
   112       | a_expr • NE a_expr
   113       | a_expr • LIKE a_expr
-  113       | a_expr LIKE a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY]
+  113       | a_expr LIKE a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID]
   114       | a_expr • NOT_LIKE a_expr
   115       | a_expr • IS_NOT a_expr
   116       | a_expr • IS a_expr
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    '+'  shift, and go to state 130
-    '-'  shift, and go to state 131
-    '*'  shift, and go to state 132
-    '/'  shift, and go to state 133
+    '+'  shift, and go to state 132
+    '-'  shift, and go to state 133
+    '*'  shift, and go to state 134
+    '/'  shift, and go to state 135
 
     $default  reduce using rule 113 (a_expr)
 
@@ -3416,7 +3396,7 @@ State 177
     Conflict between rule 113 and token '/' resolved as shift (LIKE < '/').
 
 
-State 178
+State 177
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3432,16 +3412,16 @@ State 178
   112       | a_expr • NE a_expr
   113       | a_expr • LIKE a_expr
   114       | a_expr • NOT_LIKE a_expr
-  114       | a_expr NOT_LIKE a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY]
+  114       | a_expr NOT_LIKE a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID]
   115       | a_expr • IS_NOT a_expr
   116       | a_expr • IS a_expr
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    '+'  shift, and go to state 130
-    '-'  shift, and go to state 131
-    '*'  shift, and go to state 132
-    '/'  shift, and go to state 133
+    '+'  shift, and go to state 132
+    '-'  shift, and go to state 133
+    '*'  shift, and go to state 134
+    '/'  shift, and go to state 135
 
     $default  reduce using rule 114 (a_expr)
 
@@ -3465,7 +3445,7 @@ State 178
     Conflict between rule 114 and token '/' resolved as shift (NOT_LIKE < '/').
 
 
-State 179
+State 178
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3483,24 +3463,24 @@ State 179
   114       | a_expr • NOT_LIKE a_expr
   115       | a_expr • IS_NOT a_expr
   116       | a_expr • IS a_expr
-  116       | a_expr IS a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, IS, IS_NOT, INNER_JOIN, ORDER_BY]
+  116       | a_expr IS a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, IS, IS_NOT, INNER_JOIN, ORDER_BY, ID]
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 116 (a_expr)
 
@@ -3524,7 +3504,7 @@ State 179
     Conflict between rule 116 and token '/' resolved as shift (IS < '/').
 
 
-State 180
+State 179
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3541,25 +3521,25 @@ State 180
   113       | a_expr • LIKE a_expr
   114       | a_expr • NOT_LIKE a_expr
   115       | a_expr • IS_NOT a_expr
-  115       | a_expr IS_NOT a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, IS, IS_NOT, INNER_JOIN, ORDER_BY]
+  115       | a_expr IS_NOT a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, IS, IS_NOT, INNER_JOIN, ORDER_BY, ID]
   116       | a_expr • IS a_expr
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 115 (a_expr)
 
@@ -3583,7 +3563,7 @@ State 180
     Conflict between rule 115 and token '/' resolved as shift (IS_NOT < '/').
 
 
-State 181
+State 180
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3602,15 +3582,15 @@ State 181
   115       | a_expr • IS_NOT a_expr
   116       | a_expr • IS a_expr
   117       | a_expr • NOT_IN a_expr
-  117       | a_expr NOT_IN a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY]
+  117       | a_expr NOT_IN a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID]
   118       | a_expr • IN a_expr
 
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 117 (a_expr)
 
@@ -3634,7 +3614,7 @@ State 181
     Conflict between rule 117 and token '/' resolved as shift (NOT_IN < '/').
 
 
-State 182
+State 181
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -3654,14 +3634,14 @@ State 182
   116       | a_expr • IS a_expr
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
-  118       | a_expr IN a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY]
+  118       | a_expr IN a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID]
 
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 118 (a_expr)
 
@@ -3685,10 +3665,10 @@ State 182
     Conflict between rule 118 and token '/' resolved as shift (IN < '/').
 
 
-State 183
+State 182
 
   101 a_expr: a_expr • '+' a_expr
-  101       | a_expr '+' a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, '+', '-']
+  101       | a_expr '+' a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID, '+', '-']
   102       | a_expr • '-' a_expr
   103       | a_expr • '*' a_expr
   104       | a_expr • '/' a_expr
@@ -3707,8 +3687,8 @@ State 183
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    '*'  shift, and go to state 132
-    '/'  shift, and go to state 133
+    '*'  shift, and go to state 134
+    '/'  shift, and go to state 135
 
     $default  reduce using rule 101 (a_expr)
 
@@ -3732,11 +3712,11 @@ State 183
     Conflict between rule 101 and token '/' resolved as shift ('+' < '/').
 
 
-State 184
+State 183
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
-  102       | a_expr '-' a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, '+', '-']
+  102       | a_expr '-' a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID, '+', '-']
   103       | a_expr • '*' a_expr
   104       | a_expr • '/' a_expr
   105       | a_expr • AND a_expr
@@ -3754,8 +3734,8 @@ State 184
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    '*'  shift, and go to state 132
-    '/'  shift, and go to state 133
+    '*'  shift, and go to state 134
+    '/'  shift, and go to state 135
 
     $default  reduce using rule 102 (a_expr)
 
@@ -3779,12 +3759,12 @@ State 184
     Conflict between rule 102 and token '/' resolved as shift ('-' < '/').
 
 
-State 185
+State 184
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
   103       | a_expr • '*' a_expr
-  103       | a_expr '*' a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, '+', '-', '*', '/']
+  103       | a_expr '*' a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID, '+', '-', '*', '/']
   104       | a_expr • '/' a_expr
   105       | a_expr • AND a_expr
   106       | a_expr • OR a_expr
@@ -3823,13 +3803,13 @@ State 185
     Conflict between rule 103 and token '/' resolved as reduce (%left '/').
 
 
-State 186
+State 185
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
   103       | a_expr • '*' a_expr
   104       | a_expr • '/' a_expr
-  104       | a_expr '/' a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, '+', '-', '*', '/']
+  104       | a_expr '/' a_expr •  [$end, SEMICOLON, AS, GROUP_BY, RBRACE, COMMA, FROM, WHERE, OR, HAVING, AND, EQ, LT, GT, LE, GE, NE, LIKE, NOT_LIKE, IS, IS_NOT, INNER_JOIN, NOT_IN, IN, ORDER_BY, ID, '+', '-', '*', '/']
   105       | a_expr • AND a_expr
   106       | a_expr • OR a_expr
   107       | a_expr • EQ a_expr
@@ -3867,80 +3847,80 @@ State 186
     Conflict between rule 104 and token '/' resolved as reduce (%left '/').
 
 
+State 186
+
+  129 select_attr: a_expr alias a_expr_list •
+
+    $default  reduce using rule 129 (select_attr)
+
+
 State 187
 
    78 select_stmt: SELECT select_attr FROM ID • alias rel_list_with_alias where order group_by having
    80 join: ID • alias INNER_JOIN ID alias join_equal join_list
 
-    AS  shift, and go to state 136
-    ID  shift, and go to state 137
+    AS  shift, and go to state 116
+    ID  shift, and go to state 131
 
     $default  reduce using rule 74 (alias)
 
-    alias  go to state 211
+    alias  go to state 209
 
 
 State 188
 
    79 select_stmt: SELECT select_attr FROM join • where order group_by having
 
-    WHERE  shift, and go to state 195
+    WHERE  shift, and go to state 194
 
     $default  reduce using rule 164 (where)
 
-    where  go to state 212
+    where  go to state 210
 
 
 State 189
-
-   75 alias: AS ID •
-
-    $default  reduce using rule 75 (alias)
-
-
-State 190
 
   131 function: func_LA '*' RBRACE •
 
     $default  reduce using rule 131 (function)
 
 
-State 191
+State 190
 
   130 function: func_LA a_expr RBRACE •
 
     $default  reduce using rule 130 (function)
 
 
-State 192
+State 191
 
   132 function: func_LA rel_attr COMMA • value_with_MINUS RBRACE
 
-    NULL_T  shift, and go to state 213
-    NUMBER  shift, and go to state 214
-    FLOAT   shift, and go to state 215
-    DATE    shift, and go to state 216
-    SSS     shift, and go to state 217
-    '-'     shift, and go to state 218
+    NULL_T  shift, and go to state 211
+    NUMBER  shift, and go to state 212
+    FLOAT   shift, and go to state 213
+    DATE    shift, and go to state 214
+    SSS     shift, and go to state 215
+    '-'     shift, and go to state 216
 
-    value_with_MINUS  go to state 219
+    value_with_MINUS  go to state 217
 
 
-State 193
+State 192
 
    31 show_index_stmt: SHOW INDEX FROM ID •
 
     $default  reduce using rule 31 (show_index_stmt)
 
 
-State 194
+State 193
 
    51 insert_stmt: INSERT INTO ID VALUES • LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list
 
-    LBRACE  shift, and go to state 220
+    LBRACE  shift, and go to state 218
 
 
-State 195
+State 194
 
   165 where: WHERE • a_expr
 
@@ -3965,7 +3945,7 @@ State 195
     '-'          shift, and go to state 70
 
     value                   go to state 72
-    a_expr                  go to state 221
+    a_expr                  go to state 219
     c_expr                  go to state 74
     value_list_LALR         go to state 75
     select_stmt_with_paren  go to state 76
@@ -3975,215 +3955,212 @@ State 195
     rel_attr                go to state 81
 
 
-State 196
+State 195
 
    67 delete_stmt: DELETE FROM ID where •
 
     $default  reduce using rule 67 (delete_stmt)
 
 
-State 197
+State 196
 
    69 update_expr: ID • EQ LBRACE select_stmt RBRACE update_expr_list
    70            | ID • EQ value update_expr_list
 
-    EQ  shift, and go to state 222
+    EQ  shift, and go to state 220
 
 
-State 198
+State 197
 
    68 update_stmt: UPDATE ID SET update_expr • where
 
-    WHERE  shift, and go to state 195
+    WHERE  shift, and go to state 194
 
     $default  reduce using rule 164 (where)
 
-    where  go to state 223
+    where  go to state 221
 
 
-State 199
+State 198
 
   168 set_variable_stmt: SET ID EQ value •
 
     $default  reduce using rule 168 (set_variable_stmt)
 
 
-State 200
+State 199
 
   166 load_data_stmt: LOAD DATA INFILE SSS • INTO TABLE ID
 
-    INTO  shift, and go to state 224
+    INTO  shift, and go to state 222
 
 
-State 201
+State 200
 
    43 attr_def: ID • type LBRACE number RBRACE nullable_marker
    44         | ID • type nullable_marker
 
-    INT_T     shift, and go to state 225
-    STRING_T  shift, and go to state 226
-    FLOAT_T   shift, and go to state 227
-    DATE_T    shift, and go to state 228
-    TEXT_T    shift, and go to state 229
+    INT_T     shift, and go to state 223
+    STRING_T  shift, and go to state 224
+    FLOAT_T   shift, and go to state 225
+    DATE_T    shift, and go to state 226
+    TEXT_T    shift, and go to state 227
 
-    type  go to state 230
+    type  go to state 228
+
+
+State 201
+
+   40 create_table_stmt: CREATE TABLE ID LBRACE attr_def • attr_def_list RBRACE
+
+    COMMA  shift, and go to state 229
+
+    $default  reduce using rule 41 (attr_def_list)
+
+    attr_def_list  go to state 230
 
 
 State 202
 
-   40 create_table_stmt: CREATE TABLE ID LBRACE attr_def • attr_def_list RBRACE
+   35 create_index_stmt: CREATE unique_marker INDEX ID ON • ID LBRACE ID rel_list RBRACE
 
-    COMMA  shift, and go to state 231
-
-    $default  reduce using rule 41 (attr_def_list)
-
-    attr_def_list  go to state 232
+    ID  shift, and go to state 231
 
 
 State 203
-
-   35 create_index_stmt: CREATE unique_marker INDEX ID ON • ID LBRACE ID rel_list RBRACE
-
-    ID  shift, and go to state 233
-
-
-State 204
 
    36 drop_index_stmt: DROP INDEX ID ON ID •
 
     $default  reduce using rule 36 (drop_index_stmt)
 
 
-State 205
+State 204
 
   127 value_list_LA: value COMMA value •
 
     $default  reduce using rule 127 (value_list_LA)
 
 
-State 206
-
-  121 c_expr: LBRACE a_expr RBRACE alias •
-
-    $default  reduce using rule 121 (c_expr)
-
-
-State 207
+State 205
 
   126 value_list_LA: value_list_LA COMMA value •
 
     $default  reduce using rule 126 (value_list_LA)
 
 
-State 208
+State 206
 
   120 a_expr: NOT_EXISTS LBRACE select_stmt RBRACE •
 
     $default  reduce using rule 120 (a_expr)
 
 
-State 209
+State 207
 
   119 a_expr: EXISTS LBRACE select_stmt RBRACE •
 
     $default  reduce using rule 119 (a_expr)
 
 
-State 210
+State 208
 
-  148 a_expr_list: COMMA a_expr a_expr_list •
+  148 a_expr_list: COMMA a_expr alias • a_expr_list
 
-    $default  reduce using rule 148 (a_expr_list)
+    COMMA  shift, and go to state 114
+
+    $default  reduce using rule 147 (a_expr_list)
+
+    a_expr_list  go to state 232
 
 
-State 211
+State 209
 
    78 select_stmt: SELECT select_attr FROM ID alias • rel_list_with_alias where order group_by having
    80 join: ID alias • INNER_JOIN ID alias join_equal join_list
 
-    COMMA       shift, and go to state 234
-    INNER_JOIN  shift, and go to state 235
+    COMMA       shift, and go to state 233
+    INNER_JOIN  shift, and go to state 234
 
     $default  reduce using rule 149 (rel_list_with_alias)
 
-    rel_list_with_alias  go to state 236
+    rel_list_with_alias  go to state 235
 
 
-State 212
+State 210
 
    79 select_stmt: SELECT select_attr FROM join where • order group_by having
 
-    ORDER_BY  shift, and go to state 237
+    ORDER_BY  shift, and go to state 236
 
     $default  reduce using rule 157 (order)
 
-    order  go to state 238
+    order  go to state 237
 
 
-State 213
+State 211
 
    56 value_with_MINUS: NULL_T •
 
     $default  reduce using rule 56 (value_with_MINUS)
 
 
-State 214
+State 212
 
    57 value_with_MINUS: NUMBER •
 
     $default  reduce using rule 57 (value_with_MINUS)
 
 
-State 215
+State 213
 
    59 value_with_MINUS: FLOAT •
 
     $default  reduce using rule 59 (value_with_MINUS)
 
 
-State 216
+State 214
 
    60 value_with_MINUS: DATE •
 
     $default  reduce using rule 60 (value_with_MINUS)
 
 
-State 217
+State 215
 
    61 value_with_MINUS: SSS •
 
     $default  reduce using rule 61 (value_with_MINUS)
 
 
-State 218
+State 216
 
    58 value_with_MINUS: '-' • NUMBER
 
-    NUMBER  shift, and go to state 239
+    NUMBER  shift, and go to state 238
 
 
-State 219
+State 217
 
   132 function: func_LA rel_attr COMMA value_with_MINUS • RBRACE
 
-    RBRACE  shift, and go to state 240
+    RBRACE  shift, and go to state 239
 
 
-State 220
+State 218
 
    51 insert_stmt: INSERT INTO ID VALUES LBRACE • value_with_MINUS value_list_with_MINUS RBRACE insert_list
 
-    NULL_T  shift, and go to state 213
-    NUMBER  shift, and go to state 214
-    FLOAT   shift, and go to state 215
-    DATE    shift, and go to state 216
-    SSS     shift, and go to state 217
-    '-'     shift, and go to state 218
+    NULL_T  shift, and go to state 211
+    NUMBER  shift, and go to state 212
+    FLOAT   shift, and go to state 213
+    DATE    shift, and go to state 214
+    SSS     shift, and go to state 215
+    '-'     shift, and go to state 216
 
-    value_with_MINUS  go to state 241
+    value_with_MINUS  go to state 240
 
 
-State 221
+State 219
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -4205,287 +4182,306 @@ State 221
   118       | a_expr • IN a_expr
   165 where: WHERE a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, HAVING, ORDER_BY]
 
-    OR        shift, and go to state 116
-    AND       shift, and go to state 117
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    OR        shift, and go to state 117
+    AND       shift, and go to state 118
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 165 (where)
 
 
-State 222
+State 220
 
    69 update_expr: ID EQ • LBRACE select_stmt RBRACE update_expr_list
    70            | ID EQ • value update_expr_list
 
-    LBRACE  shift, and go to state 242
+    LBRACE  shift, and go to state 241
     NULL_T  shift, and go to state 48
     NUMBER  shift, and go to state 49
     FLOAT   shift, and go to state 50
     DATE    shift, and go to state 51
     SSS     shift, and go to state 52
 
-    value  go to state 243
+    value  go to state 242
 
 
-State 223
+State 221
 
    68 update_stmt: UPDATE ID SET update_expr where •
 
     $default  reduce using rule 68 (update_stmt)
 
 
-State 224
+State 222
 
   166 load_data_stmt: LOAD DATA INFILE SSS INTO • TABLE ID
 
-    TABLE  shift, and go to state 244
+    TABLE  shift, and go to state 243
 
 
-State 225
+State 223
 
    46 type: INT_T •
 
     $default  reduce using rule 46 (type)
 
 
-State 226
+State 224
 
    47 type: STRING_T •
 
     $default  reduce using rule 47 (type)
 
 
-State 227
+State 225
 
    49 type: FLOAT_T •
 
     $default  reduce using rule 49 (type)
 
 
-State 228
+State 226
 
    50 type: DATE_T •
 
     $default  reduce using rule 50 (type)
 
 
-State 229
+State 227
 
    48 type: TEXT_T •
 
     $default  reduce using rule 48 (type)
 
 
-State 230
+State 228
 
    43 attr_def: ID type • LBRACE number RBRACE nullable_marker
    44         | ID type • nullable_marker
 
-    UNNULLABLE  shift, and go to state 245
-    LBRACE      shift, and go to state 246
-    NULL_T      shift, and go to state 247
+    UNNULLABLE  shift, and go to state 244
+    LBRACE      shift, and go to state 245
+    NULL_T      shift, and go to state 246
 
     $default  reduce using rule 37 (nullable_marker)
 
-    nullable_marker  go to state 248
+    nullable_marker  go to state 247
+
+
+State 229
+
+   42 attr_def_list: COMMA • attr_def attr_def_list
+
+    ID  shift, and go to state 200
+
+    attr_def  go to state 248
+
+
+State 230
+
+   40 create_table_stmt: CREATE TABLE ID LBRACE attr_def attr_def_list • RBRACE
+
+    RBRACE  shift, and go to state 249
 
 
 State 231
 
-   42 attr_def_list: COMMA • attr_def attr_def_list
+   35 create_index_stmt: CREATE unique_marker INDEX ID ON ID • LBRACE ID rel_list RBRACE
 
-    ID  shift, and go to state 201
-
-    attr_def  go to state 249
+    LBRACE  shift, and go to state 250
 
 
 State 232
 
-   40 create_table_stmt: CREATE TABLE ID LBRACE attr_def attr_def_list • RBRACE
+  148 a_expr_list: COMMA a_expr alias a_expr_list •
 
-    RBRACE  shift, and go to state 250
+    $default  reduce using rule 148 (a_expr_list)
 
 
 State 233
 
-   35 create_index_stmt: CREATE unique_marker INDEX ID ON ID • LBRACE ID rel_list RBRACE
+  150 rel_list_with_alias: COMMA • ID alias rel_list_with_alias
 
-    LBRACE  shift, and go to state 251
+    ID  shift, and go to state 251
 
 
 State 234
 
-  150 rel_list_with_alias: COMMA • ID alias rel_list_with_alias
+   80 join: ID alias INNER_JOIN • ID alias join_equal join_list
 
     ID  shift, and go to state 252
 
 
 State 235
 
-   80 join: ID alias INNER_JOIN • ID alias join_equal join_list
-
-    ID  shift, and go to state 253
-
-
-State 236
-
    78 select_stmt: SELECT select_attr FROM ID alias rel_list_with_alias • where order group_by having
 
-    WHERE  shift, and go to state 195
+    WHERE  shift, and go to state 194
 
     $default  reduce using rule 164 (where)
 
-    where  go to state 254
+    where  go to state 253
 
 
-State 237
+State 236
 
   158 order: ORDER_BY • rel_attr asc_or_desc order_list
 
     ID  shift, and go to state 68
 
-    rel_attr  go to state 255
+    rel_attr  go to state 254
 
 
-State 238
+State 237
 
    79 select_stmt: SELECT select_attr FROM join where order • group_by having
 
-    GROUP_BY  shift, and go to state 256
+    GROUP_BY  shift, and go to state 255
 
     $default  reduce using rule 153 (group_by)
 
-    group_by  go to state 257
+    group_by  go to state 256
 
 
-State 239
+State 238
 
    58 value_with_MINUS: '-' NUMBER •
 
     $default  reduce using rule 58 (value_with_MINUS)
 
 
-State 240
+State 239
 
   132 function: func_LA rel_attr COMMA value_with_MINUS RBRACE •
 
     $default  reduce using rule 132 (function)
 
 
-State 241
+State 240
 
    51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS • value_list_with_MINUS RBRACE insert_list
 
-    COMMA  shift, and go to state 258
+    COMMA  shift, and go to state 257
 
     $default  reduce using rule 54 (value_list_with_MINUS)
 
-    value_list_with_MINUS  go to state 259
+    value_list_with_MINUS  go to state 258
 
 
-State 242
+State 241
 
    69 update_expr: ID EQ LBRACE • select_stmt RBRACE update_expr_list
 
     SELECT  shift, and go to state 4
 
-    select_stmt  go to state 260
+    select_stmt  go to state 259
+
+
+State 242
+
+   70 update_expr: ID EQ value • update_expr_list
+
+    COMMA  shift, and go to state 260
+
+    $default  reduce using rule 71 (update_expr_list)
+
+    update_expr_list  go to state 261
 
 
 State 243
 
-   70 update_expr: ID EQ value • update_expr_list
+  166 load_data_stmt: LOAD DATA INFILE SSS INTO TABLE • ID
 
-    COMMA  shift, and go to state 261
-
-    $default  reduce using rule 71 (update_expr_list)
-
-    update_expr_list  go to state 262
+    ID  shift, and go to state 262
 
 
 State 244
-
-  166 load_data_stmt: LOAD DATA INFILE SSS INTO TABLE • ID
-
-    ID  shift, and go to state 263
-
-
-State 245
 
    38 nullable_marker: UNNULLABLE •
 
     $default  reduce using rule 38 (nullable_marker)
 
 
-State 246
+State 245
 
    43 attr_def: ID type LBRACE • number RBRACE nullable_marker
 
-    NUMBER  shift, and go to state 264
+    NUMBER  shift, and go to state 263
 
-    number  go to state 265
+    number  go to state 264
 
 
-State 247
+State 246
 
    39 nullable_marker: NULL_T •
 
     $default  reduce using rule 39 (nullable_marker)
 
 
-State 248
+State 247
 
    44 attr_def: ID type nullable_marker •
 
     $default  reduce using rule 44 (attr_def)
 
 
-State 249
+State 248
 
    42 attr_def_list: COMMA attr_def • attr_def_list
 
-    COMMA  shift, and go to state 231
+    COMMA  shift, and go to state 229
 
     $default  reduce using rule 41 (attr_def_list)
 
-    attr_def_list  go to state 266
+    attr_def_list  go to state 265
 
 
-State 250
+State 249
 
    40 create_table_stmt: CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE •
 
     $default  reduce using rule 40 (create_table_stmt)
 
 
-State 251
+State 250
 
    35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE • ID rel_list RBRACE
 
-    ID  shift, and go to state 267
+    ID  shift, and go to state 266
+
+
+State 251
+
+  150 rel_list_with_alias: COMMA ID • alias rel_list_with_alias
+
+    AS  shift, and go to state 116
+    ID  shift, and go to state 131
+
+    $default  reduce using rule 74 (alias)
+
+    alias  go to state 267
 
 
 State 252
 
-  150 rel_list_with_alias: COMMA ID • alias rel_list_with_alias
+   80 join: ID alias INNER_JOIN ID • alias join_equal join_list
 
-    AS  shift, and go to state 136
-    ID  shift, and go to state 137
+    AS  shift, and go to state 116
+    ID  shift, and go to state 131
 
     $default  reduce using rule 74 (alias)
 
@@ -4494,211 +4490,199 @@ State 252
 
 State 253
 
-   80 join: ID alias INNER_JOIN ID • alias join_equal join_list
+   78 select_stmt: SELECT select_attr FROM ID alias rel_list_with_alias where • order group_by having
 
-    AS  shift, and go to state 136
-    ID  shift, and go to state 137
+    ORDER_BY  shift, and go to state 236
 
-    $default  reduce using rule 74 (alias)
+    $default  reduce using rule 157 (order)
 
-    alias  go to state 269
+    order  go to state 269
 
 
 State 254
 
-   78 select_stmt: SELECT select_attr FROM ID alias rel_list_with_alias where • order group_by having
-
-    ORDER_BY  shift, and go to state 237
-
-    $default  reduce using rule 157 (order)
-
-    order  go to state 270
-
-
-State 255
-
   158 order: ORDER_BY rel_attr • asc_or_desc order_list
 
-    DESC  shift, and go to state 271
-    ASC   shift, and go to state 272
+    DESC  shift, and go to state 270
+    ASC   shift, and go to state 271
 
     $default  reduce using rule 161 (asc_or_desc)
 
-    asc_or_desc  go to state 273
+    asc_or_desc  go to state 272
 
 
-State 256
+State 255
 
   154 group_by: GROUP_BY • rel_attr attr_list
 
     ID  shift, and go to state 68
 
-    rel_attr  go to state 274
+    rel_attr  go to state 273
+
+
+State 256
+
+   79 select_stmt: SELECT select_attr FROM join where order group_by • having
+
+    HAVING  shift, and go to state 274
+
+    $default  reduce using rule 155 (having)
+
+    having  go to state 275
 
 
 State 257
 
-   79 select_stmt: SELECT select_attr FROM join where order group_by • having
+   55 value_list_with_MINUS: COMMA • value_with_MINUS value_list_with_MINUS
 
-    HAVING  shift, and go to state 275
+    NULL_T  shift, and go to state 211
+    NUMBER  shift, and go to state 212
+    FLOAT   shift, and go to state 213
+    DATE    shift, and go to state 214
+    SSS     shift, and go to state 215
+    '-'     shift, and go to state 216
 
-    $default  reduce using rule 155 (having)
-
-    having  go to state 276
+    value_with_MINUS  go to state 276
 
 
 State 258
 
-   55 value_list_with_MINUS: COMMA • value_with_MINUS value_list_with_MINUS
+   51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS • RBRACE insert_list
 
-    NULL_T  shift, and go to state 213
-    NUMBER  shift, and go to state 214
-    FLOAT   shift, and go to state 215
-    DATE    shift, and go to state 216
-    SSS     shift, and go to state 217
-    '-'     shift, and go to state 218
-
-    value_with_MINUS  go to state 277
+    RBRACE  shift, and go to state 277
 
 
 State 259
 
-   51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS • RBRACE insert_list
+   69 update_expr: ID EQ LBRACE select_stmt • RBRACE update_expr_list
 
     RBRACE  shift, and go to state 278
 
 
 State 260
 
-   69 update_expr: ID EQ LBRACE select_stmt • RBRACE update_expr_list
-
-    RBRACE  shift, and go to state 279
-
-
-State 261
-
    72 update_expr_list: COMMA • ID EQ LBRACE select_stmt RBRACE update_expr_list
    73                 | COMMA • ID EQ value update_expr_list
 
-    ID  shift, and go to state 280
+    ID  shift, and go to state 279
 
 
-State 262
+State 261
 
    70 update_expr: ID EQ value update_expr_list •
 
     $default  reduce using rule 70 (update_expr)
 
 
-State 263
+State 262
 
   166 load_data_stmt: LOAD DATA INFILE SSS INTO TABLE ID •
 
     $default  reduce using rule 166 (load_data_stmt)
 
 
-State 264
+State 263
 
    45 number: NUMBER •
 
     $default  reduce using rule 45 (number)
 
 
-State 265
+State 264
 
    43 attr_def: ID type LBRACE number • RBRACE nullable_marker
 
-    RBRACE  shift, and go to state 281
+    RBRACE  shift, and go to state 280
 
 
-State 266
+State 265
 
    42 attr_def_list: COMMA attr_def attr_def_list •
 
     $default  reduce using rule 42 (attr_def_list)
 
 
-State 267
+State 266
 
    35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE ID • rel_list RBRACE
 
-    COMMA  shift, and go to state 282
+    COMMA  shift, and go to state 281
 
     $default  reduce using rule 151 (rel_list)
 
-    rel_list  go to state 283
+    rel_list  go to state 282
+
+
+State 267
+
+  150 rel_list_with_alias: COMMA ID alias • rel_list_with_alias
+
+    COMMA  shift, and go to state 233
+
+    $default  reduce using rule 149 (rel_list_with_alias)
+
+    rel_list_with_alias  go to state 283
 
 
 State 268
 
-  150 rel_list_with_alias: COMMA ID alias • rel_list_with_alias
+   80 join: ID alias INNER_JOIN ID alias • join_equal join_list
 
-    COMMA  shift, and go to state 234
+    ON  shift, and go to state 284
 
-    $default  reduce using rule 149 (rel_list_with_alias)
+    $default  reduce using rule 83 (join_equal)
 
-    rel_list_with_alias  go to state 284
+    join_equal  go to state 285
 
 
 State 269
 
-   80 join: ID alias INNER_JOIN ID alias • join_equal join_list
-
-    ON  shift, and go to state 285
-
-    $default  reduce using rule 83 (join_equal)
-
-    join_equal  go to state 286
-
-
-State 270
-
    78 select_stmt: SELECT select_attr FROM ID alias rel_list_with_alias where order • group_by having
 
-    GROUP_BY  shift, and go to state 256
+    GROUP_BY  shift, and go to state 255
 
     $default  reduce using rule 153 (group_by)
 
-    group_by  go to state 287
+    group_by  go to state 286
 
 
-State 271
+State 270
 
   163 asc_or_desc: DESC •
 
     $default  reduce using rule 163 (asc_or_desc)
 
 
-State 272
+State 271
 
   162 asc_or_desc: ASC •
 
     $default  reduce using rule 162 (asc_or_desc)
 
 
-State 273
+State 272
 
   158 order: ORDER_BY rel_attr asc_or_desc • order_list
 
-    COMMA  shift, and go to state 288
+    COMMA  shift, and go to state 287
 
     $default  reduce using rule 159 (order_list)
 
-    order_list  go to state 289
+    order_list  go to state 288
 
 
-State 274
+State 273
 
   154 group_by: GROUP_BY rel_attr • attr_list
 
-    COMMA  shift, and go to state 290
+    COMMA  shift, and go to state 289
 
     $default  reduce using rule 145 (attr_list)
 
-    attr_list  go to state 291
+    attr_list  go to state 290
 
 
-State 275
+State 274
 
   156 having: HAVING • a_expr
 
@@ -4723,7 +4707,7 @@ State 275
     '-'          shift, and go to state 70
 
     value                   go to state 72
-    a_expr                  go to state 292
+    a_expr                  go to state 291
     c_expr                  go to state 74
     value_list_LALR         go to state 75
     select_stmt_with_paren  go to state 76
@@ -4733,88 +4717,88 @@ State 275
     rel_attr                go to state 81
 
 
-State 276
+State 275
 
    79 select_stmt: SELECT select_attr FROM join where order group_by having •
 
     $default  reduce using rule 79 (select_stmt)
 
 
-State 277
+State 276
 
    55 value_list_with_MINUS: COMMA value_with_MINUS • value_list_with_MINUS
 
-    COMMA  shift, and go to state 258
+    COMMA  shift, and go to state 257
 
     $default  reduce using rule 54 (value_list_with_MINUS)
 
-    value_list_with_MINUS  go to state 293
+    value_list_with_MINUS  go to state 292
+
+
+State 277
+
+   51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE • insert_list
+
+    COMMA  shift, and go to state 293
+
+    $default  reduce using rule 52 (insert_list)
+
+    insert_list  go to state 294
 
 
 State 278
 
-   51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE • insert_list
+   69 update_expr: ID EQ LBRACE select_stmt RBRACE • update_expr_list
 
-    COMMA  shift, and go to state 294
+    COMMA  shift, and go to state 260
 
-    $default  reduce using rule 52 (insert_list)
+    $default  reduce using rule 71 (update_expr_list)
 
-    insert_list  go to state 295
+    update_expr_list  go to state 295
 
 
 State 279
 
-   69 update_expr: ID EQ LBRACE select_stmt RBRACE • update_expr_list
+   72 update_expr_list: COMMA ID • EQ LBRACE select_stmt RBRACE update_expr_list
+   73                 | COMMA ID • EQ value update_expr_list
 
-    COMMA  shift, and go to state 261
-
-    $default  reduce using rule 71 (update_expr_list)
-
-    update_expr_list  go to state 296
+    EQ  shift, and go to state 296
 
 
 State 280
 
-   72 update_expr_list: COMMA ID • EQ LBRACE select_stmt RBRACE update_expr_list
-   73                 | COMMA ID • EQ value update_expr_list
+   43 attr_def: ID type LBRACE number RBRACE • nullable_marker
 
-    EQ  shift, and go to state 297
+    UNNULLABLE  shift, and go to state 244
+    NULL_T      shift, and go to state 246
+
+    $default  reduce using rule 37 (nullable_marker)
+
+    nullable_marker  go to state 297
 
 
 State 281
 
-   43 attr_def: ID type LBRACE number RBRACE • nullable_marker
+  152 rel_list: COMMA • ID rel_list
 
-    UNNULLABLE  shift, and go to state 245
-    NULL_T      shift, and go to state 247
-
-    $default  reduce using rule 37 (nullable_marker)
-
-    nullable_marker  go to state 298
+    ID  shift, and go to state 298
 
 
 State 282
 
-  152 rel_list: COMMA • ID rel_list
+   35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE ID rel_list • RBRACE
 
-    ID  shift, and go to state 299
+    RBRACE  shift, and go to state 299
 
 
 State 283
-
-   35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE ID rel_list • RBRACE
-
-    RBRACE  shift, and go to state 300
-
-
-State 284
 
   150 rel_list_with_alias: COMMA ID alias rel_list_with_alias •
 
     $default  reduce using rule 150 (rel_list_with_alias)
 
 
-State 285
+State 284
 
    84 join_equal: ON • a_expr
 
@@ -4839,7 +4823,7 @@ State 285
     '-'          shift, and go to state 70
 
     value                   go to state 72
-    a_expr                  go to state 301
+    a_expr                  go to state 300
     c_expr                  go to state 74
     value_list_LALR         go to state 75
     select_stmt_with_paren  go to state 76
@@ -4849,61 +4833,61 @@ State 285
     rel_attr                go to state 81
 
 
-State 286
+State 285
 
    80 join: ID alias INNER_JOIN ID alias join_equal • join_list
 
-    INNER_JOIN  shift, and go to state 302
+    INNER_JOIN  shift, and go to state 301
 
     $default  reduce using rule 82 (join_list)
 
-    join_list  go to state 303
+    join_list  go to state 302
 
 
-State 287
+State 286
 
    78 select_stmt: SELECT select_attr FROM ID alias rel_list_with_alias where order group_by • having
 
-    HAVING  shift, and go to state 275
+    HAVING  shift, and go to state 274
 
     $default  reduce using rule 155 (having)
 
-    having  go to state 304
+    having  go to state 303
 
 
-State 288
+State 287
 
   160 order_list: COMMA • rel_attr asc_or_desc order_list
 
     ID  shift, and go to state 68
 
-    rel_attr  go to state 305
+    rel_attr  go to state 304
 
 
-State 289
+State 288
 
   158 order: ORDER_BY rel_attr asc_or_desc order_list •
 
     $default  reduce using rule 158 (order)
 
 
-State 290
+State 289
 
   146 attr_list: COMMA • rel_attr attr_list
 
     ID  shift, and go to state 68
 
-    rel_attr  go to state 306
+    rel_attr  go to state 305
 
 
-State 291
+State 290
 
   154 group_by: GROUP_BY rel_attr attr_list •
 
     $default  reduce using rule 154 (group_by)
 
 
-State 292
+State 291
 
   101 a_expr: a_expr • '+' a_expr
   102       | a_expr • '-' a_expr
@@ -4925,97 +4909,97 @@ State 292
   118       | a_expr • IN a_expr
   156 having: HAVING a_expr •  [$end, SEMICOLON, RBRACE]
 
-    OR        shift, and go to state 116
-    AND       shift, and go to state 117
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    OR        shift, and go to state 117
+    AND       shift, and go to state 118
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 156 (having)
 
 
-State 293
+State 292
 
    55 value_list_with_MINUS: COMMA value_with_MINUS value_list_with_MINUS •
 
     $default  reduce using rule 55 (value_list_with_MINUS)
 
 
-State 294
+State 293
 
    53 insert_list: COMMA • LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list
 
-    LBRACE  shift, and go to state 307
+    LBRACE  shift, and go to state 306
 
 
-State 295
+State 294
 
    51 insert_stmt: INSERT INTO ID VALUES LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list •
 
     $default  reduce using rule 51 (insert_stmt)
 
 
-State 296
+State 295
 
    69 update_expr: ID EQ LBRACE select_stmt RBRACE update_expr_list •
 
     $default  reduce using rule 69 (update_expr)
 
 
-State 297
+State 296
 
    72 update_expr_list: COMMA ID EQ • LBRACE select_stmt RBRACE update_expr_list
    73                 | COMMA ID EQ • value update_expr_list
 
-    LBRACE  shift, and go to state 308
+    LBRACE  shift, and go to state 307
     NULL_T  shift, and go to state 48
     NUMBER  shift, and go to state 49
     FLOAT   shift, and go to state 50
     DATE    shift, and go to state 51
     SSS     shift, and go to state 52
 
-    value  go to state 309
+    value  go to state 308
 
 
-State 298
+State 297
 
    43 attr_def: ID type LBRACE number RBRACE nullable_marker •
 
     $default  reduce using rule 43 (attr_def)
 
 
-State 299
+State 298
 
   152 rel_list: COMMA ID • rel_list
 
-    COMMA  shift, and go to state 282
+    COMMA  shift, and go to state 281
 
     $default  reduce using rule 151 (rel_list)
 
-    rel_list  go to state 310
+    rel_list  go to state 309
 
 
-State 300
+State 299
 
    35 create_index_stmt: CREATE unique_marker INDEX ID ON ID LBRACE ID rel_list RBRACE •
 
     $default  reduce using rule 35 (create_index_stmt)
 
 
-State 301
+State 300
 
    84 join_equal: ON a_expr •  [$end, SEMICOLON, GROUP_BY, RBRACE, WHERE, HAVING, INNER_JOIN, ORDER_BY]
   101 a_expr: a_expr • '+' a_expr
@@ -5037,241 +5021,241 @@ State 301
   117       | a_expr • NOT_IN a_expr
   118       | a_expr • IN a_expr
 
-    OR        shift, and go to state 116
-    AND       shift, and go to state 117
-    EQ        shift, and go to state 118
-    LT        shift, and go to state 119
-    GT        shift, and go to state 120
-    LE        shift, and go to state 121
-    GE        shift, and go to state 122
-    NE        shift, and go to state 123
-    LIKE      shift, and go to state 124
-    NOT_LIKE  shift, and go to state 125
-    IS        shift, and go to state 126
-    IS_NOT    shift, and go to state 127
-    NOT_IN    shift, and go to state 128
-    IN        shift, and go to state 129
-    '+'       shift, and go to state 130
-    '-'       shift, and go to state 131
-    '*'       shift, and go to state 132
-    '/'       shift, and go to state 133
+    OR        shift, and go to state 117
+    AND       shift, and go to state 118
+    EQ        shift, and go to state 119
+    LT        shift, and go to state 120
+    GT        shift, and go to state 121
+    LE        shift, and go to state 122
+    GE        shift, and go to state 123
+    NE        shift, and go to state 124
+    LIKE      shift, and go to state 125
+    NOT_LIKE  shift, and go to state 126
+    IS        shift, and go to state 127
+    IS_NOT    shift, and go to state 128
+    NOT_IN    shift, and go to state 129
+    IN        shift, and go to state 130
+    '+'       shift, and go to state 132
+    '-'       shift, and go to state 133
+    '*'       shift, and go to state 134
+    '/'       shift, and go to state 135
 
     $default  reduce using rule 84 (join_equal)
 
 
-State 302
+State 301
 
    81 join_list: INNER_JOIN • ID alias join_equal join_list
 
-    ID  shift, and go to state 311
+    ID  shift, and go to state 310
 
 
-State 303
+State 302
 
    80 join: ID alias INNER_JOIN ID alias join_equal join_list •
 
     $default  reduce using rule 80 (join)
 
 
-State 304
+State 303
 
    78 select_stmt: SELECT select_attr FROM ID alias rel_list_with_alias where order group_by having •
 
     $default  reduce using rule 78 (select_stmt)
 
 
-State 305
+State 304
 
   160 order_list: COMMA rel_attr • asc_or_desc order_list
 
-    DESC  shift, and go to state 271
-    ASC   shift, and go to state 272
+    DESC  shift, and go to state 270
+    ASC   shift, and go to state 271
 
     $default  reduce using rule 161 (asc_or_desc)
 
-    asc_or_desc  go to state 312
+    asc_or_desc  go to state 311
+
+
+State 305
+
+  146 attr_list: COMMA rel_attr • attr_list
+
+    COMMA  shift, and go to state 289
+
+    $default  reduce using rule 145 (attr_list)
+
+    attr_list  go to state 312
 
 
 State 306
 
-  146 attr_list: COMMA rel_attr • attr_list
+   53 insert_list: COMMA LBRACE • value_with_MINUS value_list_with_MINUS RBRACE insert_list
 
-    COMMA  shift, and go to state 290
+    NULL_T  shift, and go to state 211
+    NUMBER  shift, and go to state 212
+    FLOAT   shift, and go to state 213
+    DATE    shift, and go to state 214
+    SSS     shift, and go to state 215
+    '-'     shift, and go to state 216
 
-    $default  reduce using rule 145 (attr_list)
-
-    attr_list  go to state 313
+    value_with_MINUS  go to state 313
 
 
 State 307
-
-   53 insert_list: COMMA LBRACE • value_with_MINUS value_list_with_MINUS RBRACE insert_list
-
-    NULL_T  shift, and go to state 213
-    NUMBER  shift, and go to state 214
-    FLOAT   shift, and go to state 215
-    DATE    shift, and go to state 216
-    SSS     shift, and go to state 217
-    '-'     shift, and go to state 218
-
-    value_with_MINUS  go to state 314
-
-
-State 308
 
    72 update_expr_list: COMMA ID EQ LBRACE • select_stmt RBRACE update_expr_list
 
     SELECT  shift, and go to state 4
 
-    select_stmt  go to state 315
+    select_stmt  go to state 314
 
 
-State 309
+State 308
 
    73 update_expr_list: COMMA ID EQ value • update_expr_list
 
-    COMMA  shift, and go to state 261
+    COMMA  shift, and go to state 260
 
     $default  reduce using rule 71 (update_expr_list)
 
-    update_expr_list  go to state 316
+    update_expr_list  go to state 315
 
 
-State 310
+State 309
 
   152 rel_list: COMMA ID rel_list •
 
     $default  reduce using rule 152 (rel_list)
 
 
-State 311
+State 310
 
    81 join_list: INNER_JOIN ID • alias join_equal join_list
 
-    AS  shift, and go to state 136
-    ID  shift, and go to state 137
+    AS  shift, and go to state 116
+    ID  shift, and go to state 131
 
     $default  reduce using rule 74 (alias)
 
-    alias  go to state 317
+    alias  go to state 316
 
 
-State 312
+State 311
 
   160 order_list: COMMA rel_attr asc_or_desc • order_list
 
-    COMMA  shift, and go to state 288
+    COMMA  shift, and go to state 287
 
     $default  reduce using rule 159 (order_list)
 
-    order_list  go to state 318
+    order_list  go to state 317
 
 
-State 313
+State 312
 
   146 attr_list: COMMA rel_attr attr_list •
 
     $default  reduce using rule 146 (attr_list)
 
 
-State 314
+State 313
 
    53 insert_list: COMMA LBRACE value_with_MINUS • value_list_with_MINUS RBRACE insert_list
 
-    COMMA  shift, and go to state 258
+    COMMA  shift, and go to state 257
 
     $default  reduce using rule 54 (value_list_with_MINUS)
 
-    value_list_with_MINUS  go to state 319
+    value_list_with_MINUS  go to state 318
 
 
-State 315
+State 314
 
    72 update_expr_list: COMMA ID EQ LBRACE select_stmt • RBRACE update_expr_list
 
-    RBRACE  shift, and go to state 320
+    RBRACE  shift, and go to state 319
 
 
-State 316
+State 315
 
    73 update_expr_list: COMMA ID EQ value update_expr_list •
 
     $default  reduce using rule 73 (update_expr_list)
 
 
-State 317
+State 316
 
    81 join_list: INNER_JOIN ID alias • join_equal join_list
 
-    ON  shift, and go to state 285
+    ON  shift, and go to state 284
 
     $default  reduce using rule 83 (join_equal)
 
-    join_equal  go to state 321
+    join_equal  go to state 320
 
 
-State 318
+State 317
 
   160 order_list: COMMA rel_attr asc_or_desc order_list •
 
     $default  reduce using rule 160 (order_list)
 
 
-State 319
+State 318
 
    53 insert_list: COMMA LBRACE value_with_MINUS value_list_with_MINUS • RBRACE insert_list
 
-    RBRACE  shift, and go to state 322
+    RBRACE  shift, and go to state 321
+
+
+State 319
+
+   72 update_expr_list: COMMA ID EQ LBRACE select_stmt RBRACE • update_expr_list
+
+    COMMA  shift, and go to state 260
+
+    $default  reduce using rule 71 (update_expr_list)
+
+    update_expr_list  go to state 322
 
 
 State 320
 
-   72 update_expr_list: COMMA ID EQ LBRACE select_stmt RBRACE • update_expr_list
+   81 join_list: INNER_JOIN ID alias join_equal • join_list
 
-    COMMA  shift, and go to state 261
+    INNER_JOIN  shift, and go to state 301
 
-    $default  reduce using rule 71 (update_expr_list)
+    $default  reduce using rule 82 (join_list)
 
-    update_expr_list  go to state 323
+    join_list  go to state 323
 
 
 State 321
 
-   81 join_list: INNER_JOIN ID alias join_equal • join_list
-
-    INNER_JOIN  shift, and go to state 302
-
-    $default  reduce using rule 82 (join_list)
-
-    join_list  go to state 324
-
-
-State 322
-
    53 insert_list: COMMA LBRACE value_with_MINUS value_list_with_MINUS RBRACE • insert_list
 
-    COMMA  shift, and go to state 294
+    COMMA  shift, and go to state 293
 
     $default  reduce using rule 52 (insert_list)
 
-    insert_list  go to state 325
+    insert_list  go to state 324
 
 
-State 323
+State 322
 
    72 update_expr_list: COMMA ID EQ LBRACE select_stmt RBRACE update_expr_list •
 
     $default  reduce using rule 72 (update_expr_list)
 
 
-State 324
+State 323
 
    81 join_list: INNER_JOIN ID alias join_equal join_list •
 
     $default  reduce using rule 81 (join_list)
 
 
-State 325
+State 324
 
    53 insert_list: COMMA LBRACE value_with_MINUS value_list_with_MINUS RBRACE insert_list •
 

@@ -37,7 +37,7 @@ RC ProjectPhysicalOperator::open(Trx *trx)
 RC ProjectPhysicalOperator::next()
 {
   if (children_.empty()) {
-    if(0 == counter_for_select_func) {
+    if (0 == counter_for_select_func) {
       counter_for_select_func++;
       return RC::SUCCESS;
     }
@@ -55,7 +55,7 @@ RC ProjectPhysicalOperator::close()
 }
 Tuple *ProjectPhysicalOperator::current_tuple()
 {
-  if(children_.empty()) {
+  if (children_.empty()) {
     tuple_.set_tuple(nullptr);
     return &tuple_;
   }
