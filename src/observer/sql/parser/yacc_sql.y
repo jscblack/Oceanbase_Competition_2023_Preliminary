@@ -597,6 +597,10 @@ value_with_MINUS:
       $$ = new Value((float)$1);
       @$ = @1;
     }
+    | '-' FLOAT {
+      $$ = new Value(-(float)$2);
+      @$ = @2;
+    }
     |DATE {
       char *tmpDate = common::substr($1,1,strlen($1)-2);/*trim the*/
       $$ = new Value(tmpDate);
