@@ -1259,6 +1259,12 @@ rel_attr:
       free($1);
       free($3);
     }
+    | ID DOT '*' {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = "*";
+      free($1);
+    }
     ;
 attr_list: // group-by等会使用到，旧版的attr_list
     /* empty */ {
