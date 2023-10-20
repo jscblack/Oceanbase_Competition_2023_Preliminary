@@ -216,7 +216,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 %type <number>              number
 /* %type <comp>                comp_op */
 %type <func_name>           func_name
-%type <func_name>           func_LA
+/* %type <func_name>           func_LA */
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
@@ -1203,14 +1203,14 @@ select_attr:
 // 是否为合法的聚集表达式，将在Resolve阶段判断
 // TODO: 尚未完成列表参数(参数是表达式列表)的部分
 function: // 特殊的表达式，可能有括号内列表，注意无法在此生成Expression，可能有field需要后面才能知道 
-    func_LA a_expr RBRACE { 
+    func_name a_expr RBRACE { 
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FUNC_OR_AGG;
       $$->func = $1;
       $$->left_cond = $2;
     }
-    | func_LA '*' RBRACE {  // COUNT(*)
+    | func_name '*' RBRACE {  // COUNT(*)
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FUNC_OR_AGG;
@@ -1223,7 +1223,7 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
       sub_attr->attr.attribute_name = "*";
       $$->left_cond = sub_attr;
     }
-    | func_LA rel_attr COMMA value_with_MINUS RBRACE { // ROUND / DATE-FORMAT
+    | func_name rel_attr COMMA value_with_MINUS RBRACE { // ROUND / DATE-FORMAT
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FUNC_OR_AGG;
@@ -1258,11 +1258,11 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
       $$->left_cond = sub_attr;
     } */
     ;
-func_LA:
+/* func_LA:
     func_name LBRACE {
       $$ = $1;
     }
-    ;
+    ; */
 func_name: 
     AGG_MAX  {
       $$ = MAX_FUNC_ENUM;

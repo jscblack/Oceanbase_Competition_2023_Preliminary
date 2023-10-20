@@ -293,7 +293,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::unordered_map<std::string, Table *>                table_map;
   std::unordered_map<std::string, std::string>            alias_to_tablename;
   const std::vector<std::pair<std::string, std::string>> &relation_to_alias = select_sql.relation_to_alias;
-  std::unordered_map<std::string, Table *>      stash_table_map;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
+  std::unordered_map<std::string, Table *> stash_table_map;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
 
   for (size_t i = 0; i < select_sql.relation_to_alias.size(); i++) {
     const char *table_name            = select_sql.relation_to_alias[i].first.c_str();
@@ -686,6 +686,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   for (auto stash_table : stash_table_map) {
     table_map_.insert(stash_table);
   }
-  
+
   return RC::SUCCESS;
 }
