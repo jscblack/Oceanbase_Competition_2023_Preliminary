@@ -902,6 +902,12 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     if (OB_FAIL(rc)) {
       return rc;
     }
+
+    rc = date_str.auto_cast(AttrType::DATES);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+
     Expression *format_expr = expr_list_[1].get();
     Value       format_str;
     rc = format_expr->get_value(tuple, format_str, trx);
