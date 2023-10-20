@@ -102,6 +102,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
         TABLE
         TABLES
         INDEX
+        VIEW
         CALC
         SELECT
         DESC

@@ -112,7 +112,7 @@ RC select_get_table_and_field(Db *db, Table *default_table, std::unordered_map<s
 }
 
 /**
- * @brief 讲select ... from 将投影列表表达式化
+ * @brief select ... from 将投影列表表达式化
  *
  * @param db
  * @param default_table
