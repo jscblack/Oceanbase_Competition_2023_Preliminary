@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 RC ProjectPhysicalOperator::open(Trx *trx)
 {
   if (children_.empty()) {
+    counter_for_select_func = 0;
     return RC::SUCCESS;
   }
 
@@ -36,6 +37,10 @@ RC ProjectPhysicalOperator::open(Trx *trx)
 RC ProjectPhysicalOperator::next()
 {
   if (children_.empty()) {
+    if (0 == counter_for_select_func) {
+      counter_for_select_func++;
+      return RC::SUCCESS;
+    }
     return RC::RECORD_EOF;
   }
   return children_[0]->next();
@@ -50,6 +55,12 @@ RC ProjectPhysicalOperator::close()
 }
 Tuple *ProjectPhysicalOperator::current_tuple()
 {
+  if (children_.empty()) {
+    tuple_.set_tuple(nullptr);
+    return &tuple_;
+  }
+  // 注意这里set_tuple是没有判断child
+  ASSERT(children_[0]->current_tuple() != nullptr, "project oper's child->current_tuple() == nullptr!");
   tuple_.set_tuple(children_[0]->current_tuple());
   return &tuple_;
 }

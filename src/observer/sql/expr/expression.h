@@ -268,6 +268,9 @@ public:
     if (alias_ != "") {
       return alias_;
     }
+    if (value_.attr_type() == AttrType::CHARS) {
+      return "\"" + value_.to_string() + "\"";
+    }
     return value_.to_string();
   }
 

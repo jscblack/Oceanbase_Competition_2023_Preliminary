@@ -41,5 +41,6 @@ public:
   Tuple *current_tuple() override;
 
 private:
-  ProjectTuple tuple_;
+  inline static int counter_for_select_func = 0;  // select_func只能调用一次next
+  ProjectTuple      tuple_;
 };

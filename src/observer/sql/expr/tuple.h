@@ -290,7 +290,10 @@ public:
       return RC::INTERNAL;
     }
     if (tuple_ == nullptr) {
-      return RC::INTERNAL;
+      // 为 select func(); 的特殊处理
+      RowTuple tmp_tuple;
+      return expressions_[index]->get_value(tmp_tuple, cell);
+      // return RC::INTERNAL;
     }
 
     return expressions_[index]->get_value(*tuple_, cell);

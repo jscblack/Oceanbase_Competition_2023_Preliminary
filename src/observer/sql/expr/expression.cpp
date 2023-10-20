@@ -896,9 +896,8 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
       return rc;
     }
 
-    Value ret_value;
-    ret_value.set_type(AttrType::INTS);
-    ret_value.set_int(expr_value.get_string().size());
+    value.set_type(AttrType::INTS);
+    value.set_int(expr_value.get_string().size());
     return rc;
   }
 
@@ -921,11 +920,10 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
       }
     }
 
-    Value ret_value;
     // FIXME 不太清楚round(x,0)的情况是否要视作整数
-    ret_value.set_type(AttrType::FLOATS);
-    ret_value.set_float(std::roundf(float_number.get_float() * std::pow(static_cast<float>(10), round_digit)) /
-                        std::pow(static_cast<float>(10), round_digit));
+    value.set_type(AttrType::FLOATS);
+    value.set_float(std::roundf(float_number.get_float() * std::pow(static_cast<float>(10), round_digit)) /
+                    std::pow(static_cast<float>(10), round_digit));
     return rc;
   }
 
@@ -937,7 +935,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     if (OB_FAIL(rc)) {
       return rc;
     }
-    Expression *format_expr = expr_list_[0].get();
+    Expression *format_expr = expr_list_[1].get();
     Value       format_str;
     rc = format_expr->get_value(tuple, format_str, trx);
     if (OB_FAIL(rc)) {
@@ -951,9 +949,8 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     char *tmp = (char *)malloc(16);  // 随便一个size
     strftime(tmp, 16, format_str.get_string().c_str(), &date);
 
-    Value ret_value;
-    ret_value.set_type(AttrType::CHARS);
-    ret_value.set_string(tmp, 16);
+    value.set_type(AttrType::CHARS);
+    value.set_string(tmp, 16);
     return rc;
   }
 

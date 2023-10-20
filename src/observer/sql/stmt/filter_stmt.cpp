@@ -203,6 +203,19 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         }
       } else {  // Where子句中需要对func进行处理 （max和min）
         // TODO: 补一下 funcExpr的构造
+        if (cond->func >= FuncName::LENGTH_FUNC_NUM &&
+            cond->func <= FuncName::DATE_FUNC_NUM) {           // function, 暂不考虑 MAX和MIN
+          std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
+          Expression                              *first_arg;
+          rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, first_arg);
+          func_args.push_back(std::unique_ptr<Expression>(first_arg));
+          if (cond->right_cond != nullptr) {
+            Expression *second_arg;
+            rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, second_arg);
+            func_args.push_back(std::unique_ptr<Expression>(second_arg));
+          }
+          expr = new FunctionExpr(cond->func, func_args);
+        }
       }
     } break;
 

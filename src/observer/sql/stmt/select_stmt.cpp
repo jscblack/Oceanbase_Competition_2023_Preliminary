@@ -87,6 +87,10 @@ bool is_equal(const char *a, const char *b) { return 0 == strcmp(a, b); }
 RC select_get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
 {
+  if (nullptr == tables) {
+    LOG_WARN("No such table: attr.relation_name: %s", attr.relation_name.c_str());
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
   if (common::is_blank(attr.relation_name.c_str())) {
     table = default_table;
   } else if (nullptr != tables) {
@@ -233,6 +237,18 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
           rc   = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr, has_aggregation, has_field);
           expr = new AggregationExpr(cond->func, sub_expr);
         }
+      } else if (cond->func >= FuncName::LENGTH_FUNC_NUM &&
+                 cond->func <= FuncName::DATE_FUNC_NUM) {    // function, 暂不考虑 MAX和MIN
+        std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
+        Expression                              *first_arg;
+        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, first_arg, has_aggregation, has_field);
+        func_args.push_back(std::unique_ptr<Expression>(first_arg));
+        if (cond->right_cond != nullptr) {
+          Expression *second_arg;
+          rc = attr_cond_to_expr(db, default_table, tables, cond->right_cond, second_arg, has_aggregation, has_field);
+          func_args.push_back(std::unique_ptr<Expression>(second_arg));
+        }
+        expr = new FunctionExpr(cond->func, func_args);
       }
     } break;
 
@@ -286,6 +302,29 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
     return RC::INVALID_ARGUMENT;
+  }
+
+  if (select_sql.relation_to_alias.size() == 0) {  // 特殊处理 select func();
+    RC                        rc = RC::SUCCESS;
+    std::vector<Expression *> query_fields_expressions;
+
+    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+      Expression             *expr         = nullptr;
+      const ConditionSqlNode &cond         = select_sql.attributes[i];
+      bool                    placeholder1 = false;
+      bool                    placeholder2 = false;
+      rc = attr_cond_to_expr(db, nullptr, nullptr, &cond, expr, placeholder1, placeholder2);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("invalid simple select without table. db is null");
+        return rc;
+      }
+      query_fields_expressions.push_back(expr);
+    }
+
+    SelectStmt *select_stmt = new SelectStmt();
+    select_stmt->query_fields_expressions_.swap(query_fields_expressions);
+    stmt = select_stmt;
+    return rc;
   }
 
   // collect tables in `from` statement

@@ -640,6 +640,10 @@ value_with_MINUS:
       $$ = new Value((float)$1);
       @$ = @1;
     }
+    | '-' FLOAT {
+      $$ = new Value(-(float)$2);
+      @$ = @2;
+    }
     |DATE {
       char *tmpDate = common::substr($1,1,strlen($1)-2);/*trim the*/
       $$ = new Value(tmpDate);
@@ -794,7 +798,14 @@ alias:
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID alias rel_list_with_alias where order group_by having
+    SELECT select_attr {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+    }
+    | SELECT select_attr FROM ID alias rel_list_with_alias where order group_by having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -1242,6 +1253,27 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
       func_arg->value = new ValueExpr(*$4);
       $$->right_cond = func_arg;
 
+      delete $4;
+    }
+    | func_name value_with_MINUS COMMA value_with_MINUS RBRACE {
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FUNC_OR_AGG;
+      $$->func = $1;
+
+      ConditionSqlNode *func_arg1 = new ConditionSqlNode;
+      func_arg1->binary = false;
+      func_arg1->type = VALUE;
+      func_arg1->value = new ValueExpr(*$2);
+      $$->left_cond = func_arg1;
+
+      ConditionSqlNode *func_arg2 = new ConditionSqlNode;
+      func_arg2->binary = false;
+      func_arg2->type = VALUE;
+      func_arg2->value = new ValueExpr(*$4);
+      $$->right_cond = func_arg2;
+
+      delete $2;
       delete $4;
     }
     /* | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*) 好像有差别 // 会有移进规约冲突 因为a_expr也可以是NUMBER，所以在后面解决
