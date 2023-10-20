@@ -945,7 +945,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   }
 
   if (func_type_ == FuncName::DATE_FUNC_NUM) {
-    if(expr_list_.size() == 2) {
+    if(expr_list_.size() != 2) {
       return RC::FUNC_EXPR_ERROR;
     }
     Expression *date_expr = expr_list_[0].get();
