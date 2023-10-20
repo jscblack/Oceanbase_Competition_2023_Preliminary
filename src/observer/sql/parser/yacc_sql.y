@@ -746,6 +746,9 @@ alias:
     | AS ID {
       $$ = $2;
     }
+    | ID  {
+      $$ = $1;
+    }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_attr FROM ID alias rel_list_with_alias where order group_by having
