@@ -125,7 +125,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC  rc = RC::SUCCESS;
+  RC rc = RC::SUCCESS;
   int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
   result = false;
   if (left.is_null() || right.is_null()) {
@@ -991,7 +991,11 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
               }
               formatted_date += tmp_str;
             } else if (*(ptr + 1) == 'y') {
-              formatted_date += std::to_string(year_int % 100);
+              std::string tmp_str = std::to_string(year_int % 100);
+              while (tmp_str.length() < 2) {
+                tmp_str = "0" + tmp_str;
+              }
+              formatted_date += tmp_str;
             } else if (*(ptr + 1) == 'M') {
               static const char *months[] = {"January",
                   "February",
