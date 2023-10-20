@@ -126,7 +126,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     return RC::SUCCESS;
   }
 
-  RC rc = RC::SUCCESS;
+  RC  rc = RC::SUCCESS;
   int cmp_result = left.compare(right);  // 这是基于cast的比较，把null是作为最小值看待的，但实际上null不可比
   result = false;
   if (left.is_null() || right.is_null()) {
@@ -890,6 +890,9 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   if (func_type_ == FuncName::LENGTH_FUNC_NUM) {
     ASSERT(expr_list_.size() == 1, "Function(Length) must have only one arguement");
     Expression *expr = expr_list_[0].get();
+    if (expr->value_type() != AttrType::CHARS) {
+      return RC::FUNC_TYPE_MISMATCH;
+    }
 
     Value expr_value;
     rc = expr->get_value(tuple, expr_value, trx);
@@ -905,7 +908,11 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   if (func_type_ == FuncName::ROUND_FUNC_NUM) {
     ASSERT(expr_list_.size() == 2 || expr_list_.size() == 1, "Function(Round) must have exact two arguement");
     Expression *float_expr = expr_list_[0].get();
-    Value       float_number;
+    if (float_expr->value_type() != AttrType::FLOATS) {
+      return RC::FUNC_TYPE_MISMATCH;
+    }
+
+    Value float_number;
     rc = float_expr->get_value(tuple, float_number, trx);
     if (OB_FAIL(rc)) {
       return rc;
@@ -914,6 +921,9 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     int round_digit = 0;  // 舍入位数
     if (expr_list_.size() == 2) {
       Value round_number;
+      if (expr_list_[1]->value_type() != AttrType::INTS) {
+        return RC::FUNC_TYPE_MISMATCH;
+      }
       rc          = expr_list_[1]->get_value(tuple, round_number, trx);
       round_digit = round_number.get_int();
       if (round_digit < 0) {
@@ -931,7 +941,11 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   if (func_type_ == FuncName::DATE_FUNC_NUM) {
     ASSERT(expr_list_.size() == 2, "Function(date-format) must have exact two arguement");
     Expression *date_expr = expr_list_[0].get();
-    Value       date_str;
+    if (date_expr->value_type() != AttrType::DATES) {
+      return RC::FUNC_TYPE_MISMATCH;
+    }
+
+    Value date_str;
     rc = date_expr->get_value(tuple, date_str, trx);
     if (OB_FAIL(rc)) {
       return rc;
@@ -944,6 +958,9 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 
     Expression *format_expr = expr_list_[1].get();
     Value       format_str;
+    if (format_expr->value_type() != AttrType::CHARS) {
+      return RC::FUNC_TYPE_MISMATCH;
+    }
     rc = format_expr->get_value(tuple, format_str, trx);
     if (OB_FAIL(rc)) {
       return rc;
