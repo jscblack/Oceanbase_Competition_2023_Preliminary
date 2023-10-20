@@ -485,18 +485,29 @@ public:
   }
   virtual ~SelectExpr(){};
 
-  // 会递归调用get_value，即外层的tuple传给子查询，子查询再传给子查询的子查询
-  // 2023年10月9日20:17:12 得想清楚这玩意儿的逻辑，事实上pred的意义在于判断一个record是否应该被放进结果集
-  // 然后判断的过程就依赖于expression本身
-  // 比如外层一个record，这个时候他需要去得到内层的结果集才能判断是否应该留下
-  // 而内层需要知道外层才能得到结果集
-  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
-  RC get_value(const Tuple &tuple, std::vector<Value> &values, Trx *trx);
+  /**
+   * @brief 此处子查询需要返回多个值，所以在此处不做实现
+   */
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override { return RC::UNIMPLENMENT; };
 
   /**
    * @brief 为分组聚合留的接口，SelectExpr中不需要用
    */
-  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override { return RC::INTERNAL; };
+  RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override { return RC::UNIMPLENMENT; };
+
+  /**
+   * @brief SelectExpr的get_value，会递归调用子查询的get_value
+   * @details 递归调用的时候，需要传入外层的tuple，这样子查询才能得到外层的值
+   * @param tuple 外层的tuple
+   * @param values 子查询的结果集
+   * @param trx 事务
+   */
+  RC get_value(const Tuple &tuple, std::vector<Value> &values, Trx *trx);
+
+  /**
+   * @brief 执行Select语句，得到返回的tuple集
+   */
+  RC get_value(std::vector<Tuple *> &tuples, Trx *trx);
 
   ExprType type() const override { return ExprType::SELECT; }
   AttrType value_type() const override;

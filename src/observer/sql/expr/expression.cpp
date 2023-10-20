@@ -382,14 +382,6 @@ Expression *ComparisonExpr::clone() const
 
 SelectExpr::SelectExpr(Stmt *stmt) : select_stmt_(stmt) {}
 
-RC SelectExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
-{
-  // 这里得把stmt真正执行一下，然后把结果放到value里面
-  // 可能是个结果集，也可能是个单值
-  // 这里仅仅占位，不做实现
-  return RC::UNIMPLENMENT;
-}
-
 RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *trx)
 {
   // 将tuple加入到tuples_里面，但还需要知道table_name
@@ -457,6 +449,47 @@ RC SelectExpr::get_value(const Tuple &tuple, std::vector<Value> &values, Trx *tr
   }
   SelectExpr::tuples_.erase(tuple.to_string());
   return RC::SUCCESS;
+}
+
+RC SelectExpr::get_value(std::vector<Tuple *> &tuples, Trx *trx)
+{
+  RC rc = RC::SUCCESS;
+  // 开始真正执行，所有SelectExpr都共享tuple_
+  unique_ptr<LogicalOperator>  logical_operator;
+  unique_ptr<PhysicalOperator> physical_operator;
+  LogicalPlanGenerator         logical_plan_generator_;
+  PhysicalPlanGenerator        physical_plan_generator_;
+
+  logical_plan_generator_.create(select_stmt_, logical_operator);
+  physical_plan_generator_.create(*logical_operator, physical_operator);
+
+  rc = physical_operator->open(trx);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to open physical operator. rc=%s", strrc(rc));
+    return rc;
+  }
+
+  while (RC::SUCCESS == (rc = physical_operator->next())) {
+    // only grab one
+    Tuple *tuple = nullptr;
+    rc           = physical_operator->current_tuple()->clone(tuple);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get current record: %s", strrc(rc));
+      return RC::INTERNAL;
+    }
+    tuples.push_back(tuple);
+  }
+  if (rc != RC::RECORD_EOF) {
+    LOG_WARN("failed to exec select expr. rc=%s", strrc(rc));
+    return rc;
+  }
+  rc = physical_operator->close();
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to close select expr operator. rc=%s", strrc(rc));
+    return rc;
+  }
+  // 到这里他就执行完了
+  return rc;
 }
 
 RC SelectExpr::rewrite_expr(Expression *&original_expr, const Tuple *tuple)

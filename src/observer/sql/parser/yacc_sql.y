@@ -97,6 +97,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 
 //标识tokens
 %token  SEMICOLON
+        AS
         CREATE
         DROP
         TABLE
@@ -112,7 +113,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
         AGG_AVG
         AGG_SUM
         GROUP_BY
-        NULLABLE
+        /* NULLABLE 2023 deprecated */
         UNNULLABLE
         SHOW
         SYNC
@@ -435,7 +436,16 @@ nullable_marker:
     ;
 
 create_table_stmt:    /*create table 语句的语法解析树*/
-    CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE
+    CREATE TABLE ID AS select_stmt
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      $$->create_table.relation_name = $3;
+      free($3);
+
+      $$->create_table.from_select=true;
+      $$->create_table.table_select = $5->selection;
+    }
+    | CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
       CreateTableSqlNode &create_table = $$->create_table;

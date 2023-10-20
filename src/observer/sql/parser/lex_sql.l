@@ -72,6 +72,7 @@ QUOTE            [\'\"]
 /* 2. 写在最前面的优先 */
 
 /* yylval 就可以认为是 yacc 中 %union 定义的结构体(union 结构) */
+/* NULLABLE                                RETURN_TOKEN(NULLABLE); not used in 2023 */
 %%
 
 {WHITE_SAPCE}                                        // ignore whitespace
@@ -87,6 +88,7 @@ QUOTE            [\'\"]
 
 ";"                                     RETURN_TOKEN(SEMICOLON);   
 {DOT}                                   RETURN_TOKEN(DOT);
+AS                                      RETURN_TOKEN(AS);
 ASC                                     RETURN_TOKEN(ASC);
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
@@ -132,7 +134,6 @@ LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
-NULLABLE                                RETURN_TOKEN(NULLABLE);
 NOT{WHITE_SAPCE}+NULL                   RETURN_TOKEN(UNNULLABLE);
 IS{WHITE_SAPCE}+NOT                     RETURN_TOKEN(IS_NOT);
 IS                                      RETURN_TOKEN(IS);
