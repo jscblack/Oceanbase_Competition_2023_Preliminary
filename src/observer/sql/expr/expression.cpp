@@ -919,11 +919,12 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     sscanf(date_str.get_string().c_str(), "%d-%d-%d", &year, &month, &day);
     struct tm date = {.tm_mday = day, .tm_mon = month - 1, .tm_year = year - 1900};
 
-    char *tmp = (char *)malloc(16);  // 随便一个size
-    strftime(tmp, 16, format_str.get_string().c_str(), &date);
+    char *tmp = (char *)malloc(512);  // 随便一个size
+    strftime(tmp, 512, format_str.get_string().c_str(), &date);
 
     value.set_type(AttrType::CHARS);
-    value.set_string(tmp, 16);
+    value.set_string(tmp, 512);
+    free(tmp);
     return rc;
   }
 
