@@ -60,6 +60,11 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
     for (auto tuple : tuples) {
       Record             record;
       std::vector<Value> values;
+      for (int i = 0; i < attribute_count - tuple->cell_num(); i++) {
+        Value tmp_value;
+        tmp_value.set_type(AttrType::NONE);
+        values.push_back(tmp_value);
+      }
       for (int i = 0; i < tuple->cell_num(); i++) {
         Value tmp_value;
         rc = tuple->cell_at(i, tmp_value);

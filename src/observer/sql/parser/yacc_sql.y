@@ -222,9 +222,11 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 %type <boolean>             unique_marker
 %type <boolean>             asc_or_desc
 %type <boolean>             nullable_marker
+%type <boolean>             as_marker
 %type <a_expr>              where 
 /* %type <condition_list>      condition_list //TODO：待检查是否已重构完成 */
 /* %type <condition_tree>      condition_tree //TODO：待检查是否已重构完成 */
+/* %type <string>              alias */
 %type <a_expr>              a_expr
 %type <a_expr>              c_expr
 %type <a_expr>              select_stmt_with_paren
@@ -435,8 +437,19 @@ nullable_marker:
     }
     ;
 
+as_marker:
+    /* empty */
+    {
+      $$ = false;
+    }
+    | AS
+    {
+      $$ = true;
+    }
+    ;
+
 create_table_stmt:    /*create table 语句的语法解析树*/
-    CREATE TABLE ID AS select_stmt
+    CREATE TABLE ID as_marker select_stmt
     {
       $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
       $$->create_table.relation_name = $3;
@@ -445,7 +458,7 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       $$->create_table.from_select=true;
       $$->create_table.table_select = $5->selection;
     }
-    | CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE
+    | CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE as_marker select_stmt
     {
       $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
       CreateTableSqlNode &create_table = $$->create_table;
@@ -460,6 +473,11 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       create_table.attr_infos.emplace_back(*$5);
       std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
       delete $5;
+
+      if ($9 != nullptr) {
+        create_table.from_select=true;
+        create_table.table_select = $9->selection;
+      }
     }
     ;
 attr_def_list:

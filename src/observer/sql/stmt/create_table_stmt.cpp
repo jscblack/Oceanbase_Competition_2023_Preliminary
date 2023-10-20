@@ -28,7 +28,10 @@ RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt 
       return rc;
     }
 
-    std::vector<AttrInfoSqlNode> attr_infos;
+    std::vector<AttrInfoSqlNode> attr_infos = create_table.attr_infos;
+    for (auto &attr : attr_infos) {
+      attr.nullable = true;  // 这些必然要允许为null，因为不会有数据被插入到这些列
+    }
     for (auto &expr : dynamic_cast<SelectStmt *>(select_stmt)->query_fields_expressions()) {
       AttrInfoSqlNode attr_info;
       attr_info.name = expr->alias(false);
