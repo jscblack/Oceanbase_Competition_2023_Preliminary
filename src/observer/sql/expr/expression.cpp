@@ -23,9 +23,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/stmt.h"
-#include <regex>
 #include <cmath>
 #include <ctime>
+#include <regex>
 using namespace std;
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
@@ -935,6 +935,12 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     if (OB_FAIL(rc)) {
       return rc;
     }
+
+    rc = date_str.auto_cast(AttrType::DATES);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+
     Expression *format_expr = expr_list_[1].get();
     Value       format_str;
     rc = format_expr->get_value(tuple, format_str, trx);
@@ -942,15 +948,80 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
       return rc;
     }
 
-    int year, month, day;
-    sscanf(date_str.get_string().c_str(), "%d-%d-%d", &year, &month, &day);
-    struct tm date = {.tm_mday = day, .tm_mon = month - 1, .tm_year = year - 1900};
+    auto strf_mysql_time = [](const char *date_str, const char *fmt_str) -> std::string {
+      std::string formatted_date;
+      char        year[5], month[3], day[3];
 
-    char *tmp = (char *)malloc(16);  // 随便一个size
-    strftime(tmp, 16, format_str.get_string().c_str(), &date);
+      // 解析日期字符串
+      if (sscanf(date_str, "%4[0-9]-%2[0-9]-%2[0-9]", year, month, day) == 3) {
+        // 将解析后的年、月、日部分转换为整数
+        int year_int  = atoi(year);
+        int month_int = atoi(month);
+        int day_int   = atoi(day);
+
+        // 解析自定义的格式字符串
+        for (const char *ptr = fmt_str; *ptr; ++ptr) {
+          if (*ptr == '%') {
+            if (*(ptr + 1) == 'D') {
+              if (day_int >= 11 && day_int <= 13) {
+                formatted_date += std::to_string(day_int) + "th";
+              } else {
+                switch (day_int % 10) {
+                  case 1: formatted_date += std::to_string(day_int) + "st"; break;
+                  case 2: formatted_date += std::to_string(day_int) + "nd"; break;
+                  case 3: formatted_date += std::to_string(day_int) + "rd"; break;
+                  default: formatted_date += std::to_string(day_int) + "th";
+                }
+              }
+            } else if (*(ptr + 1) == 'd') {
+              formatted_date += std::to_string(day_int);
+            } else if (*(ptr + 1) == 'Y') {
+              formatted_date += std::to_string(year_int);
+            } else if (*(ptr + 1) == 'y') {
+              formatted_date += std::to_string(year_int % 100);
+            } else if (*(ptr + 1) == 'M') {
+              static const char *months[] = {"January",
+                  "February",
+                  "March",
+                  "April",
+                  "May",
+                  "June",
+                  "July",
+                  "August",
+                  "September",
+                  "October",
+                  "November",
+                  "December"};
+              formatted_date += months[month_int - 1];
+            } else if (*(ptr + 1) == 'm') {
+              formatted_date += std::to_string(month_int);
+            } else {
+              // 未知格式标识符
+              std::cerr << "Invalid format string: " << *ptr << *(ptr + 1) << std::endl;
+              return "";
+            }
+            ptr++;  // 跳过格式标识符
+          } else {
+            formatted_date += *ptr;
+          }
+        }
+      } else {
+        // 输入日期字符串格式错误
+        std::cerr << "Invalid date format: " << date_str << std::endl;
+      }
+      return formatted_date;
+    };
+
+    std::string formated_str = strf_mysql_time(date_str.get_string().c_str(), format_str.get_string().c_str());
+    // int         year, month, day;
+    // sscanf(date_str.get_string().c_str(), "%d-%d-%d", &year, &month, &day);
+    // struct tm date = {.tm_mday = day, .tm_mon = month - 1, .tm_year = year - 1900};
+
+    // char *tmp = (char *)malloc(512);  // 随便一个size
+    // strftime(tmp, 512, format_str.get_string().c_str(), &date);
 
     value.set_type(AttrType::CHARS);
-    value.set_string(tmp, 16);
+    value.set_string(formated_str.c_str());
     return rc;
   }
 
