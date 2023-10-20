@@ -923,7 +923,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     strftime(tmp, 512, format_str.get_string().c_str(), &date);
 
     value.set_type(AttrType::CHARS);
-    value.set_string(tmp, 512);
+    value.set_string(tmp);
     free(tmp);
     return rc;
   }
