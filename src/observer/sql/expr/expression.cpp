@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/stmt.h"
 #include <cmath>
 #include <ctime>
+#include <ctype.h>
 #include <regex>
 using namespace std;
 
@@ -1050,6 +1051,9 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
               }
               formatted_date += tmp_str;
 
+            } else if (isalpha(*(ptr + 1))) {
+              // %x append the value of x
+              formatted_date += *(ptr + 1);
             } else if (*(ptr + 1) == '%') {
               // %
               formatted_date += "%";
