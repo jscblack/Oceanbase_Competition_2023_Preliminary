@@ -888,10 +888,13 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   RC rc = RC::SUCCESS;
   if (func_type_ == FuncName::LENGTH_FUNC_NUM) {
-    ASSERT(expr_list_.size() == 1, "Function(Length) must have only one arguement");
+    if(expr_list_.size() != 1) {
+      return RC::FUNC_EXPR_ERROR;
+    }
+    // ASSERT(expr_list_.size() == 1, "Function(Length) must have only one arguement");
     Expression *expr = expr_list_[0].get();
     if (expr->value_type() != AttrType::CHARS) {
-      return RC::FUNC_TYPE_MISMATCH;
+      return RC::FUNC_EXPR_ERROR;
     }
 
     Value expr_value;
@@ -906,10 +909,13 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   }
 
   if (func_type_ == FuncName::ROUND_FUNC_NUM) {
-    ASSERT(expr_list_.size() == 2 || expr_list_.size() == 1, "Function(Round) must have exact two arguement");
+    if(!(expr_list_.size() == 2 || expr_list_.size() == 1)) {
+      return RC::FUNC_EXPR_ERROR;
+    }
+    // ASSERT(expr_list_.size() == 2 || expr_list_.size() == 1, "Function(Round) must have exact two arguement");
     Expression *float_expr = expr_list_[0].get();
     if (float_expr->value_type() != AttrType::FLOATS) {
-      return RC::FUNC_TYPE_MISMATCH;
+      return RC::FUNC_EXPR_ERROR;
     }
 
     Value float_number;
@@ -922,7 +928,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     if (expr_list_.size() == 2) {
       Value round_number;
       if (expr_list_[1]->value_type() != AttrType::INTS) {
-        return RC::FUNC_TYPE_MISMATCH;
+        return RC::FUNC_EXPR_ERROR;
       }
       rc          = expr_list_[1]->get_value(tuple, round_number, trx);
       round_digit = round_number.get_int();
@@ -939,7 +945,9 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   }
 
   if (func_type_ == FuncName::DATE_FUNC_NUM) {
-    ASSERT(expr_list_.size() == 2, "Function(date-format) must have exact two arguement");
+    if(expr_list_.size() == 2) {
+      return RC::FUNC_EXPR_ERROR;
+    }
     Expression *date_expr = expr_list_[0].get();
 
     Value date_str;
@@ -951,7 +959,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     rc = date_str.auto_cast(AttrType::DATES);
     if (OB_FAIL(rc)) {
       if(rc == RC::VALUE_DATE_INVALID) {
-        return RC::FUNC_TYPE_MISMATCH;
+        return RC::FUNC_EXPR_ERROR;
       }
       return rc;
     }
@@ -959,7 +967,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     Expression *format_expr = expr_list_[1].get();
     Value       format_str;
     if (format_expr->value_type() != AttrType::CHARS) {
-      return RC::FUNC_TYPE_MISMATCH;
+      return RC::FUNC_EXPR_ERROR;
     }
     rc = format_expr->get_value(tuple, format_str, trx);
     if (OB_FAIL(rc)) {

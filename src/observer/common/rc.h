@@ -82,7 +82,7 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(SUBQUERY_EXEC_FAILED)        \
   DEFINE_RC(LOGBUF_FULL)                 \
   DEFINE_RC(EXPR_TYPE_MISMATCH)          \
-  DEFINE_RC(FUNC_TYPE_MISMATCH)
+  DEFINE_RC(FUNC_EXPR_ERROR)
 
 enum class RC
 {
