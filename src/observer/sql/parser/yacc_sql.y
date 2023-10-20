@@ -835,7 +835,6 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       if ($8 != nullptr) {
         $$->selection.orders.swap(*$8);
-        delete $7;
       }
 
       if ($9 != nullptr) {
