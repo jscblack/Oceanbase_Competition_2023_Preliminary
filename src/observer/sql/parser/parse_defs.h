@@ -103,6 +103,9 @@ enum FuncName
   SUM_FUNC_ENUM,    ///< "SUM"
   MAX_FUNC_ENUM,    ///< "MAX"
   MIN_FUNC_ENUM,    ///< "MIN"
+  LENGTH_FUNC_NUM,
+  ROUND_FUNC_NUM,
+  DATE_FUNC_NUM,
   NO_FUNC_ENUM
 };
 
@@ -141,6 +144,7 @@ struct ConditionSqlNode
   Expression       *value      = nullptr;  ///< left-hand side ValueExpr / ExprListExpr?
   ConditionSqlNode *left_cond  = nullptr;  ///< right-hand side sub-cond, 即sub-expr
   ConditionSqlNode *right_cond = nullptr;  ///< right-hand side sub-cond
+  std::string       alias      = "";
 
   CompOp   comp;     ///< comparison operator
   FuncName func;     ///< function operator
@@ -207,13 +211,15 @@ struct OrderSqlNode
 
 struct SelectSqlNode
 {
-  std::vector<ConditionSqlNode> attributes;            ///< attributes in select clause
-  std::vector<std::string>      relations;             ///< 查询的表
-  ConditionSqlNode             *conditions = nullptr;  ///< 查询条件树
-  std::vector<OrderSqlNode>     orders;                // 排序条件，可能有多列需求
-  std::vector<RelAttrSqlNode>   groups;                ///< 分组的属性
-  ConditionSqlNode             *havings = nullptr;  ///< 分组筛选条件，同样是使用AND串联起来多个条件
+  std::vector<ConditionSqlNode>                    attributes;            ///< attributes in select clause
+  std::vector<std::pair<std::string, std::string>> relation_to_alias;     ///< alias默认为空串
+  ConditionSqlNode                                *conditions = nullptr;  ///< 查询条件树
+  std::vector<OrderSqlNode>                        orders;                // 排序条件，可能有多列需求
+  std::vector<RelAttrSqlNode>                      groups;                ///< 分组的属性
+  ConditionSqlNode *havings = nullptr;  ///< 分组筛选条件，同样是使用AND串联起来多个条件
 
+  // std::vector<std::string>                     relations;             ///< 查询的表
+  // std::unordered_map<std::string, std::string> alias_to_relation;     ///< 记录alias->relation的映射
   // std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件 旧版查询条件
 };
 

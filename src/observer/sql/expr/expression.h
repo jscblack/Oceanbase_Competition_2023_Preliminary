@@ -148,6 +148,7 @@ public:
    */
   virtual std::string name() const { return name_; }
   virtual void        set_name(std::string name) { name_ = name; }
+  virtual void        set_alias(std::string alias) { alias_ = alias; }
 
   /**
    * @brief 克隆一个表达式，新的内存拷贝
@@ -163,6 +164,7 @@ public:
     return "";
   };
 
+  std::string alias_ = "";  // 最顶层的alias
 private:
   std::string name_;
 };
@@ -203,6 +205,9 @@ public:
 
   const std::string alias(bool with_table_name) const override
   {
+    if (alias_ != "") {
+      return alias_;
+    }
     if (with_table_name) {
       // if (std::string(field_.table_name()) == "") {
       //   return field_.table_name() + std::string(".") + field_.field_name();
@@ -258,7 +263,13 @@ public:
   const Value &get_value() const { return value_; }
 
   Expression       *clone() const override { return new ValueExpr(*this); }
-  const std::string alias(bool with_table_name) const override { return value_.to_string(); }
+  const std::string alias(bool with_table_name) const override
+  {
+    if (alias_ != "") {
+      return alias_;
+    }
+    return value_.to_string();
+  }
 
 private:
   Value value_;
@@ -564,14 +575,7 @@ private:
 class FunctionExpr : public Expression
 {
 public:
-  enum class FuncType
-  {
-    MAX,
-    MIN,
-  };
-
-public:
-  FunctionExpr(FuncType func_type, std::vector<std::unique_ptr<Expression>> &expr_list);
+  FunctionExpr(FuncName func_type, std::vector<std::unique_ptr<Expression>> &expr_list);
   FunctionExpr(const FunctionExpr &expr)            = delete;
   FunctionExpr &operator=(const FunctionExpr &expr) = delete;
 
@@ -579,22 +583,50 @@ public:
 
   ExprType type() const override { return ExprType::FUNCTION; }
 
-  AttrType value_type() const override
-  {
-    // 在子表达式真正执行之前，是无法知道select的结果集的类型的
-    return AttrType::UNDEFINED;
-  }
+  AttrType value_type() const override;
 
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
 
-  FuncType func_type() const { return func_type_; }
+  FuncName func_type() const { return func_type_; }
 
   std::vector<std::unique_ptr<Expression>> &expr_list() { return expr_list_; }
+
+  const std::string alias(bool with_table_name) const override
+  {
+    if (alias_ != "") {
+      return alias_;
+    }
+    switch (func_type_) {
+      case FuncName::LENGTH_FUNC_NUM: {
+        return std::string("LENGTH(") + expr_list_[0]->alias(with_table_name) + ")";
+      } break;
+      case FuncName::ROUND_FUNC_NUM: {
+        if (expr_list_.size() == 1) {
+          return std::string("ROUND(") + expr_list_[0]->alias(with_table_name) + ")";
+        } else if (expr_list_.size() == 2) {
+          return std::string("ROUND(") + expr_list_[0]->alias(with_table_name) + "," +
+                 expr_list_[1]->alias(with_table_name) + ")";
+        }
+      } break;
+      case FuncName::DATE_FUNC_NUM: {
+        return std::string("DATE_FORMAT(") + expr_list_[0]->alias(with_table_name) + "," +
+               expr_list_[1]->alias(with_table_name) + ")";
+      } break;
+      case FuncName::MAX_FUNC_ENUM:
+      case FuncName::MIN_FUNC_ENUM:
+      default: {
+        // TODO 未实现
+      } break;
+    }
+
+    ASSERT(false, "alias: undefined function type");
+    return "";
+  }
 
   Expression *clone() const override;
 
 private:
-  FuncType                                 func_type_;
+  FuncName                                 func_type_;
   std::vector<std::unique_ptr<Expression>> expr_list_;
 };
 
@@ -654,6 +686,9 @@ public:
   Expression       *clone() const override;
   const std::string alias(bool with_table_name) const override
   {
+    if (alias_ != "") {
+      return alias_;
+    }
     std::string left_alias  = (left_ != nullptr) ? left_->alias(with_table_name) : "";
     std::string right_alias = (right_ != nullptr) ? right_->alias(with_table_name) : "";
 
@@ -726,6 +761,9 @@ public:
   // 现在没法解决COUNT(*.*)的输出问题，通过nullptr无法区分(*.*)和(*)，可能不需要fix
   const std::string alias(bool with_table_name) const
   {
+    if (alias_ != "") {
+      return alias_;
+    }
     switch (agg_type_) {
       case FuncName::MAX_FUNC_ENUM: return "MAX(" + child_->alias(with_table_name) + ")";
       case FuncName::MIN_FUNC_ENUM: return "MIN(" + child_->alias(with_table_name) + ")";

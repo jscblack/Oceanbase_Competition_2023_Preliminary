@@ -24,7 +24,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/stmt.h"
 #include <regex>
-
+#include <cmath>
+#include <ctime>
 using namespace std;
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
@@ -847,7 +848,7 @@ Expression *LogicalCalcExpr::clone() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-FunctionExpr::FunctionExpr(FuncType func_type, std::vector<std::unique_ptr<Expression>> &expr_list)
+FunctionExpr::FunctionExpr(FuncName func_type, std::vector<std::unique_ptr<Expression>> &expr_list)
     : func_type_(func_type)
 {
   for (auto &expr : expr_list) {
@@ -855,66 +856,165 @@ FunctionExpr::FunctionExpr(FuncType func_type, std::vector<std::unique_ptr<Expre
   }
 }
 
+AttrType FunctionExpr::value_type() const
+{
+  switch (func_type_) {
+    case FuncName::LENGTH_FUNC_NUM: {
+      return AttrType::INTS;
+    } break;
+    case FuncName::ROUND_FUNC_NUM: {
+      return AttrType::FLOATS;  // FIXME 如果是整数调用ROUND呢？
+    } break;
+    case FuncName::DATE_FUNC_NUM: {
+      return AttrType::CHARS;
+    } break;
+    case FuncName::MIN_FUNC_ENUM:
+    case FuncName::MAX_FUNC_ENUM: {
+      if (expr_list_.size() > 0) {
+        Expression *expr = expr_list_[0].get();
+        return expr->value_type();
+      } else {
+        return AttrType::UNDEFINED;
+      }
+    }
+    default: {
+      return AttrType::UNDEFINED;
+    } break;
+  }
+}
+
 RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
-  if (func_type_ != FuncType::MAX && func_type_ != FuncType::MIN) {
-    return RC::UNIMPLENMENT;
-  }
-  RC                 rc = RC::SUCCESS;
-  std::vector<Value> expr_values;
-  for (int i = 0; i < expr_list_.size(); i++) {
+  RC rc = RC::SUCCESS;
+  if (func_type_ == FuncName::LENGTH_FUNC_NUM) {
+    ASSERT(expr_list_.size() == 1, "Function(Length) must have only one arguement");
+    Expression *expr = expr_list_[0].get();
+
     Value expr_value;
-    expr_value.set_type(AttrType::NONE);
-    if (expr_list_[i]->type() == ExprType::SELECT) {
-      std::vector<Value> tmp_values;
-      rc = dynamic_cast<SelectExpr *>(expr_list_[i].get())->get_value(tuple, tmp_values, trx);
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to get value of expression. rc=%s", strrc(rc));
-        return rc;
-      }
-      if (tmp_values.size() > 1) {
-        LOG_WARN("invalid select result, too much result");
-        return RC::INTERNAL;
-      }
-      if (!tmp_values.empty()) {
-        expr_value = tmp_values[0];
-      }
-    } else {
-      rc = expr_list_[i]->get_value(tuple, expr_value, trx);
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to get value of expression. rc=%s", strrc(rc));
-        return rc;
-      }
+    rc = expr->get_value(tuple, expr_value, trx);
+    if (OB_FAIL(rc)) {
+      return rc;
     }
-    if (expr_value.attr_type() != AttrType::NONE) {
-      expr_values.push_back(expr_value);
-    }
-  }
-  // 检查是否为空
-  if (expr_values.empty()) {
-    value.set_type(AttrType::NONE);
-    return RC::SUCCESS;
+
+    Value ret_value;
+    ret_value.set_type(AttrType::INTS);
+    ret_value.set_int(expr_value.get_string().size());
+    return rc;
   }
 
-  switch (func_type_) {
-    case FuncType::MAX: {
-      value = expr_values[0];
-      for (auto val : expr_values) {
-        if (value.compare(val) > 0) {
-          value = val;
-        }
+  if (func_type_ == FuncName::ROUND_FUNC_NUM) {
+    ASSERT(expr_list_.size() == 2 || expr_list_.size() == 1, "Function(Round) must have exact two arguement");
+    Expression *float_expr = expr_list_[0].get();
+    Value       float_number;
+    rc = float_expr->get_value(tuple, float_number, trx);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+
+    int round_digit = 0;  // 舍入位数
+    if (expr_list_.size() == 2) {
+      Value round_number;
+      rc          = expr_list_[1]->get_value(tuple, round_number, trx);
+      round_digit = round_number.get_int();
+      if (round_digit < 0) {
+        return RC::INTERNAL;
       }
-    } break;
-    case FuncType::MIN: {
-      value = expr_values[0];
-      for (auto val : expr_values) {
-        if (value.compare(val) < 0) {
-          value = val;
-        }
-      }
-    } break;
+    }
+
+    Value ret_value;
+    // FIXME 不太清楚round(x,0)的情况是否要视作整数
+    ret_value.set_type(AttrType::FLOATS);
+    ret_value.set_float(std::roundf(float_number.get_float() * std::pow(static_cast<float>(10), round_digit)) /
+                        std::pow(static_cast<float>(10), round_digit));
+    return rc;
   }
-  return RC::SUCCESS;
+
+  if (func_type_ == FuncName::DATE_FUNC_NUM) {
+    ASSERT(expr_list_.size() == 2, "Function(date-format) must have exact two arguement");
+    Expression *date_expr = expr_list_[0].get();
+    Value       date_str;
+    rc = date_expr->get_value(tuple, date_str, trx);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+    Expression *format_expr = expr_list_[0].get();
+    Value       format_str;
+    rc = format_expr->get_value(tuple, format_str, trx);
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+
+    int year, month, day;
+    sscanf(date_str.get_string().c_str(), "%d-%d-%d", &year, &month, &day);
+    struct tm date = {.tm_mday = day, .tm_mon = month - 1, .tm_year = year - 1900};
+
+    char *tmp = (char *)malloc(16);  // 随便一个size
+    strftime(tmp, 16, format_str.get_string().c_str(), &date);
+
+    Value ret_value;
+    ret_value.set_type(AttrType::CHARS);
+    ret_value.set_string(tmp, 16);
+    return rc;
+  }
+
+  // 下面是MAX和MIN此前的旧代码
+  if (func_type_ == FuncName::MAX_FUNC_ENUM || func_type_ == FuncName::MIN_FUNC_ENUM) {
+    std::vector<Value> expr_values;
+    for (int i = 0; i < expr_list_.size(); i++) {
+      Value expr_value;
+      expr_value.set_type(AttrType::NONE);
+      if (expr_list_[i]->type() == ExprType::SELECT) {
+        std::vector<Value> tmp_values;
+        rc = dynamic_cast<SelectExpr *>(expr_list_[i].get())->get_value(tuple, tmp_values, trx);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("failed to get value of expression. rc=%s", strrc(rc));
+          return rc;
+        }
+        if (tmp_values.size() > 1) {
+          LOG_WARN("invalid select result, too much result");
+          return RC::INTERNAL;
+        }
+        if (!tmp_values.empty()) {
+          expr_value = tmp_values[0];
+        }
+      } else {
+        rc = expr_list_[i]->get_value(tuple, expr_value, trx);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("failed to get value of expression. rc=%s", strrc(rc));
+          return rc;
+        }
+      }
+      if (expr_value.attr_type() != AttrType::NONE) {
+        expr_values.push_back(expr_value);
+      }
+    }
+    // 检查是否为空
+    if (expr_values.empty()) {
+      value.set_type(AttrType::NONE);
+      return RC::SUCCESS;
+    }
+
+    switch (func_type_) {
+      case FuncName::MAX_FUNC_ENUM: {
+        value = expr_values[0];
+        for (auto val : expr_values) {
+          if (value.compare(val) > 0) {
+            value = val;
+          }
+        }
+      } break;
+      case FuncName::MIN_FUNC_ENUM: {
+        value = expr_values[0];
+        for (auto val : expr_values) {
+          if (value.compare(val) < 0) {
+            value = val;
+          }
+        }
+      } break;
+    }
+    return RC::SUCCESS;
+  }
+  return RC::UNIMPLENMENT;
 }
 
 Expression *FunctionExpr::clone() const

@@ -89,6 +89,9 @@ QUOTE            [\'\"]
 ";"                                     RETURN_TOKEN(SEMICOLON);   
 {DOT}                                   RETURN_TOKEN(DOT);
 AS                                      RETURN_TOKEN(AS);
+LENGTH                                  RETURN_TOKEN(FUNC_LENGTH);
+ROUND                                   RETURN_TOKEN(FUNC_ROUND);
+DATE_FORMAT                             RETURN_TOKEN(FUNC_DATE);
 ASC                                     RETURN_TOKEN(ASC);
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);

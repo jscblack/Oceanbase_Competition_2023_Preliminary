@@ -68,6 +68,7 @@ private:
 
   bool                      has_aggregation_ = false;
   std::vector<Expression *> group_by_fields_expressions_;
+
   // std::vector<Field>                  group_by_fields_;
   HavingFilterStmt                   *having_filter_stmt_ = nullptr;
   std::vector<std::pair<Field, bool>> order_by_;  // (Field, is_asc)
