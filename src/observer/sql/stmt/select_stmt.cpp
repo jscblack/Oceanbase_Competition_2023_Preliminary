@@ -293,6 +293,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::unordered_map<std::string, Table *>                table_map;
   std::unordered_map<std::string, std::string>            alias_to_tablename;
   const std::vector<std::pair<std::string, std::string>> &relation_to_alias = select_sql.relation_to_alias;
+  std::unordered_map<std::string, Table *>      stash_table_map;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
+
   for (size_t i = 0; i < select_sql.relation_to_alias.size(); i++) {
     const char *table_name            = select_sql.relation_to_alias[i].first.c_str();
     auto        find_table_same_level = [&](std::pair<std::string, std::string> it) -> bool {
@@ -321,13 +323,14 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     if (relation_to_alias[i].second == "") {
       table_map.insert(std::pair<std::string, Table *>(table_name, table));
     } else {
-      // 假设使用别名之后就无法使用原名（除非外层select有）
+      // 假设使用别名之后就无法使用原名（除非外层select有）, NONONO，原名别名都得有
       table_map.insert(std::pair<std::string, Table *>(relation_to_alias[i].second, table));
+      table_map.insert(std::pair<std::string, Table *>(table_name, table));
     }
   }
   for (auto table : table_map) {
     if (table_map_.count(table.first) != 0) {
-      stash_table_map_.insert(std::pair(table.first, table_map_[table.first]));
+      stash_table_map.insert(std::pair(table.first, table_map_[table.first]));
       table_map_.erase(table.first);
       table_map_.insert(table);
     } else {
@@ -680,9 +683,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   for (auto table : table_map) {
     table_map_.erase(table.first);
   }
-  for (auto stash_table : stash_table_map_) {
+  for (auto stash_table : stash_table_map) {
     table_map_.insert(stash_table);
-    stash_table_map_.erase(stash_table.first);
   }
+  
   return RC::SUCCESS;
 }
