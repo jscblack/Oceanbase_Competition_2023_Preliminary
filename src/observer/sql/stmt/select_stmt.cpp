@@ -233,6 +233,18 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
           rc   = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr, has_aggregation, has_field);
           expr = new AggregationExpr(cond->func, sub_expr);
         }
+      } else if (cond->func >= FuncName::LENGTH_FUNC_NUM &&
+                 cond->func <= FuncName::DATE_FUNC_NUM) {    // function, 暂不考虑 MAX和MIN
+        std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
+        Expression                              *first_arg;
+        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, first_arg, has_aggregation, has_field);
+        func_args.push_back(std::unique_ptr<Expression>(first_arg));
+        if (cond->right_cond != nullptr) {
+          Expression *second_arg;
+          rc = attr_cond_to_expr(db, default_table, tables, cond->right_cond, second_arg, has_aggregation, has_field);
+          func_args.push_back(std::unique_ptr<Expression>(second_arg));
+        }
+        expr = new FunctionExpr(cond->func, func_args);
       }
     } break;
 
@@ -293,7 +305,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::unordered_map<std::string, Table *>                table_map;
   std::unordered_map<std::string, std::string>            alias_to_tablename;
   const std::vector<std::pair<std::string, std::string>> &relation_to_alias = select_sql.relation_to_alias;
-  std::unordered_map<std::string, Table *>      stash_table_map;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
+  std::unordered_map<std::string, Table *> stash_table_map;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
 
   for (size_t i = 0; i < select_sql.relation_to_alias.size(); i++) {
     const char *table_name            = select_sql.relation_to_alias[i].first.c_str();
@@ -686,6 +698,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   for (auto stash_table : stash_table_map) {
     table_map_.insert(stash_table);
   }
-  
+
   return RC::SUCCESS;
 }
