@@ -974,9 +974,22 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
                 }
               }
             } else if (*(ptr + 1) == 'd') {
+              // 2 digits day, add leading zero if needed
+              std::string tmp_str = std::to_string(day_int);
+              while (tmp_str.length() < 2) {
+                tmp_str = "0" + tmp_str;
+              }
+              formatted_date += tmp_str;
+            } else if (*(ptr + 1) == 'e') {
+              // no need to add leading zero
               formatted_date += std::to_string(day_int);
             } else if (*(ptr + 1) == 'Y') {
-              formatted_date += std::to_string(year_int);
+              // 4 digits year, add leading zero if needed
+              std::string tmp_str = std::to_string(year_int);
+              while (tmp_str.length() < 4) {
+                tmp_str = "0" + tmp_str;
+              }
+              formatted_date += tmp_str;
             } else if (*(ptr + 1) == 'y') {
               formatted_date += std::to_string(year_int % 100);
             } else if (*(ptr + 1) == 'M') {
@@ -993,8 +1006,49 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
                   "November",
                   "December"};
               formatted_date += months[month_int - 1];
+            } else if (*(ptr + 1) == 'c') {
+              // no need to add leading zero
+              std::string tmp_str = std::to_string(month_int);
+              while (tmp_str.length() < 2) {
+                tmp_str = "0" + tmp_str;
+              }
+              formatted_date += tmp_str;
             } else if (*(ptr + 1) == 'm') {
-              formatted_date += std::to_string(month_int);
+              // 2 digits month, add leading zero if needed
+              std::string tmp_str = std::to_string(month_int);
+              while (tmp_str.length() < 2) {
+                tmp_str = "0" + tmp_str;
+              }
+              formatted_date += tmp_str;
+            } else if (*(ptr + 1) == 'j') {
+              // Day of year (001..366)
+              int day_of_year = 0;
+              for (int i = 1; i < month_int; ++i) {
+                switch (i) {
+                  case 1:
+                  case 3:
+                  case 5:
+                  case 7:
+                  case 8:
+                  case 10:
+                  case 12: day_of_year += 31; break;
+                  case 4:
+                  case 6:
+                  case 9:
+                  case 11: day_of_year += 30; break;
+                  case 2: day_of_year += 28; break;
+                }
+              }
+              day_of_year += day_int;
+              std::string tmp_str = std::to_string(day_of_year);
+              while (tmp_str.length() < 3) {
+                tmp_str = "0" + tmp_str;
+              }
+              formatted_date += tmp_str;
+
+            } else if (*(ptr + 1) == '%') {
+              // %
+              formatted_date += "%";
             } else {
               // 未知格式标识符
               std::cerr << "Invalid format string: " << *ptr << *(ptr + 1) << std::endl;
