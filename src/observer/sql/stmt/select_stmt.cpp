@@ -345,7 +345,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
             std::end(relation_to_alias)) {
       return RC::SCHEMA_TABLE_EXIST;  // 表名的alias重复了, 或者是与同层级的table-name同名
     } else {
-      alias_to_tablename[select_sql.relation_to_alias[i].second] = select_sql.relation_to_alias[i].first;
+      if (select_sql.relation_to_alias[i].second != "") {
+        alias_to_tablename[select_sql.relation_to_alias[i].second] = select_sql.relation_to_alias[i].first;
+      }
     }
     if (nullptr == table_name) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
