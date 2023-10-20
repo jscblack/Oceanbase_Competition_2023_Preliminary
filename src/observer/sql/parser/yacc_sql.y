@@ -963,12 +963,14 @@ a_expr:
 
       delete $1;
     }
-    | rel_attr {
+    | rel_attr alias {
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FIELD;
       $$->attr = *$1;
+      $$->alias = $2;
 
+      free($2);
       delete $1;
     }
     | select_stmt_with_paren {
@@ -1083,8 +1085,10 @@ c_expr:
       $$->alias = $4;
       free($4);
     } 
-    | function {
+    | function alias{
       $$ = $1;
+      $$->alias = $2;
+      free($2);
     }
     | value_list_LALR %prec UMINUS {
       $$ = $1;
