@@ -30,7 +30,8 @@ RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt 
     std::vector<AttrInfoSqlNode> attr_infos;
     for (auto &expr : dynamic_cast<SelectStmt *>(select_stmt)->query_fields_expressions()) {
       AttrInfoSqlNode attr_info;
-      attr_info.name = expr->alias(dynamic_cast<SelectStmt *>(select_stmt)->tables().size() > 1);
+      // attr_info.name = expr->alias(dynamic_cast<SelectStmt *>(select_stmt)->tables().size() > 1);
+      attr_info.name = expr->alias(false);
       attr_info.type = expr->value_type();
       if (expr->type() == ExprType::FIELD) {
         // 来自已有的field
