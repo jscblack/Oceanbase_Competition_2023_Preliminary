@@ -27,14 +27,10 @@ RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt 
       sql_debug("create select statement failed");
       return rc;
     }
-
-    std::vector<AttrInfoSqlNode> attr_infos = create_table.attr_infos;
-    for (auto &attr : attr_infos) {
-      attr.nullable = true;  // 这些必然要允许为null，因为不会有数据被插入到这些列
-    }
+    std::vector<AttrInfoSqlNode> attr_infos;
     for (auto &expr : dynamic_cast<SelectStmt *>(select_stmt)->query_fields_expressions()) {
       AttrInfoSqlNode attr_info;
-      attr_info.name = expr->alias(false);
+      attr_info.name = expr->alias(dynamic_cast<SelectStmt *>(select_stmt)->tables().size() > 1);
       attr_info.type = expr->value_type();
       if (expr->type() == ExprType::FIELD) {
         // 来自已有的field
@@ -47,6 +43,21 @@ RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt 
         // TODO
       }
       attr_infos.push_back(attr_info);
+    }
+
+    for (auto attr : create_table.attr_infos) {
+      // 如果已经存在了，就不再添加
+      bool exist = false;
+      for (auto attr2 : attr_infos) {
+        if (attr.name == attr2.name) {
+          exist = true;
+          break;
+        }
+      }
+      if (!exist) {
+        attr.nullable = true;  // 这些必然要允许为null，因为不会有数据被插入到这些列
+        attr_infos.push_back(attr);
+      }
     }
 
     SelectExpr *select_expr = new SelectExpr(select_stmt);
