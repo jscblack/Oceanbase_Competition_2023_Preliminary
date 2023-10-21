@@ -594,6 +594,70 @@ public:
 
   std::vector<std::unique_ptr<Expression>> &expr_list() { return expr_list_; }
 
+  static RC is_subexpr_legal(FuncName func, std::vector<std::unique_ptr<Expression>> &expr_list)
+  {
+    RC rc = RC::SUCCESS;
+    switch (func) {
+      case FuncName::LENGTH_FUNC_NUM: {
+        if (expr_list.size() != 1) {
+          LOG_WARN("func length has improper argument number");
+          return RC::FUNC_EXPR_ERROR;
+        }
+        Expression *expr = expr_list[0].get();
+        if (expr->value_type() != AttrType::CHARS) {
+          return RC::FUNC_EXPR_ERROR;
+        }
+      } break;
+      case FuncName::ROUND_FUNC_NUM: {
+        if (!(expr_list.size() == 2 || expr_list.size() == 1)) {
+          LOG_WARN("func round has improper argument number");
+          return RC::FUNC_EXPR_ERROR;
+        }
+        Expression *float_expr = expr_list[0].get();
+        if (float_expr->value_type() != AttrType::FLOATS) {
+          return RC::FUNC_EXPR_ERROR;
+        }
+        if (expr_list.size() == 2) {
+          if (expr_list[1]->value_type() != AttrType::INTS) {
+            return RC::FUNC_EXPR_ERROR;
+          }
+        }
+      } break;
+      case FuncName::DATE_FUNC_NUM: {
+        if (expr_list.size() != 2) {
+          LOG_WARN("func date_format has improper argument number");
+          return RC::FUNC_EXPR_ERROR;
+        }
+        // 判断是否可以转成date，得拿出tuple之后才知道？ 
+        // Field可以看fieldmeta
+        // 由于日期不能参与算术运算，所以【0】必须是field或value
+        if (expr_list[0]->type() != ExprType::FIELD && expr_list[0]->type() != ExprType::VALUE) {
+          LOG_WARN("func date_format accept only FIELD or VALUE");
+          return RC::FUNC_EXPR_ERROR;
+        }
+        if (expr_list[0]->type() == ExprType::FIELD && expr_list[0]->value_type() != AttrType::DATES) {
+          return RC::FUNC_EXPR_ERROR;
+        } else if (expr_list[0]->type() == ExprType::VALUE) {
+          Value v;
+          expr_list[0]->try_get_value(v);
+          rc = v.auto_cast(AttrType::DATES);
+          if(OB_FAIL(rc)) {
+            return rc;
+          }
+        }
+        if (expr_list[1]->value_type() != AttrType::CHARS) {
+          return RC::FUNC_EXPR_ERROR;
+        }
+      } break;
+      case FuncName::MAX_FUNC_ENUM:
+      case FuncName::MIN_FUNC_ENUM:
+      default: {
+        return RC::FUNC_EXPR_ERROR;
+      } break;
+    }
+    return rc;
+  }
+
   const std::string alias(bool with_table_name) const override
   {
     if (alias_ != "") {
