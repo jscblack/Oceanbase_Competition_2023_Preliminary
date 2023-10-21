@@ -19,6 +19,15 @@ See the Mulan PSL v2 for more details. */
 #include "event/sql_debug.h"
 #include <limits>
 
+// runtime assert
+#define RT_ASSERT(expr)                                                               \
+  {                                                                                   \
+    if (!(expr)) {                                                                    \
+      fprintf(stderr, "RT_ASSERT Error at %s:%d, `%s`\n", __FILE__, __LINE__, #expr); \
+      exit(0);                                                                        \
+    }                                                                                 \
+  }
+
 using namespace std;
 
 MvccTrxKit::~MvccTrxKit()
@@ -215,7 +224,7 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     end_xid_field.set_int(record, trx_kit_.max_trx_id());
     RC rc = table->update_record(record, record.data());
     if (rc != RC::SUCCESS) {
-      // ASSERT(rc != RC::SUCCESS,"==============="); // 调试用
+      RT_ASSERT(rc != RC::SUCCESS);  // 调试用
       sql_debug("MVCC: failed, %d", __LINE__);
       LOG_WARN("MVCC: failed to update new-version record into table when update. rc=%s", strrc(rc));
       return rc;
@@ -277,7 +286,7 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
 
   RC rc = table->insert_record(new_record);
   if (rc != RC::SUCCESS) {
-    // ASSERT(rc != RC::SUCCESS, "===============");  // 调试用
+    RT_ASSERT(rc != RC::SUCCESS);  // 调试用
     sql_debug("MVCC: failed, %d", __LINE__);
     LOG_WARN("MVCC: failed to insert new-version record into table when update. rc=%s", strrc(rc));
     return rc;
@@ -327,14 +336,14 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     }
 
     rc = RC::INTERNAL;
-    ASSERT(rc != RC::SUCCESS, "===============");  // 调试用
+    RT_ASSERT(rc != RC::SUCCESS);  // 调试用
     sql_debug("MVCC: failed, %d", __LINE__);
     LOG_WARN("failed to insert operation(update) into operation set: duplicate");
   }
   ret = operations_.insert(Operation(Operation::Type::INSERT, table, new_record.rid()));
   if (!ret.second) {
     rc = RC::INTERNAL;
-    ASSERT(rc != RC::SUCCESS, "===============");  // 调试用
+    RT_ASSERT(rc != RC::SUCCESS);  // 调试用
     sql_debug("MVCC: failed, %d", __LINE__);
     LOG_WARN("failed to insert operation(update) into operation set: duplicate");
   }
