@@ -38,45 +38,6 @@ RC UpdatePhysicalOperator::open(Trx *trx)
 
   trx_ = trx;
 
-  for (auto &value : values_) {
-    // 这里需要判断value的类型，如果是一个表达式，那么需要计算出来
-    if (value.value_from_select) {
-      std::unique_ptr<PhysicalOperator> &value_select = value.select_physical_operator;
-      rc                                              = value_select->open(trx);
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to open child operator: %s", strrc(rc));
-        return rc;
-      }
-
-      if (RC::SUCCESS == (rc = value_select->next())) {
-        // only grab one
-        Tuple *tuple = value_select->current_tuple();
-        if (tuple == nullptr) {
-          LOG_WARN("failed to get current record: %s", strrc(rc));
-          return RC::INTERNAL;
-        }
-        if (tuple->cell_num() > 1) {
-          LOG_WARN("invalid select result, too much columns");
-          return RC::INTERNAL;
-        }
-        rc                      = tuple->cell_at(0, value.literal_value);
-        value.value_from_select = false;  // 从select中拿到了值，不需要再计算了
-        if (rc != RC::SUCCESS) {
-          LOG_WARN("failed to get cell: %s", strrc(rc));
-          return rc;
-        }
-      } else {
-        LOG_WARN("failed to get next record: %s", strrc(rc));
-        return rc;
-      }
-      // 再尝试拿一次，如果拿到了，那么就是错误的，因为select出的结果必然只有一行
-      if (RC::RECORD_EOF != (rc = value_select->next())) {
-        LOG_WARN("invalid select result, too much rows");
-        return RC::INTERNAL;
-      }
-    }
-  }
-
   return RC::SUCCESS;
 }
 
@@ -88,11 +49,63 @@ RC UpdatePhysicalOperator::next()
   }
 
   PhysicalOperator *child = children_[0].get();
+
+  bool value_got = false;  // 标记是否已经拿到了select中的值
+
   while (RC::SUCCESS == (rc = child->next())) {
     Tuple *tuple = child->current_tuple();  // 拿上来每一行
     if (nullptr == tuple) {
       LOG_WARN("failed to get current record: %s", strrc(rc));
       return rc;
+    }
+    // 将获得值的逻辑下移
+    if (!value_got) {
+      value_got = true;
+      for (auto &value : values_) {
+        // 这里需要判断value的类型，如果是一个表达式，那么需要计算出来
+        if (value.value_from_select) {
+          std::unique_ptr<PhysicalOperator> &value_select = value.select_physical_operator;
+          rc                                              = value_select->open(trx_);
+          if (rc != RC::SUCCESS) {
+            LOG_WARN("failed to open child operator: %s", strrc(rc));
+            return rc;
+          }
+
+          if (RC::SUCCESS == (rc = value_select->next())) {
+            // only grab one
+            Tuple *tuple = value_select->current_tuple();
+            if (tuple == nullptr) {
+              LOG_WARN("failed to get current record: %s", strrc(rc));
+              return RC::INTERNAL;
+            }
+            if (tuple->cell_num() > 1) {
+              LOG_WARN("invalid select result, too much columns");
+              return RC::INTERNAL;
+            }
+            rc                      = tuple->cell_at(0, value.literal_value);
+            value.value_from_select = false;  // 从select中拿到了值，不需要再计算了
+            if (rc != RC::SUCCESS) {
+              LOG_WARN("failed to get cell: %s", strrc(rc));
+              return rc;
+            }
+          } else if (rc == RC::RECORD_EOF) {
+            LOG_WARN("select result, no rows");
+            // 查无此记录，给个none
+            value.literal_value.set_type(AttrType::NONE);
+            value.value_from_select = false;  // 从select中拿到了值，不需要再计算了
+          } else {
+            LOG_WARN("failed to get next record: %s", strrc(rc));
+            return rc;
+          }
+          // 再尝试拿一次，如果拿到了，那么就是错误的，因为select出的结果必然只有一行
+          if (RC::RECORD_EOF != (rc = value_select->next())) {
+            LOG_WARN("invalid select result, too much rows");
+            return RC::INTERNAL;
+          }
+          // 关闭子查询
+          value_select->close();
+        }
+      }
     }
 
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
@@ -105,6 +118,9 @@ RC UpdatePhysicalOperator::next()
     const TableMeta &table_meta  = table_->table_meta();
     int              record_size = table_meta.record_size();
     char            *new_data    = (char *)malloc(record_size);
+    const FieldMeta *null_field  = table_meta.null_field();
+    // 取出null_field的值
+    char *null_field_data = new_data + null_field->offset();
     memcpy(new_data, old_data, record_size);
 
     for (int i = 0; i < table_meta.field_num() - table_meta.sys_field_num(); i++) {
@@ -117,22 +133,34 @@ RC UpdatePhysicalOperator::next()
           const Value &value = values_[j].literal_value;
 
           // 此处进行一次兜底的类型转换
-          if (value.attr_type() != field->type()) {
+          if (!value.is_null() && value.attr_type() != field->type()) {
             rc = value.auto_cast(field->type());
             if (rc != RC::SUCCESS) {
               LOG_WARN("failed to auto cast value: %s", strrc(rc));
               return rc;
             }
           }
-
-          size_t copy_len = field->len();
-          if (field->type() == CHARS) {
-            const size_t data_len = value.length();
-            if (copy_len > data_len) {
-              copy_len = data_len + 1;
+          if (value.is_null()) {
+            // 空值额外处理
+            if (!field->nullable()) {
+              LOG_WARN("field %s is not nullable",field->name());
+              return RC::RECORD_UNNULLABLE;
             }
+            memset(new_data + field->offset(), 0, field->len());
+            // 设置null_field的值
+            null_field_data[i / CHAR_BIT] |= (1 << (i % CHAR_BIT));
+          } else {
+            size_t copy_len = field->len();
+            if (field->type() == CHARS) {
+              const size_t data_len = value.length();
+              if (copy_len > data_len) {
+                copy_len = data_len + 1;
+              }
+            }
+            // 设置null_field的值
+            null_field_data[i / CHAR_BIT] &= ~(1 << (i % CHAR_BIT));
+            memcpy(new_data + field->offset(), value.data(), copy_len);
           }
-          memcpy(new_data + field->offset(), value.data(), copy_len);
         }
       }
     }

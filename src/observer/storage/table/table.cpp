@@ -219,6 +219,19 @@ RC Table::insert_record(Record &record)
   // 检查索引中是否有存在的项
   for (Index *index : indexes_) {
     if (index->index_meta().is_unique()) {
+      // null破坏唯一索引
+      // 索引字段中带有null的record不保证唯一性，直接跳过
+      bool has_null = false;
+      for (auto field_name : index->index_meta().fields()) {
+        if (table_meta_.is_field_null(record.data(), field_name.c_str())) {
+          has_null = true;
+          break;
+        }
+      }
+      if (has_null) {
+        continue;
+      }
+
       // 需要首先检查插入后的情况是否会有键值重复的情况
       std::list<RID> rids;
       rc = index->get_entry(record.data(), rids);
@@ -227,6 +240,26 @@ RC Table::insert_record(Record &record)
                   name(), index->index_meta().name(), strrc(rc));
         return rc;
       }
+      // null破坏唯一索引，插入的0值与null值在索引层面是相同的，但是record层面是不同的
+      // 也就意味着同样需要检查返回的这一堆看似重复的record中是否有null值
+      // 如果有，那就不构成重复
+      for (auto rid : rids) {
+        RecordPageHandler record_page_handler;
+        record_page_handler.cleanup();
+        Record tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
+                      name(), strrc(rc));
+          return rc;
+        }
+        for (auto field_name : index->index_meta().fields()) {
+          if (table_meta_.is_field_null(tmp_record.data(), field_name.c_str())) {
+            rids.remove(rid);
+          }
+        }
+      }
+
       if (rids.size() >= 1) {
         LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
                   name(), index->index_meta().name(), strrc(rc));
@@ -324,7 +357,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value     &value = values[i];
-    if (field->type() != value.attr_type()) {
+    if (value.attr_type() != AttrType::NONE && field->type() != value.attr_type()) {
       // 这里应该不会走到，前面都处理过了
       LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
                 table_meta_.name(), field->name(), field->type(), value.attr_type());
@@ -334,19 +367,28 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
 
   // 复制所有字段的值
   int   record_size = table_meta_.record_size();
-  char *record_data = (char *)malloc(record_size);
-
+  char *record_data = (char *)calloc(record_size, record_size);
   for (int i = 0; i < value_num; i++) {
-    const FieldMeta *field    = table_meta_.field(i + normal_field_start_index);
-    const Value     &value    = values[i];
-    size_t           copy_len = field->len();
-    if (field->type() == CHARS) {
-      const size_t data_len = value.length();
-      if (copy_len > data_len) {
-        copy_len = data_len + 1;
+    const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
+    const Value     &value = values[i];
+    if (value.attr_type() == AttrType::NONE) {
+      // 空值额外处理
+      memset(record_data + field->offset(), 0, field->len());
+      const FieldMeta *null_field = table_meta_.null_field();
+      // 取出null_field的值
+      char *null_field_data = record_data + null_field->offset();
+      // 设置null_field的值
+      null_field_data[i / CHAR_BIT] |= (1 << (i % CHAR_BIT));
+    } else {
+      size_t copy_len = field->len();
+      if (field->type() == CHARS) {
+        const size_t data_len = value.length();
+        if (copy_len > data_len) {
+          copy_len = data_len + 1;
+        }
       }
+      memcpy(record_data + field->offset(), value.data(), copy_len);
     }
-    memcpy(record_data + field->offset(), value.data(), copy_len);
   }
 
   record.set_data_owner(record_data, record_size);
@@ -388,6 +430,7 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
 
 RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, const char *index_name, bool is_unique)
 {
+  // 只有null的字段可以bypass掉unique的限制
   // 在当前情况下先做unique index
   // const FieldMeta *field_meta = field_metas[0];  // TODO: support multi-field index
   if (common::is_blank(index_name) || fields_meta.empty()) {
@@ -404,6 +447,8 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, con
   }
   // 检查唯一性
   if (is_unique) {
+    // 需要对于unique的问题单独处理，即如果两个record
+    // 完全相等，但是但凡有一个是带null字段的，那么就可以插入
     std::unordered_set<std::string> unique_check_set;
     // 遍历当前的所有数据，插入这个索引
     RecordFileScanner scanner_unique;
@@ -428,6 +473,17 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, con
         return rc;
       }
 
+      // 索引字段中带有null的record不保证唯一性，直接跳过
+      bool has_null = false;
+      for (auto field : fields_meta) {
+        if (table_meta_.is_field_null(record_unique.data(), field->name())) {
+          has_null = true;
+          break;
+        }
+      }
+      if (has_null) {
+        continue;
+      }
       char *key_data = new char[attr_length_sum];
       int   offset   = 0;
       for (int i = 0; i < fields_meta.size(); i++) {
@@ -551,6 +607,25 @@ RC Table::update_record(const Record &record, const char *data)
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     if (index->index_meta().is_unique()) {
+      // 在这里需要针对支持null的情况做特殊处理
+      // record是旧的值，这里检查新值是否有null
+      bool has_null         = false;
+      bool old_rec_has_null = false;
+      for (auto field_name : index->index_meta().fields()) {
+        if (table_meta_.is_field_null(data, field_name.c_str())) {
+          has_null = true;
+          break;
+        }
+      }
+      for (auto field_name : index->index_meta().fields()) {
+        if (table_meta_.is_field_null(record.data(), field_name.c_str())) {
+          old_rec_has_null = true;
+          break;
+        }
+      }
+      if (has_null) {
+        continue;
+      }
       // 检查更新前后，索引对应的字段是否发生变化
       char *user_key        = nullptr;
       char *user_key_before = nullptr;
@@ -559,8 +634,10 @@ RC Table::update_record(const Record &record, const char *data)
 
       int modified = memcmp(user_key, user_key_before, attr_length_sum);
 
-      if (modified == 0) {
-        // 无任何变更，不需要检查
+      if (modified == 0 && !old_rec_has_null) {
+        // FIX: 此时新值无null，因此必须要与现有检查冲突，事实上，就算字面量没变，新值与旧值可能在null上有区别
+        // 比如将原先的null设置成新的0，这就产生的unique的冲突，依然需要检查
+        // 旧值无null，（新值也无null）无任何变更，不需要检查
         continue;
       }
       // 需要首先检查插入后的情况是否会有键值重复的情况
@@ -570,6 +647,23 @@ RC Table::update_record(const Record &record, const char *data)
         LOG_ERROR("Failed to get entry from index. table name=%s, index name=%s, rc=%s",
                   name(), index->index_meta().name(), strrc(rc));
         return rc;
+      }
+      rids.remove_if([&record](const RID &rid) { return rid == record.rid(); });
+      for (auto rid : rids) {
+        RecordPageHandler record_page_handler;
+        record_page_handler.cleanup();
+        Record tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
+                      name(), strrc(rc));
+          return rc;
+        }
+        for (auto field_name : index->index_meta().fields()) {
+          if (table_meta_.is_field_null(tmp_record.data(), field_name.c_str())) {
+            rids.remove(rid);
+          }
+        }
       }
       if (rids.size() >= 1) {
         LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
@@ -590,6 +684,7 @@ RC Table::update_record(const Record &record, const char *data)
   }
 
   rc = record_handler_->update_record(record.rid(), data);
+
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;

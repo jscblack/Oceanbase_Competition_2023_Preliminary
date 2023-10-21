@@ -9,16 +9,9 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 //
-// Created by Wangyunlai on 2022/12/15
+// Created by LuoYuanhui on 2023/10/09
 //
 
-#include "sql/operator/project_logical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
 
-ProjectLogicalOperator::ProjectLogicalOperator(
-    const std::vector<Expression *> &fields_expressions, bool no_table_select)
-    : no_table_select_(no_table_select)
-{
-  for (int i = 0; i < fields_expressions.size(); i++) {
-    expressions_.push_back(std::unique_ptr<Expression>(fields_expressions[i]->clone()));
-  }
-}
+SortLogicalOperator::SortLogicalOperator(const std::vector<std::pair<Field, bool>> &orders) : orders_(orders) {}

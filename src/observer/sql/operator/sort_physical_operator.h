@@ -9,29 +9,30 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 //
-// Created by WangYunlai on 2022/6/27.
+// Created by LuoYuanhui on 2023/10/10
 //
 
 #pragma once
 
-#include "sql/expr/expression.h"
-#include "sql/operator/physical_operator.h"
-#include <memory>
+#include <algorithm>
 
-class FilterStmt;
+#include "sql/operator/physical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
+#include "sql/parser/value.h"
+#include "sql/expr/tuple.h"
 
 /**
- * @brief 过滤/谓词物理算子
+ * @brief 排序物理算子
  * @ingroup PhysicalOperator
  */
-class PredicatePhysicalOperator : public PhysicalOperator
+class SortPhysicalOperator : public PhysicalOperator
 {
 public:
-  PredicatePhysicalOperator(std::unique_ptr<Expression> expr);
+  SortPhysicalOperator()  = default;
+  ~SortPhysicalOperator() = default;
+  SortPhysicalOperator(const std::vector<std::pair<Field, bool>> &orders) : orders_(orders) {}
 
-  virtual ~PredicatePhysicalOperator() = default;
-
-  PhysicalOperatorType type() const override { return PhysicalOperatorType::PREDICATE; }
+  PhysicalOperatorType type() const override { return PhysicalOperatorType::SORT; }
 
   RC open(Trx *trx) override;
   RC next() override;
@@ -40,6 +41,8 @@ public:
   Tuple *current_tuple() override;
 
 private:
-  std::unique_ptr<Expression> expression_;
-  Trx                        *trx_ = nullptr;
+  int                  cur_idx_ = -1;   // current_tuple_idx
+  std::vector<Tuple *> sorted_tuples_;  // results
+
+  std::vector<std::pair<Field, bool>> orders_;
 };

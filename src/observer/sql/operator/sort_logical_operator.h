@@ -9,29 +9,33 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 //
-// Created by Wangyunlai on 2022/12/13.
+// Created by LuoYuanhui on 2023/10/09
 //
 
 #pragma once
 
+#include <vector>
 #include <memory>
 
-#include "common/rc.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/expr/expression.h"
-#include "sql/optimizer/rewrite_rule.h"
+#include "storage/field/field.h"
 
-class ExpressionRewriter : public RewriteRule
+/**
+ * @brief sort 表示排序运算
+ * @ingroup LogicalOperator
+ * @details 从表中获取数据后，按对应属性列排序
+ */
+class SortLogicalOperator : public LogicalOperator
 {
 public:
-  ExpressionRewriter();
-  virtual ~ExpressionRewriter() = default;
+  SortLogicalOperator(const std::vector<std::pair<Field, bool>> &orders);
+  virtual ~SortLogicalOperator() = default;
 
-  RC rewrite(std::unique_ptr<LogicalOperator> &oper, bool &change_made) override;
+  LogicalOperatorType type() const override { return LogicalOperatorType::SORT; }
 
-public:
-  RC rewrite_expression(std::unique_ptr<Expression> &expr, bool &change_made);
+  const std::vector<std::pair<Field, bool>> &orders() const { return orders_; }
 
 private:
-  std::vector<std::unique_ptr<ExpressionRewriteRule>> expr_rewrite_rules_;
+  std::vector<std::pair<Field, bool>> orders_;
 };

@@ -12,11 +12,11 @@ See the Mulan PSL v2 for more details. */
 // Created by WangYunlai on 2022/6/27.
 //
 
-#include "common/log/log.h"
 #include "sql/operator/predicate_physical_operator.h"
-#include "storage/record/record.h"
+#include "common/log/log.h"
 #include "sql/stmt/filter_stmt.h"
 #include "storage/field/field.h"
+#include "storage/record/record.h"
 
 PredicatePhysicalOperator::PredicatePhysicalOperator(std::unique_ptr<Expression> expr) : expression_(std::move(expr))
 {
@@ -29,7 +29,7 @@ RC PredicatePhysicalOperator::open(Trx *trx)
     LOG_WARN("predicate operator must has one child");
     return RC::INTERNAL;
   }
-
+  trx_ = trx;
   return children_[0]->open(trx);
 }
 
@@ -47,7 +47,8 @@ RC PredicatePhysicalOperator::next()
     }
 
     Value value;
-    rc = expression_->get_value(*tuple, value);
+    rc = expression_->get_value(*tuple, value, trx_);
+
     if (rc != RC::SUCCESS) {
       return rc;
     }

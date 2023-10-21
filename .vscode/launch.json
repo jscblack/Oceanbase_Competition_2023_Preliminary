@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/observer",
-            "args": ["-f", "/root/workspace/miniob/etc/observer.ini", "-p", "6789", "-t", "mvcc"],
+            "args": ["-f", "/root/workspace/miniob/etc/observer.ini", "-p", "cli", "-t", "mvcc"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "environment": [],

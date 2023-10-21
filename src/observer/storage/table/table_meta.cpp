@@ -57,7 +57,9 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
   RC rc = RC::SUCCESS;
 
-  int                      field_offset  = 0;
+  int field_offset = 0;
+  // 添加系统字段，trxfield，不可见
+  int                      sys_field_num = 0;
   int                      trx_field_num = 0;
   const vector<FieldMeta> *trx_fields    = TrxKit::instance()->trx_fields();
   if (trx_fields != nullptr) {
@@ -65,7 +67,8 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
     for (size_t i = 0; i < trx_fields->size(); i++) {
       const FieldMeta &field_meta = (*trx_fields)[i];
-      fields_[i] = FieldMeta(field_meta.name(), field_meta.type(), field_offset, field_meta.len(), false /*visible*/);
+      fields_[i]                  = FieldMeta(
+          field_meta.name(), field_meta.type(), field_offset, field_meta.len(), false /*nullable*/, false /*visible*/);
       field_offset += field_meta.len();
     }
 
@@ -73,11 +76,23 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
   } else {
     fields_.resize(field_num);
   }
+  sys_field_num += trx_field_num;
 
+  // 添加系统字段，nullfield，不可见
+  // 是一个bitmap，每个bit对应一个字段，表示该字段是否为null
+  // 一个字段占一个bit，使用chars去保存，每个char占8bit，所以需要的长度为ceil(field_num/8)
+  fields_.resize(fields_.size() + 1);
+  int null_field_len     = (field_num + 7) / 8;
+  fields_[sys_field_num] = FieldMeta(
+      "__field_is_null", AttrType::CHARS, field_offset, null_field_len, false /*nullable*/, false /*visible*/);
+  field_offset += 1;
+  sys_field_num += 1;
+
+  // 添加数据字段
   for (int i = 0; i < field_num; i++) {
     const AttrInfoSqlNode &attr_info = attributes[i];
-    rc                               = fields_[i + trx_field_num].init(
-        attr_info.name.c_str(), attr_info.type, field_offset, attr_info.length, true /*visible*/);
+    rc                               = fields_[i + sys_field_num].init(
+        attr_info.name.c_str(), attr_info.type, field_offset, attr_info.length, attr_info.nullable, true /*visible*/);
     if (rc != RC::SUCCESS) {
       LOG_ERROR("Failed to init field meta. table name=%s, field name: %s", name, attr_info.name.c_str());
       return rc;
@@ -106,10 +121,27 @@ const FieldMeta *TableMeta::trx_field() const { return &fields_[0]; }
 
 const std::pair<const FieldMeta *, int> TableMeta::trx_fields() const
 {
-  return std::pair<const FieldMeta *, int>{fields_.data(), sys_field_num()};
+  return std::pair<const FieldMeta *, int>{fields_.data(), trx_field_num()};
 }
 
 const FieldMeta *TableMeta::field(int index) const { return &fields_[index]; }
+
+// TODO 根据name找index
+int TableMeta::find_field_index_by_name(const char *name) const
+{
+  if (nullptr == name) {
+    return -1;
+  }
+  int i = 0;
+  for (const FieldMeta &field : fields_) {
+    if (0 == strcmp(field.name(), name)) {
+      return i;
+    }
+    i++;
+  }
+  return -1;
+}
+
 const FieldMeta *TableMeta::field(const char *name) const
 {
   if (nullptr == name) {
@@ -132,9 +164,30 @@ const FieldMeta *TableMeta::find_field_by_offset(int offset) const
   }
   return nullptr;
 }
+
+const FieldMeta *TableMeta::null_field() const
+{
+  assert(strcmp(fields_[trx_field_num()].name(), "__field_is_null") == 0);
+  return &fields_[trx_field_num()];
+}
+
+bool TableMeta::is_field_null(const char *data, const char *field_name) const
+{
+  const FieldMeta *null_field_meta = null_field();
+  const char      *null_field_data = data + null_field_meta->offset();
+  for (int i = 0; i < field_num(); i++) {
+    const FieldMeta *field_meta = field(i + sys_field_num());
+    if (strcmp(field_meta->name(), field_name) == 0) {
+      return (null_field_data[i / CHAR_BIT] & (1 << i % CHAR_BIT)) != 0;
+    }
+  }
+  // field_meta->offset()
+  return true;
+}
+
 int TableMeta::field_num() const { return fields_.size(); }
 
-int TableMeta::sys_field_num() const
+int TableMeta::trx_field_num() const
 {
   const vector<FieldMeta> *trx_fields = TrxKit::instance()->trx_fields();
   if (nullptr == trx_fields) {
@@ -142,6 +195,10 @@ int TableMeta::sys_field_num() const
   }
   return static_cast<int>(trx_fields->size());
 }
+
+int TableMeta::null_field_num() const { return 1; }
+
+int TableMeta::sys_field_num() const { return trx_field_num() + null_field_num(); }
 
 const IndexMeta *TableMeta::index(const char *name) const
 {

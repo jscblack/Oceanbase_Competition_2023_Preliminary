@@ -23,11 +23,11 @@ class LogicalOperator;
  * @ingroup Rewriter
  * @details 比如只有一个表达式，或者表达式可以直接出来
  */
-class ConjunctionSimplificationRule : public ExpressionRewriteRule
+class LogicalCalcSimplificationRule : public ExpressionRewriteRule
 {
 public:
-  ConjunctionSimplificationRule()          = default;
-  virtual ~ConjunctionSimplificationRule() = default;
+  LogicalCalcSimplificationRule()          = default;
+  virtual ~LogicalCalcSimplificationRule() = default;
 
   RC rewrite(std::unique_ptr<Expression> &expr, bool &change_made) override;
 

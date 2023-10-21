@@ -82,8 +82,8 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
         LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
         return rc;
       }
-      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
-        LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size());
+      if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields_expressions().size() != 1) {
+        LOG_WARN("invalid select statement. select_stmt->query_fields_expressions().size()=%d", reinterpret_cast<SelectStmt *>(select_stmt)->query_fields_expressions().size());
         return RC::INVALID_ARGUMENT;
       }
       update_values.emplace_back(true, select_stmt);
@@ -92,11 +92,22 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
       // from value
       const AttrType value_type = complex_values[i].literal_value.attr_type();
       if (field_type != value_type) {  // TODO try to convert the value type to field type
-        rc = complex_values[i].literal_value.auto_cast(field_type);
-        if (rc != RC::SUCCESS) {
-          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+
+        if (value_type == AttrType::NONE) {
+          // 空值检查
+          if (!field_meta->nullable()) {
+            LOG_WARN("field can not be null. table=%s, field=%s, field type=%d, value_type=%d",
+                     table_name, field_meta->name(), field_type, value_type);
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+        } else {
+          // 正常转换
+          rc = complex_values[i].literal_value.auto_cast(field_type);
+          if (rc != RC::SUCCESS) {
+            LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
             table_name, field_meta->name(), field_type, value_type);
-          return rc;
+            return rc;
+          }
         }
       }
       update_values.emplace_back(false, complex_values[i].literal_value);
@@ -107,8 +118,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
   FilterStmt *filter_stmt = nullptr;
-  rc                      = FilterStmt::create(
-      db, table, &table_map, update_sql.conditions.data(), static_cast<int>(update_sql.conditions.size()), filter_stmt);
+  rc                      = FilterStmt::create(db, table, &table_map, update_sql.conditions, filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;

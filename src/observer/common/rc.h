@@ -39,6 +39,7 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(RECORD_EOF)                  \
   DEFINE_RC(RECORD_NOT_EXIST)            \
   DEFINE_RC(RECORD_INVISIBLE)            \
+  DEFINE_RC(RECORD_UNNULLABLE)           \
   DEFINE_RC(SCHEMA_DB_EXIST)             \
   DEFINE_RC(SCHEMA_DB_NOT_EXIST)         \
   DEFINE_RC(SCHEMA_DB_NOT_OPENED)        \
@@ -78,8 +79,11 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(VALUE_DATE_INVALID)          \
   DEFINE_RC(VALUE_CAST_FAILED)           \
   DEFINE_RC(VALUE_NOT_NUMBER)            \
+  DEFINE_RC(CONCURRENCY_UPDATE_FAIL)     \
+  DEFINE_RC(SUBQUERY_EXEC_FAILED)        \
   DEFINE_RC(LOGBUF_FULL)                 \
-  DEFINE_RC(CONCURRENCY_UPDATE_FAIL)  
+  DEFINE_RC(EXPR_TYPE_MISMATCH)          \
+  DEFINE_RC(FUNC_EXPR_ERROR)
 
 enum class RC
 {

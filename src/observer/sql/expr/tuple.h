@@ -15,14 +15,14 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <memory>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
 #include "sql/expr/tuple_cell.h"
 #include "sql/parser/parse.h"
 #include "sql/parser/value.h"
-#include "sql/expr/expression.h"
 #include "storage/record/record.h"
 
 class Table;
@@ -93,6 +93,8 @@ public:
    */
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const = 0;
 
+  virtual RC clone(Tuple *&tuple) const = 0;
+
   virtual std::string to_string() const
   {
     std::string str;
@@ -122,38 +124,61 @@ class RowTuple : public Tuple
 {
 public:
   RowTuple() = default;
+  // RowTupe(const Table *table) : table_(table) {}
   virtual ~RowTuple()
   {
-    for (FieldExpr *spec : speces_) {
-      delete spec;
-    }
-    speces_.clear();
+    delete record_;
+    // for (FieldExpr *spec : speces_) {
+    //   delete spec;
+    // }
+    // speces_.clear();
   }
 
-  void set_record(Record *record) { this->record_ = record; }
-
-  void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
+  void set_record(Record *record)
   {
-    table_ = table;
-    this->speces_.reserve(fields->size());
-    for (const FieldMeta &field : *fields) {
-      speces_.push_back(new FieldExpr(table, &field));
-    }
+    Record *new_record = new Record(*record);
+    this->record_      = new_record;
   }
 
-  int cell_num() const override { return speces_.size(); }
+  void set_table(const Table *table) { table_ = table; }
+
+  // void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
+  // {
+  //   table_ = table;
+  //   this->speces_.reserve(fields->size());
+  //   for (const FieldMeta &field : *fields) {
+  //     speces_.push_back(new FieldExpr(table, &field));
+  //   }
+  // }
+
+  int cell_num() const override { return table_->table_meta().field_metas()->size(); }
 
   RC cell_at(int index, Value &cell) const override
   {
-    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+    // if (index < 0 || index >= static_cast<int>(speces_.size())) {
+    //   LOG_WARN("invalid argument. index=%d", index);
+    //   return RC::INVALID_ARGUMENT;
+    // }
+
+    // FieldExpr       *field_expr = speces_[index];
+    // const FieldMeta *field_meta = field_expr->field().meta();
+
+    if (index < 0 || index >= table_->table_meta().field_metas()->size()) {
       LOG_WARN("invalid argument. index=%d", index);
       return RC::INVALID_ARGUMENT;
     }
 
-    FieldExpr       *field_expr = speces_[index];
-    const FieldMeta *field_meta = field_expr->field().meta();
-    cell.set_type(field_meta->type());
-    cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
+    const FieldMeta *field_meta = table_->table_meta().field(index);
+    // 在这里需要判断一下，record当中，这个字段是否为空
+    if (field_meta->nullable() && table_->table_meta().is_field_null(record_->data(), field_meta->name())) {
+      // 为null
+      cell.set_type(AttrType::NONE);
+    } else {
+      // 确有值
+      cell.set_type(field_meta->type());
+      cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
+    }
+
     return RC::SUCCESS;
   }
 
@@ -165,14 +190,21 @@ public:
       return RC::NOTFOUND;
     }
 
-    for (size_t i = 0; i < speces_.size(); ++i) {
-      const FieldExpr *field_expr = speces_[i];
-      const Field     &field      = field_expr->field();
-      if (0 == strcmp(field_name, field.field_name())) {
-        return cell_at(i, cell);
-      }
+    auto ret = table_->table_meta().field(field_name);
+    if (nullptr == ret) {
+      return RC::NOTFOUND;
     }
-    return RC::NOTFOUND;
+
+    return cell_at(table_->table_meta().find_field_index_by_name(field_name), cell);
+
+    // for (size_t i = 0; i < speces_.size(); ++i) {
+    //   const FieldExpr *field_expr = speces_[i];
+    //   const Field     &field      = field_expr->field();
+    //   if (0 == strcmp(field_name, field.field_name())) {
+    //     return cell_at(i, cell);
+    //   }
+    // }
+    // return RC::NOTFOUND;
   }
 
 #if 0
@@ -187,14 +219,32 @@ public:
   }
 #endif
 
+  RC clone(Tuple *&tuple) const override
+  {
+    RowTuple *row_tuple = new RowTuple();
+    Record   *record =
+        new Record(*record_);  // 假定data被深拷贝了,但其实得看record是否是data的owner,不知道data的生命周期如何
+    row_tuple->record_ = record;
+    row_tuple->table_  = table_;
+    // for (const FieldExpr *field_expr : speces_) {
+    //   row_tuple->speces_.push_back(new FieldExpr(field_expr->field()));
+    // }
+    tuple = row_tuple;
+    return RC::SUCCESS;
+  }
+
   Record &record() { return *record_; }
 
   const Record &record() const { return *record_; }
 
+  const Table &table() const { return *table_; }
+
 private:
-  Record                  *record_ = nullptr;
-  const Table             *table_  = nullptr;
-  std::vector<FieldExpr *> speces_;
+  Record      *record_ = nullptr;
+  const Table *table_  = nullptr;
+
+  // 旧版的tuple的field是由query_field一路往后传的，也就是限制了tuple的可选列
+  // std::vector<FieldExpr *> speces_;
 };
 
 /**
@@ -208,33 +258,69 @@ class ProjectTuple : public Tuple
 {
 public:
   ProjectTuple() = default;
+
   virtual ~ProjectTuple()
   {
-    for (TupleCellSpec *spec : speces_) {
-      delete spec;
-    }
-    speces_.clear();
+    // for (TupleCellSpec *spec : speces_) {
+    //   delete spec;
+    // }
+    // speces_.clear();
+    // delete tuple_;
   }
 
   void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
 
-  void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
-  int  cell_num() const override { return speces_.size(); }
+  // const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
+  // void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
+
+  void set_expressions(const std::vector<std::unique_ptr<Expression>> &exprs)
+  {
+    for (int i = 0; i < exprs.size(); i++) {
+      expressions_.push_back(std::unique_ptr<Expression>(exprs[i]->clone()));
+    }
+  }
+
+  int cell_num() const override { return expressions_.size(); }
+
+  const std::vector<std::unique_ptr<Expression>> &expressions() { return expressions_; }
 
   RC cell_at(int index, Value &cell) const override
   {
-    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+    if (index < 0 || index >= static_cast<int>(expressions_.size())) {
       return RC::INTERNAL;
+    }
+    if (is_func_) {
+      RowTuple tmp_tuple;
+      return expressions_[index]->get_value(tmp_tuple, cell);
     }
     if (tuple_ == nullptr) {
       return RC::INTERNAL;
     }
 
-    const TupleCellSpec *spec = speces_[index];
-    return tuple_->find_cell(*spec, cell);
+    return expressions_[index]->get_value(*tuple_, cell);
+    // const TupleCellSpec *spec = speces_[index];
+    // return tuple_->find_cell(*spec, cell);
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return tuple_->find_cell(spec, cell); }
+
+  RC clone(Tuple *&tuple) const override
+  {
+    ProjectTuple *project_tuple = new ProjectTuple();
+    tuple_->clone(project_tuple->tuple_);
+    for (int i = 0; i < expressions_.size(); i++) {
+      project_tuple->expressions_.push_back(std::unique_ptr<Expression>(expressions_[i]->clone()));
+    }
+
+    // for (auto s : speces_) {
+    //   project_tuple->speces_.push_back(new TupleCellSpec(s->table_name(), s->field_name()));
+    // }
+    tuple = project_tuple;
+    return RC::SUCCESS;
+  }
+
+public:
+  void set_is_func(bool is_func) { is_func_ = is_func; }
 
 #if 0
   RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
@@ -247,8 +333,10 @@ public:
   }
 #endif
 private:
-  std::vector<TupleCellSpec *> speces_;
-  Tuple                       *tuple_ = nullptr;
+  // std::vector<TupleCellSpec *> speces_;
+  std::vector<std::unique_ptr<Expression>> expressions_;
+  Tuple                                   *tuple_   = nullptr;
+  bool                                     is_func_ = false;
 };
 
 class ExpressionTuple : public Tuple
@@ -278,6 +366,12 @@ public:
       }
     }
     return RC::NOTFOUND;
+  }
+
+  RC clone(Tuple *&tuple) const override
+  {
+    tuple = nullptr;
+    return RC::INTERNAL;
   }
 
 private:
@@ -310,6 +404,12 @@ public:
 
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return RC::INTERNAL; }
 
+  RC clone(Tuple *&tuple) const override
+  {
+    tuple = nullptr;
+    return RC::INTERNAL;
+  }
+
 private:
   std::vector<Value> cells_;
 };
@@ -322,11 +422,15 @@ private:
 class JoinedTuple : public Tuple
 {
 public:
-  JoinedTuple()          = default;
-  virtual ~JoinedTuple() = default;
+  JoinedTuple() = default;
+  virtual ~JoinedTuple()
+  {
+    delete left_;
+    delete right_;
+  }
 
-  void set_left(Tuple *left) { left_ = left; }
-  void set_right(Tuple *right) { right_ = right; }
+  void set_left(Tuple *left) { left->clone(left_); }
+  void set_right(Tuple *right) { right->clone(right_); }
 
   int cell_num() const override { return left_->cell_num() + right_->cell_num(); }
 
@@ -352,6 +456,15 @@ public:
     }
 
     return right_->find_cell(spec, value);
+  }
+
+  RC clone(Tuple *&tuple) const override
+  {
+    JoinedTuple *joined_tuple = new JoinedTuple();
+    left_->clone(joined_tuple->left_);
+    right_->clone(joined_tuple->right_);
+    tuple = joined_tuple;
+    return RC::SUCCESS;
   }
 
 private:

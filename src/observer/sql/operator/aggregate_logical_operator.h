@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/logical_operator.h"
 #include "sql/expr/expression.h"
 #include "storage/field/field.h"
+#include "sql/stmt/having_filter_stmt.h"
 
 /**
  * @brief aggregate 表示聚合运算
@@ -29,15 +30,43 @@ See the Mulan PSL v2 for more details. */
 class AggregateLogicalOperator : public LogicalOperator
 {
 public:
-  AggregateLogicalOperator(
-      const std::vector<std::pair<std::string, Field>> &aggregations, const std::vector<Field> &fields);
+  AggregateLogicalOperator(const std::vector<Expression *> &fields_expressions,
+      const std::vector<Expression *>                      &group_by_fields_expressions);
+  // AggregateLogicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations,
+  //     const std::vector<Field> &fields, const std::vector<Expression *> &fields_expressions);
   virtual ~AggregateLogicalOperator() = default;
 
-  LogicalOperatorType                               type() const override { return LogicalOperatorType::AGGREGATE; }
-  const std::vector<std::pair<std::string, Field>> &aggregations() const { return aggregations_; }
-  const std::vector<Field>                         &fields() const { return fields_; }
+  LogicalOperatorType              type() const override { return LogicalOperatorType::AGGREGATE; }
+  const std::vector<Expression *> &fields_expressions() const { return fields_expressions_; }
+  const std::vector<Expression *> &group_by_fields_expressions() const { return group_by_fields_expressions_; }
+
+  void add_having_filters_expression(std::unique_ptr<Expression> having_filters_expression)
+  {
+    // NOTE: 分组筛选条件加入到基类的expressions_中
+    expressions_.emplace_back(std::move(having_filters_expression));
+  }
+
+  // const std::vector<std::pair<std::string, Field>> &aggregations() const { return aggregations_; }
+  // const std::vector<Field>                         &fields() const { return fields_; }
+  // const std::vector<Field>                         &group_by_fields() const { return group_by_fields_; }
+  // const std::vector<HavingFilterUnit *>            &having_filter_units() const { return having_filter_units_; }
+
+  // void set_group_by_fields(const std::vector<Field> &group_by_fields) { group_by_fields_ = group_by_fields; }
+  // // LogicalOperator基类中的 expressions_ 作为 having 子句包含的分组筛选条件
+  // void add_having_filters(std::unique_ptr<Expression> expression) { expressions_.emplace_back(std::move(expression));
+  // } void set_having_filter_units(const std::vector<HavingFilterUnit *> &having_filter_units)
+  // {
+  //   having_filter_units_ = having_filter_units;
+  // }
 
 private:
-  std::vector<std::pair<std::string, Field>> aggregations_;  //! 聚合的字段 - 聚合类型
-  std::vector<Field>                         fields_;        //! 投影映射的字段名称
+  std::vector<Expression *> fields_expressions_;           //! select的字段 - 包含聚合的字段
+  std::vector<Expression *> group_by_fields_expressions_;  //! 分组的字段
+  // Expression*                                having_filters_expression_;    //! 分组筛选条件
+
+  // std::vector<std::pair<std::string, Field>> aggregations_;  //! 聚合的字段 - 聚合类型
+  // std::vector<Field>                         fields_;        //! 投影映射的字段名称
+  // std::vector<Field>                         group_by_fields_;  //! 分组的字段
+  // // std::vector<Expression>                    having_filters_;   //! 分组筛选条件
+  // std::vector<HavingFilterUnit *> having_filter_units_;  // 分组筛选条件中的聚合属性
 };

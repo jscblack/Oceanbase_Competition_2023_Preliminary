@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "sql/parser/value.h"
+// #include "sql/expr/expression.h"
 
 class Expression;
 
@@ -36,9 +37,9 @@ class Expression;
  */
 struct RelAttrSqlNode
 {
-  std::string relation_name;          ///< relation name (may be NULL) 表名
-  std::string attribute_name;         ///< attribute name              属性名
-  std::string aggregation_func = "";  ///< aggregation function       聚合函数类型 max/min/count/avg/sum
+  std::string relation_name;   ///< relation name (may be NULL) 表名
+  std::string attribute_name;  ///< attribute name              属性名
+  // std::string aggregation_func;  ///< aggregation function        聚合函数类型 max/min/count/avg/sum
 };
 
 /**
@@ -47,36 +48,154 @@ struct RelAttrSqlNode
  */
 enum CompOp
 {
-  EQUAL_TO,       ///< "="
-  LESS_EQUAL,     ///< "<="
-  NOT_EQUAL,      ///< "<>"
-  LESS_THAN,      ///< "<"
-  GREAT_EQUAL,    ///< ">="
-  GREAT_THAN,     ///< ">"
-  LIKE_ENUM,      ///< "LIKE"
-  NOT_LIKE_ENUM,  ///< "NOT LIKE"
+  EQUAL_TO,         ///< "="
+  LESS_EQUAL,       ///< "<="
+  NOT_EQUAL,        ///< "<>"
+  LESS_THAN,        ///< "<"
+  GREAT_EQUAL,      ///< ">="
+  GREAT_THAN,       ///< ">"
+  LIKE_ENUM,        ///< "LIKE"
+  NOT_LIKE_ENUM,    ///< "NOT LIKE"
+  IS_NOT_ENUM,      ///< "IS NOT"
+  IS_ENUM,          ///< "IS"
+  NOT_IN_ENUM,      ///< "NOT IN"
+  IN_ENUM,          ///< "IN"
+  NOT_EXISTS_ENUM,  ///< "NOT EXISTS"
+  EXISTS_ENUM,      ///< "EXISTS"
   NO_OP
+};
+/**
+ * @brief 描述逻辑运算符
+ * @ingroup SQLParser
+ */
+enum LogiOp
+{
+  AND_ENUM,  ///< "AND"
+  OR_ENUM,   ///< "OR"
+  NOT_ENUM,  ///< "NOT"
+  NO_LOGI_OP
 };
 
 /**
- * @brief 表示一个条件比较
- * @ingroup SQLParser
- * @details 条件比较就是SQL查询中的 where a>b 这种。
- * 一个条件比较是有两部分组成的，称为左边和右边。
- * 左边和右边理论上都可以是任意的数据，比如是字段（属性，列），也可以是数值常量。
- * 这个结构中记录的仅仅支持字段和值。
+ * @brief 描述算术运算符
+ *
  */
+enum ArithOp
+{
+  ADD,
+  SUB,
+  MUL,
+  DIV,
+  NEGATIVE,
+  POSITIVE,
+  // PAREN,  // 括号 似乎用不上
+};
+
+/**
+ * @brief 描述函数名, 排在UNDEFINE和NO_FUNC之间的是聚集函数, 随后才是其他函数
+ * @ingroup SQLParser
+ */
+enum FuncName
+{
+  UNDEFINED_FUNC_ENUM,
+  COUNT_FUNC_ENUM,  ///< "COUNT"
+  AVG_FUNC_ENUM,    ///< "AVG"
+  SUM_FUNC_ENUM,    ///< "SUM"
+  MAX_FUNC_ENUM,    ///< "MAX"
+  MIN_FUNC_ENUM,    ///< "MIN"
+  LENGTH_FUNC_NUM,
+  ROUND_FUNC_NUM,
+  DATE_FUNC_NUM,
+  NO_FUNC_ENUM
+};
+
+/**
+ * @brief 描述条件比较的类型
+ * @ingroup SQLParser
+ */
+enum ConditionSqlNodeType
+{
+  UNDEFINED_COND_SQL_NODE = -1,  // 没有定义
+  VALUE                   = 0,   // 单个Value: 在YACC处转为ValueExpr / ValueListExpr， 对应_value
+  FIELD,                         // 单个Field: 在YACC处为RelAttrSqlNode，对应_attr
+  SUB_SELECT,                    // 单个子查询: _select
+  // 下面大多是binary-node，也有NOT这种unary的，并且会用到 sub_cond
+  ARITH,        // 算术表达式: _cond + arith
+  COMP,         // 比较表达式: _cond + comp
+  FUNC_OR_AGG,  // 函数或聚集表达式 （语法层面无法区分）: _cond + func
+  LOGIC         // 逻辑运算表达式: _cond + logi_op
+};
+
+struct SelectSqlNode;
+/**
+ * @brief 表示一个表达式 （沿用旧名叫ConditionSqlNode)
+ * @ingroup SQLParser
+ * @details 根据left_type和right_type来判断表达式的类型
+ * 如果表达式仅为单值，默认只用left_type （同时right_type=UNDEFINED)
+ */
+// where 1:1 condition
 struct ConditionSqlNode
 {
-  int left_is_attr;              ///< TRUE if left-hand side is an attribute
-                                 ///< 1时，操作符左边是属性名，0时，是属性值
-  Value          left_value;     ///< left-hand side value if left_is_attr = FALSE
-  RelAttrSqlNode left_attr;      ///< left-hand side attribute
-  CompOp         comp;           ///< comparison operator
-  int            right_is_attr;  ///< TRUE if right-hand side is an attribute
-                                 ///< 1时，操作符右边是属性名，0时，是属性值
-  RelAttrSqlNode right_attr;     ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
-  Value          right_value;    ///< right-hand side value if right_is_attr = FALSE
+  bool                 binary = false;  ///< TRUE 如果有子表达式则为true，如果为单值则为false
+  ConditionSqlNodeType type   = UNDEFINED_COND_SQL_NODE;  ///< TRUE if left-hand side is an attribute
+
+  RelAttrSqlNode    attr;                  ///< left-hand side attribute
+  SelectSqlNode    *select     = nullptr;  ///< left-hand side select
+  Expression       *value      = nullptr;  ///< left-hand side ValueExpr / ExprListExpr?
+  ConditionSqlNode *left_cond  = nullptr;  ///< right-hand side sub-cond, 即sub-expr
+  ConditionSqlNode *right_cond = nullptr;  ///< right-hand side sub-cond
+  std::string       alias      = "";
+
+  CompOp   comp;     ///< comparison operator
+  FuncName func;     ///< function operator
+  ArithOp  arith;    ///< arithmetic operator
+  LogiOp   logi_op;  ///< logic operator
+  // ConditionSqlNodeType right_type = UNDEFINED;
+  // RelAttrSqlNode       right_attr;              ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
+  // SelectSqlNode       *right_select = nullptr;  ///< right-hand side select
+  // Expression          *right_value  = nullptr;  ///< left-hand side ValueExpr / ExprListExpr?
+  // ConditionSqlNode() = default;
+  // ConditionSqlNode(ConditionSqlNode *left, LogiOp op, ConditionSqlNode *right)
+  //     : inner_node(true), left_cond(left), logi_op(op), right_cond(right){};
+  // ///< 2时，操作符左边是子查询，1时，操作符左边是属性名，0时，是属性值 （旧版ConditionSqlNodeType的注释）
+  // 即将废弃的Expression
+  // 现阶段 expression里面只包含value
+  // Expression    *left_expr = nullptr;    ///< left-hand side value if left_is_attr = FALSE
+  // Expression    *right_expr = nullptr;    ///< right-hand side value if right_is_attr = FALSE
+};
+
+// /**
+//  * @brief 描述ExprNode中表达式的类型
+//  * @ingroup SQLParser
+//  */
+// enum ExprNodeType
+// {
+//   UNDEFINED = 0,
+//   VALUE,        // 单个Value （转成ValueExpr）
+//   FIELD,        // 单个Field （转成FieldExpr）
+//   ARITH,        // 算术表达式
+//   COMP,         // 比较表达式
+//   FUNC_OR_AGG,  // 函数或聚集表达式 （语法层面无法区分）
+//   SUB_SELECT,   // 子查询表达式
+//   LOGIC         // 逻辑运算表达式
+// };
+
+// /**
+//  * @brief 描述一个表达式
+//  * @ingroup SQLParser
+//  * @details 现已被ConditionSqlNode替代，理论上更好的写法和命名
+//  */
+// struct ExprNode
+// {
+//   ExprNodeType type;
+//   ExprNode* left_expr;
+//   ExprNode* right_expr;
+// };
+
+struct OrderSqlNode
+{
+  bool           is_asc;  // TRUE if asc （升序）
+  RelAttrSqlNode attr;    // 需要排序的属性
 };
 
 /**
@@ -92,9 +211,17 @@ struct ConditionSqlNode
 
 struct SelectSqlNode
 {
-  std::vector<RelAttrSqlNode>   attributes;  ///< attributes in select clause
-  std::vector<std::string>      relations;   ///< 查询的表
-  std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件
+  bool is_simple_select = false;  // 是否是不带from的最简单的select 调用func的语句
+  std::vector<ConditionSqlNode>                    attributes;            ///< attributes in select clause
+  std::vector<std::pair<std::string, std::string>> relation_to_alias;     ///< alias默认为空串
+  ConditionSqlNode                                *conditions = nullptr;  ///< 查询条件树
+  std::vector<OrderSqlNode>                        orders;                // 排序条件，可能有多列需求
+  std::vector<RelAttrSqlNode>                      groups;                ///< 分组的属性
+  ConditionSqlNode *havings = nullptr;  ///< 分组筛选条件，同样是使用AND串联起来多个条件
+
+  // std::vector<std::string>                     relations;             ///< 查询的表
+  // std::unordered_map<std::string, std::string> alias_to_relation;     ///< 记录alias->relation的映射
+  // std::vector<ConditionSqlNode> conditions;  ///< 查询条件，使用AND串联起来多个条件 旧版查询条件
 };
 
 /**
@@ -125,8 +252,8 @@ struct InsertSqlNode
  */
 struct DeleteSqlNode
 {
-  std::string                   relation_name;  ///< Relation to delete from
-  std::vector<ConditionSqlNode> conditions;
+  std::string       relation_name;  ///< Relation to delete from
+  ConditionSqlNode *conditions;     ///< 查询条件树
 };
 
 /**
@@ -151,10 +278,10 @@ struct ComplexValue
  */
 struct UpdateSqlNode
 {
-  std::string                   relation_name;    ///< Relation to update
-  std::vector<std::string>      attribute_names;  ///< 更新的字段，支持多个字段
-  std::vector<ComplexValue>     values;  ///< 更新的值，支持多个字段，并且支持简单的子查询
-  std::vector<ConditionSqlNode> conditions;
+  std::string               relation_name;    ///< Relation to update
+  std::vector<std::string>  attribute_names;  ///< 更新的字段，支持多个字段
+  std::vector<ComplexValue> values;           ///< 更新的值，支持多个字段，并且支持简单的子查询
+  ConditionSqlNode         *conditions = nullptr;  ///< 查询条件树
 };
 
 /**
@@ -166,9 +293,10 @@ struct UpdateSqlNode
  */
 struct AttrInfoSqlNode
 {
-  AttrType    type;    ///< Type of attribute
-  std::string name;    ///< Attribute name
-  size_t      length;  ///< Length of attribute
+  AttrType    type;      ///< Type of attribute
+  std::string name;      ///< Attribute name
+  size_t      length;    ///< Length of attribute
+  bool        nullable;  ///< 是否可空
 };
 
 /**
@@ -178,8 +306,11 @@ struct AttrInfoSqlNode
  */
 struct CreateTableSqlNode
 {
-  std::string                  relation_name;  ///< Relation name
-  std::vector<AttrInfoSqlNode> attr_infos;     ///< attributes
+  bool        from_select = false;
+  std::string relation_name;  ///< Relation name
+
+  std::vector<AttrInfoSqlNode> attr_infos;    ///< attributes
+  SelectSqlNode                table_select;  ///< select clause
 };
 
 /**

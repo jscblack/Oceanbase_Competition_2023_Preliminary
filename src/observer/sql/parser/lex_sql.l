@@ -72,27 +72,36 @@ QUOTE            [\'\"]
 /* 2. 写在最前面的优先 */
 
 /* yylval 就可以认为是 yacc 中 %union 定义的结构体(union 结构) */
+/* NULLABLE                                RETURN_TOKEN(NULLABLE); not used in 2023 */
 %%
 
 {WHITE_SAPCE}                                        // ignore whitespace
 \n                                                   ;
 
-[\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
-[\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+"+" |
+"-" |
+"*" |
+"/"                                     { return yytext[0]; }
 
-";"                                     RETURN_TOKEN(SEMICOLON);
-NOT{WHITE_SAPCE}+LIKE                   RETURN_TOKEN(NOT_LIKE); 
-LIKE                                    RETURN_TOKEN(LIKE);
-INNER{WHITE_SAPCE}+JOIN                 RETURN_TOKEN(INNER_JOIN);         
+{DIGIT}+                                yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
+{DIGIT}+{DOT}{DIGIT}+                   yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+
+";"                                     RETURN_TOKEN(SEMICOLON);   
 {DOT}                                   RETURN_TOKEN(DOT);
+AS                                      RETURN_TOKEN(AS);
+LENGTH{WHITE_SAPCE}?"("                 RETURN_TOKEN(FUNC_LENGTH);
+ROUND{WHITE_SAPCE}?"("                  RETURN_TOKEN(FUNC_ROUND);
+DATE_FORMAT{WHITE_SAPCE}?"("            RETURN_TOKEN(FUNC_DATE);
+ASC                                     RETURN_TOKEN(ASC);
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
 DESC                                    RETURN_TOKEN(DESC);
-MAX                                     RETURN_TOKEN(AGG_MAX);
-MIN                                     RETURN_TOKEN(AGG_MIN);
-COUNT                                   RETURN_TOKEN(AGG_COUNT);
-AVG                                     RETURN_TOKEN(AGG_AVG);
-SUM                                     RETURN_TOKEN(AGG_SUM);
+MAX{WHITE_SAPCE}?"("                    RETURN_TOKEN(AGG_MAX);
+MIN{WHITE_SAPCE}?"("                    RETURN_TOKEN(AGG_MIN);
+COUNT{WHITE_SAPCE}?"("                  RETURN_TOKEN(AGG_COUNT);
+AVG{WHITE_SAPCE}?"("                    RETURN_TOKEN(AGG_AVG);
+SUM{WHITE_SAPCE}?"("                    RETURN_TOKEN(AGG_SUM);
+GROUP{WHITE_SAPCE}+BY                   RETURN_TOKEN(GROUP_BY);
 CREATE                                  RETURN_TOKEN(CREATE);
 DROP                                    RETURN_TOKEN(DROP);
 TABLE                                   RETURN_TOKEN(TABLE);
@@ -105,7 +114,9 @@ SELECT                                  RETURN_TOKEN(SELECT);
 CALC                                    RETURN_TOKEN(CALC);
 FROM                                    RETURN_TOKEN(FROM);
 WHERE                                   RETURN_TOKEN(WHERE);
+HAVING                                  RETURN_TOKEN(HAVING);
 AND                                     RETURN_TOKEN(AND);
+OR                                      RETURN_TOKEN(OR);
 INSERT                                  RETURN_TOKEN(INSERT);
 INTO                                    RETURN_TOKEN(INTO);
 VALUES                                  RETURN_TOKEN(VALUES);
@@ -120,14 +131,26 @@ INT                                     RETURN_TOKEN(INT_T);
 CHAR                                    RETURN_TOKEN(STRING_T);
 FLOAT                                   RETURN_TOKEN(FLOAT_T);
 DATE                                    RETURN_TOKEN(DATE_T);
+NULL                                    RETURN_TOKEN(NULL_T);
+TEXT                                    RETURN_TOKEN(TEXT_T);
 LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
-{ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
+NOT{WHITE_SAPCE}+NULL                   RETURN_TOKEN(UNNULLABLE);
+IS{WHITE_SAPCE}+NOT                     RETURN_TOKEN(IS_NOT);
+IS                                      RETURN_TOKEN(IS);
+NOT{WHITE_SAPCE}+LIKE                   RETURN_TOKEN(NOT_LIKE); 
+LIKE                                    RETURN_TOKEN(LIKE);
+NOT{WHITE_SAPCE}+EXISTS                 RETURN_TOKEN(NOT_EXISTS);
+EXISTS                                  RETURN_TOKEN(EXISTS);
+INNER{WHITE_SAPCE}+JOIN                 RETURN_TOKEN(INNER_JOIN);
+NOT{WHITE_SAPCE}+IN                     RETURN_TOKEN(NOT_IN); 
+IN                                      RETURN_TOKEN(IN);     
+ORDER{WHITE_SAPCE}+BY                   RETURN_TOKEN(ORDER_BY);
+{ID}                                    yylval->string=strdup(yytext); LOG_DEBUG("ID=%s",yylval->string); RETURN_TOKEN(ID);
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);
-
 ","                                     RETURN_TOKEN(COMMA);
 "="                                     RETURN_TOKEN(EQ);
 "<="                                    RETURN_TOKEN(LE);
@@ -137,10 +160,7 @@ EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 ">="                                    RETURN_TOKEN(GE);
 ">"                                     RETURN_TOKEN(GT);
 
-"+" |
-"-" |
-"*" |
-"/"                                     { return yytext[0]; }
+
 \"[^"]*\"                               yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 '[^']*\'                                yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 

@@ -13,12 +13,13 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "net/plain_communicator.h"
-#include "net/buffered_writer.h"
-#include "sql/expr/tuple.h"
-#include "event/session_event.h"
-#include "session/session.h"
 #include "common/io/io.h"
 #include "common/log/log.h"
+#include "event/session_event.h"
+#include "event/sql_debug.h"
+#include "net/buffered_writer.h"
+#include "session/session.h"
+#include "sql/expr/tuple.h"
 
 PlainCommunicator::PlainCommunicator()
 {
@@ -37,7 +38,7 @@ RC PlainCommunicator::read_event(SessionEvent *&event)
   int data_len = 0;
   int read_len = 0;
 
-  const int         max_packet_size = 8192;
+  const int         max_packet_size = 131072;
   std::vector<char> buf(max_packet_size);
 
   // 持续接收消息，直到遇到'\0'。将'\0'遇到的后续数据直接丢弃没有处理，因为目前仅支持一收一发的模式
@@ -239,6 +240,15 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
       Value value;
       rc = tuple->cell_at(i, value);
       if (rc != RC::SUCCESS) {
+        if (RC::FUNC_EXPR_ERROR == rc) {
+          LOG_WARN("Error in getting result tuple", strerror(errno));
+          sql_debug(
+              "Encounter error in getting FUNC_EXPR_ERROR(due to %s)\n will flush output buffer", strerror(errno));
+          writer_->clear();
+          sql_result->close();
+          sql_result->set_return_code(rc);
+          return write_state(event, need_disconnect);
+        }
         sql_result->close();
         return rc;
       }
@@ -263,8 +273,16 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
 
   if (rc == RC::RECORD_EOF) {
     rc = RC::SUCCESS;
+  } else if (RC::SUBQUERY_EXEC_FAILED == rc) {
+    LOG_WARN("Error in getting result tuple", strerror(errno));
+    sql_debug(
+        "Encounter error in getting subquery result tuple(due to %s)\n will flush output buffer", strerror(errno));
+    writer_->clear();
+    sql_result->close();
+    sql_result->set_return_code(rc);
+    return write_state(event, need_disconnect);
   }
-
+  // 如果他在内部出现错误，哪怕select已经打出来了，也要返回错误
   if (cell_num == 0) {
     // 除了select之外，其它的消息通常不会通过operator来返回结果，表头和行数据都是空的
     // 这里针对这种情况做特殊处理，当表头和行数据都是空的时候，就返回处理的结果
@@ -276,7 +294,6 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
     sql_result->set_return_code(rc);
     return write_state(event, need_disconnect);
   } else {
-
     rc = writer_->writen(send_message_delimiter_.data(), send_message_delimiter_.size());
     if (OB_FAIL(rc)) {
       LOG_ERROR("Failed to send data back to client. ret=%s, error=%s", strrc(rc), strerror(errno));
