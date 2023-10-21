@@ -238,7 +238,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       } else if (cond->func >= FuncName::LENGTH_FUNC_NUM &&
                  cond->func <= FuncName::DATE_FUNC_NUM) {    // function, 暂不考虑 MAX和MIN
         std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
-        Expression *first_arg;
+        Expression                              *first_arg;
         rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, first_arg, has_aggregation, has_field);
         func_args.push_back(std::unique_ptr<Expression>(first_arg));
         if (cond->right_cond != nullptr) {

@@ -125,7 +125,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
     if (table_oper == nullptr) {
       table_oper = std::move(table_get_oper);
-    } else { // 注意，JoinLogicalOperator的add_child并未重载，仍然是LogicalOperator的将它们放到children_数组中，此时还没有join-tree的结构
+    } else {  // 注意，JoinLogicalOperator的add_child并未重载，仍然是LogicalOperator的将它们放到children_数组中，此时还没有join-tree的结构
       JoinLogicalOperator *join_oper = new JoinLogicalOperator;
       join_oper->add_child(std::move(table_oper));
       join_oper->add_child(std::move(table_get_oper));

@@ -7,7 +7,7 @@ MESSAGE(STATUS "This is Project source dir " ${PROJECT_SOURCE_DIR})
 MESSAGE(STATUS "This is PROJECT_BINARY_DIR dir " ${PROJECT_BINARY_DIR})
 
 # 执行shell 命令
-# EXEC_PROGRAM("bash build.sh style" ${PROJECT_SOURCE_DIR})
+EXEC_PROGRAM("bash build.sh style" ${PROJECT_SOURCE_DIR})
 EXEC_PROGRAM("bash build.sh gen_parser" ${PROJECT_SOURCE_DIR})
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
