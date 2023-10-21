@@ -9,7 +9,16 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/observer",
-            "args": ["-f", "/root/workspace/miniob/etc/observer.ini", "-p", "cli", "-t", "mvcc"],
+            "args": [
+                "-f",
+                "/root/workspace/miniob/etc/observer.ini",
+                "-p",
+                "6789",
+                "-t",
+                "mvcc",
+                "-s",
+                "miniob.sock"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "environment": [],
@@ -22,7 +31,7 @@
                     "ignoreFailures": true
                 },
                 {
-                    "description":  "将反汇编风格设置为 Intel",
+                    "description": "将反汇编风格设置为 Intel",
                     "text": "-gdb-set disassembly-flavor intel",
                     "ignoreFailures": true
                 }

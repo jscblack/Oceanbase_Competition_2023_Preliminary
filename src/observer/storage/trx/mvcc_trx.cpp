@@ -192,48 +192,48 @@ RC MvccTrx::delete_record(Table *table, Record &record)
   return RC::SUCCESS;
 }
 
-
-RC MvccTrx::update_record(Table *table, Record &record, const char *data) 
-{ 
+RC MvccTrx::update_record(Table *table, Record &record, const char *data)
+{
   // ！！！：注意传入的data参数是有毒的，它的值是对的，但事务元信息是错的（拷贝的record的元信息），不能直接使用，仅供拷贝参考
   // 获取指定表上的事务使用的字段
   Field begin_xid_field, end_xid_field;
   trx_fields(table, begin_xid_field, end_xid_field);
 
   int32_t begin_xid = begin_xid_field.get_int(record);
-  int32_t end_xid = end_xid_field.get_int(record);
+  int32_t end_xid   = end_xid_field.get_int(record);
 
   int new_record_size = table->table_meta().record_size();
-  if(begin_xid == -trx_id_) {
+  if (begin_xid == -trx_id_) {
     // 同一个事务的多次update， 或者因为追加写新版本导致的同一个update调用两次update_record
     // 为保证接口统一，在此不做区分，统一生成原位更新的update-log
     // 注意对于单个update操作调用两次update-record的情形, 这个update-log是可有可无的
-    char* record_data = (char *) malloc (new_record_size);
+    char *record_data = (char *)malloc(new_record_size);
     memcpy(record_data, data, new_record_size);
     record.set_data_owner(record_data, new_record_size);
     begin_xid_field.set_int(record, -trx_id_);
     end_xid_field.set_int(record, trx_kit_.max_trx_id());
     RC rc = table->update_record(record, record.data());
     if (rc != RC::SUCCESS) {
+      ASSERT(rc == RC::SUCCESS, "=====================================");  // 测试用
       LOG_WARN("MVCC: failed to update new-version record into table when update. rc=%s", strrc(rc));
       return rc;
     }
     // 需要加入到update-log
-    // 现有的table->update_record似乎并不会把data赋给record.data() 所以采取保守的做法, 
+    // 现有的table->update_record似乎并不会把data赋给record.data() 所以采取保守的做法,
     rc = log_manager_->append_log(
-      CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), new_record_size, 0 /*offset*/, record.data());
+        CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), new_record_size, 0 /*offset*/, record.data());
     ASSERT(rc == RC::SUCCESS,
-      "failed to append update record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
-      trx_id_,
-      table->table_id(),
-      new_record.rid().to_string().c_str(),
-      new_record.len(),
-      strrc(rc));
+        "failed to append update record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
+        trx_id_,
+        table->table_id(),
+        new_record.rid().to_string().c_str(),
+        new_record.len(),
+        strrc(rc));
     // 注意不需要插入到operationSet，因为OperationSet主要为了提交时对时间戳的修改，
     // 这个由第一次update插入新版本的delete+insert来处理
     return rc;
   }
-  
+
   // 检测并发事务冲突, 将旧版本的end_xid_field置为-trx_id_
   {
     // 读到了其他未提交事务更新的新版本, 不可能出现
@@ -253,8 +253,8 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
         end_xid,
         trx_id_,
         record.rid().to_string().c_str());
-    
-    end_xid_field.set_int(record, -trx_id_); // 假定这个设置是原子性的, 目前的实现似乎还不是
+
+    end_xid_field.set_int(record, -trx_id_);  // 假定这个设置是原子性的, 目前的实现似乎还不是
 
     // double-check, 如果自己的原子更新没有抢过其他并发事务, 自己abort
     ASSERT(end_xid_field.get_int(record) == -trx_id_,
@@ -263,11 +263,11 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
         trx_id_,
         record.rid().to_string().c_str());
   }
-  
+
   // 对异位更新即将插入的new_record设置事务相关元数据
-  Record new_record(record); // Copy-On-Write 
+  Record new_record(record);  // Copy-On-Write
   // 参考update_physical的写法来给长度
-  char* record_data = (char *) malloc (new_record_size);
+  char *record_data = (char *)malloc(new_record_size);
   memcpy(record_data, data, new_record_size);
   new_record.set_data_owner(record_data, new_record_size);
   begin_xid_field.set_int(new_record, -trx_id_);
@@ -275,6 +275,8 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
 
   RC rc = table->insert_record(new_record);
   if (rc != RC::SUCCESS) {
+    ASSERT(rc == RC::SUCCESS, "=====================================");  // 测试用
+
     LOG_WARN("MVCC: failed to insert new-version record into table when update. rc=%s", strrc(rc));
     return rc;
   }
@@ -290,7 +292,6 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   // int32_t new_end_xid = end_xid_field.get_int(new_record);
   // ASSERT(new_begin_xid == -trx_id_, "MVCC: fail =========");
   // ASSERT(new_end_xid == trx_kit_.max_trx_id(), "MVCC: fail =====");
-
 
   // 此处更新顺序可能有影响,因为一般得保证日志比对应数据先落盘(此处代码顺序可能不关键,需要在另外地方保证),
   // 与前面的insert和delete的先table操作再append log统一
@@ -319,20 +320,23 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   // 但真的会有影响吗? 这个先后顺序? 如果原子提交好像没影响, 现在本来就不能保证原子提交也好像没影响
   pair<OperationSet::iterator, bool> ret = operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
   if (!ret.second) {
-    for(auto& op : operations_) {
+    for (auto &op : operations_) {
       LOG_INFO("======== %d %d %d =======",op.type(),op.page_num(),op.slot_num());
     }
     rc = RC::INTERNAL;
+    ASSERT(rc == RC::SUCCESS, "=====================================");  // 测试用
+
     LOG_WARN("failed to insert operation(update) into operation set: duplicate");
   }
   ret = operations_.insert(Operation(Operation::Type::INSERT, table, new_record.rid()));
   if (!ret.second) {
     rc = RC::INTERNAL;
+    ASSERT(rc == RC::SUCCESS, "=====================================");  // 测试用
+
     LOG_WARN("failed to insert operation(update) into operation set: duplicate");
   }
 
-  return rc; 
-  
+  return rc;
 }
 
 RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
@@ -354,7 +358,7 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
   } else if (begin_xid < 0) {
     // begin xid 小于0说明是刚插入而且没有提交的数据
     rc = (-begin_xid == trx_id_) ? RC::SUCCESS : RC::RECORD_INVISIBLE;
-  } else if (end_xid < 0) { // begin > 0 and end_xid < 0
+  } else if (end_xid < 0) {  // begin > 0 and end_xid < 0
     // end xid 小于0 说明是正在删除但是还没有提交的数据
     if (readonly) {
       // 如果 -end_xid 就是当前事务的事务号，说明是当前事务删除的
@@ -466,7 +470,7 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
             rid.to_string().c_str(),
             strrc(rc));
       } break;
-      
+
       default: {
         ASSERT(false, "unsupported operation. type=%d", static_cast<int>(operation.type()));
       }
@@ -623,10 +627,10 @@ RC MvccTrx::redo(Db *db, const CLogRecord &log_record)
     case CLogType::UPDATE: {
       // TODO
       const CLogRecordData &data_record = log_record.data_record();
-      Record record;
-      auto record_size = data_record.data_len_;
+      Record                record;
+      auto                  record_size = data_record.data_len_;
       // auto record_size = table->table_meta().record_size(); // redo时读不到这个table_meta, 会段错误，why？
-      char* record_data = (char*) malloc (record_size);
+      char *record_data = (char *)malloc(record_size);
       memcpy(record_data, data_record.data_, record_size);
       // record.set_data(const_cast<char*>(data_record.data_), data_record.data_len_);
       record.set_data_owner(record_data, record_size);
