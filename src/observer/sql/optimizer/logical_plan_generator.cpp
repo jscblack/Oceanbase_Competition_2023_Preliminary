@@ -148,7 +148,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     sort_oper = unique_ptr<LogicalOperator>(new SortLogicalOperator(order_by));
   }
 
-  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields_expressions));
+  unique_ptr<LogicalOperator> project_oper(
+      new ProjectLogicalOperator(all_fields_expressions, select_stmt->is_simple_select()));
   if (predicate_oper) {
     if (table_oper) {
       predicate_oper->add_child(std::move(table_oper));

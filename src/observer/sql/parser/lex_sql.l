@@ -72,6 +72,7 @@ QUOTE            [\'\"]
 /* 2. 写在最前面的优先 */
 
 /* yylval 就可以认为是 yacc 中 %union 定义的结构体(union 结构) */
+/* NULLABLE                                RETURN_TOKEN(NULLABLE); not used in 2023 */
 %%
 
 {WHITE_SAPCE}                                        // ignore whitespace
@@ -87,15 +88,19 @@ QUOTE            [\'\"]
 
 ";"                                     RETURN_TOKEN(SEMICOLON);   
 {DOT}                                   RETURN_TOKEN(DOT);
+AS                                      RETURN_TOKEN(AS);
+LENGTH{WHITE_SAPCE}?"("                 RETURN_TOKEN(FUNC_LENGTH);
+ROUND{WHITE_SAPCE}?"("                  RETURN_TOKEN(FUNC_ROUND);
+DATE_FORMAT{WHITE_SAPCE}?"("            RETURN_TOKEN(FUNC_DATE);
 ASC                                     RETURN_TOKEN(ASC);
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
 DESC                                    RETURN_TOKEN(DESC);
-MAX                                     RETURN_TOKEN(AGG_MAX);
-MIN                                     RETURN_TOKEN(AGG_MIN);
-COUNT                                   RETURN_TOKEN(AGG_COUNT);
-AVG                                     RETURN_TOKEN(AGG_AVG);
-SUM                                     RETURN_TOKEN(AGG_SUM);
+MAX{WHITE_SAPCE}?"("                    RETURN_TOKEN(AGG_MAX);
+MIN{WHITE_SAPCE}?"("                    RETURN_TOKEN(AGG_MIN);
+COUNT{WHITE_SAPCE}?"("                  RETURN_TOKEN(AGG_COUNT);
+AVG{WHITE_SAPCE}?"("                    RETURN_TOKEN(AGG_AVG);
+SUM{WHITE_SAPCE}?"("                    RETURN_TOKEN(AGG_SUM);
 GROUP{WHITE_SAPCE}+BY                   RETURN_TOKEN(GROUP_BY);
 CREATE                                  RETURN_TOKEN(CREATE);
 DROP                                    RETURN_TOKEN(DROP);
@@ -132,7 +137,6 @@ LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
-NULLABLE                                RETURN_TOKEN(NULLABLE);
 NOT{WHITE_SAPCE}+NULL                   RETURN_TOKEN(UNNULLABLE);
 IS{WHITE_SAPCE}+NOT                     RETURN_TOKEN(IS_NOT);
 IS                                      RETURN_TOKEN(IS);

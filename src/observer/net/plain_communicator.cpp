@@ -240,6 +240,15 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
       Value value;
       rc = tuple->cell_at(i, value);
       if (rc != RC::SUCCESS) {
+        if (RC::FUNC_EXPR_ERROR == rc) {
+          LOG_WARN("Error in getting result tuple", strerror(errno));
+          sql_debug(
+              "Encounter error in getting FUNC_EXPR_ERROR(due to %s)\n will flush output buffer", strerror(errno));
+          writer_->clear();
+          sql_result->close();
+          sql_result->set_return_code(rc);
+          return write_state(event, need_disconnect);
+        }
         sql_result->close();
         return rc;
       }

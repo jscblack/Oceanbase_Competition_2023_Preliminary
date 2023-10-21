@@ -13,14 +13,13 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/select_stmt.h"
-#include "sql/stmt/filter_stmt.h"
-#include "sql/stmt/having_filter_stmt.h"
-#include "common/log/log.h"
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/stmt/having_filter_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include <algorithm>
 
 SelectStmt::~SelectStmt()
 {
@@ -86,6 +85,10 @@ bool is_equal(const char *a, const char *b) { return 0 == strcmp(a, b); }
 RC select_get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
 {
+  if (nullptr == tables) {
+    LOG_WARN("No such table: attr.relation_name: %s", attr.relation_name.c_str());
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
   if (common::is_blank(attr.relation_name.c_str())) {
     table = default_table;
   } else if (nullptr != tables) {
@@ -232,6 +235,22 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
           rc   = attr_cond_to_expr(db, default_table, tables, sub_cond, sub_expr, has_aggregation, has_field);
           expr = new AggregationExpr(cond->func, sub_expr);
         }
+      } else if (cond->func >= FuncName::LENGTH_FUNC_NUM &&
+                 cond->func <= FuncName::DATE_FUNC_NUM) {    // function, 暂不考虑 MAX和MIN
+        std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
+        Expression *first_arg;
+        rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, first_arg, has_aggregation, has_field);
+        func_args.push_back(std::unique_ptr<Expression>(first_arg));
+        if (cond->right_cond != nullptr) {
+          Expression *second_arg;
+          rc = attr_cond_to_expr(db, default_table, tables, cond->right_cond, second_arg, has_aggregation, has_field);
+          func_args.push_back(std::unique_ptr<Expression>(second_arg));
+        }
+        rc = FunctionExpr::is_subexpr_legal(cond->func, func_args);
+        if (OB_FAIL(rc)) {
+          return rc;
+        }
+        expr = new FunctionExpr(cond->func, func_args);
       }
     } break;
 
@@ -244,6 +263,8 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       return RC::INVALID_ARGUMENT;
     } break;
   }
+
+  expr->set_alias(cond->alias);  // 默认为""
   return rc;
 }
 
@@ -285,11 +306,52 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return RC::INVALID_ARGUMENT;
   }
 
+  if (select_sql.is_simple_select) {  // 特殊处理 select func();
+    RC                        rc = RC::SUCCESS;
+    std::vector<Expression *> query_fields_expressions;
+
+    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+      Expression             *expr         = nullptr;
+      const ConditionSqlNode &cond         = select_sql.attributes[i];
+      bool                    placeholder1 = false;
+      bool                    placeholder2 = false;
+      rc = attr_cond_to_expr(db, nullptr, nullptr, &cond, expr, placeholder1, placeholder2);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("invalid simple select without table. db is null");
+        return rc;
+      }
+      query_fields_expressions.push_back(expr);
+    }
+
+    SelectStmt *select_stmt = new SelectStmt();
+    select_stmt->query_fields_expressions_.swap(query_fields_expressions);
+    select_stmt->is_simple_select_ = true;
+    stmt                           = select_stmt;
+    return rc;
+  }
+
   // collect tables in `from` statement
-  std::vector<Table *>                     tables;
-  std::unordered_map<std::string, Table *> table_map;
-  for (size_t i = 0; i < select_sql.relations.size(); i++) {
-    const char *table_name = select_sql.relations[i].c_str();
+  std::vector<Table *>                                    tables;
+  std::unordered_map<std::string, Table *>                table_map;
+  std::unordered_map<std::string, std::string>            alias_to_tablename;
+  const std::vector<std::pair<std::string, std::string>> &relation_to_alias = select_sql.relation_to_alias;
+  std::unordered_map<std::string, Table *> stash_table_map;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
+
+  for (size_t i = 0; i < select_sql.relation_to_alias.size(); i++) {
+    const char *table_name            = select_sql.relation_to_alias[i].first.c_str();
+    auto        find_table_same_level = [&](std::pair<std::string, std::string> it) -> bool {
+      return relation_to_alias[i].second == it.first;
+    };
+
+    if (alias_to_tablename.count(select_sql.relation_to_alias[i].second) != 0 ||
+        std::find_if(relation_to_alias.begin(), relation_to_alias.end(), find_table_same_level) !=
+            std::end(relation_to_alias)) {
+      return RC::SCHEMA_TABLE_EXIST;  // 表名的alias重复了, 或者是与同层级的table-name同名
+    } else {
+      if (select_sql.relation_to_alias[i].second != "") {
+        alias_to_tablename[select_sql.relation_to_alias[i].second] = select_sql.relation_to_alias[i].first;
+      }
+    }
     if (nullptr == table_name) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
       return RC::INVALID_ARGUMENT;
@@ -302,10 +364,22 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
 
     tables.push_back(table);
-    table_map.insert(std::pair<std::string, Table *>(table_name, table));
+    if (relation_to_alias[i].second == "") {
+      table_map.insert(std::pair<std::string, Table *>(table_name, table));
+    } else {
+      // 假设使用别名之后就无法使用原名（除非外层select有）, NONONO，原名别名都得有
+      table_map.insert(std::pair<std::string, Table *>(relation_to_alias[i].second, table));
+      table_map.insert(std::pair<std::string, Table *>(table_name, table));
+    }
   }
   for (auto table : table_map) {
-    table_map_.insert(table);
+    if (table_map_.count(table.first) != 0) {
+      stash_table_map.insert(std::pair(table.first, table_map_[table.first]));
+      table_map_.erase(table.first);
+      table_map_.insert(table);
+    } else {
+      table_map_.insert(table);
+    }
   }
 
   Table *default_table = nullptr;
@@ -653,5 +727,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   for (auto table : table_map) {
     table_map_.erase(table.first);
   }
+  for (auto stash_table : stash_table_map) {
+    table_map_.insert(stash_table);
+  }
+
   return RC::SUCCESS;
 }
