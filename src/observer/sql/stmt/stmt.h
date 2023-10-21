@@ -87,6 +87,8 @@ public:
   virtual StmtType type() const = 0;
 
 public:
+  static RC create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt);
+
   static RC create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::string &sql);
 
 private:

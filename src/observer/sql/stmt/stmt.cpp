@@ -34,7 +34,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/trx_end_stmt.h"
 #include "sql/stmt/update_stmt.h"
 
-RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::string &sql)
+RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
 {
   stmt = nullptr;
 
@@ -54,10 +54,6 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::st
 
     case SCF_EXPLAIN: {
       return ExplainStmt::create(db, sql_node.explain, stmt);
-    }
-
-    case SCF_CREATE_VIEW: {
-      return CreateViewStmt::create(db, sql_node.create_view, stmt, sql);
     }
 
     case SCF_CREATE_INDEX: {
@@ -115,6 +111,19 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::st
     default: {
       LOG_INFO("Command::type %d doesn't need to create statement.", sql_node.flag);
     } break;
+  }
+  return RC::UNIMPLENMENT;
+}
+
+RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::string &sql)
+{
+  stmt = nullptr;
+
+  if (sql_node.flag == SCF_CREATE_VIEW) {
+    return CreateViewStmt::create(db, sql_node.create_view, stmt, sql);
+  }
+  else {
+    LOG_INFO("Command::type %d doesn't need to create statement with sql.", sql_node.flag);
   }
   return RC::UNIMPLENMENT;
 }
