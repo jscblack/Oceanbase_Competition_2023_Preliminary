@@ -16,8 +16,8 @@
                 "6789",
                 "-t",
                 "mvcc",
-                "-s",
-                "miniob.sock"
+                // "-s",
+                // "miniob.sock"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
