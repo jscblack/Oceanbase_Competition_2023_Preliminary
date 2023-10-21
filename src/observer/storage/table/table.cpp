@@ -689,7 +689,8 @@ RC Table::update_record(const Record &record, const char *data)
     LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
   }
-  // Losk:??????? 看不懂这里, record.data()难道被上面的record_handler_->update_record修改过?? 感觉并没有, 那这个record.data()岂不是返回的仍然是旧data?
+  // Losk:??????? 看不懂这里, record.data()难道被上面的record_handler_->update_record修改过?? 感觉并没有,
+  // 那这个record.data()岂不是返回的仍然是旧data?
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) {  // 可能出现了键值重复
     RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false /*error_on_not_exists*/);

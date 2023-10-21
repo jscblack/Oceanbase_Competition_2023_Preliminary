@@ -13,10 +13,10 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "storage/trx/mvcc_trx.h"
+#include "event/sql_debug.h"
 #include "storage/clog/clog.h"
 #include "storage/db/db.h"
 #include "storage/field/field.h"
-#include "event/sql_debug.h"
 #include <limits>
 
 // runtime assert
@@ -225,7 +225,7 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     RC rc = table->update_record(record, record.data());
     if (rc != RC::SUCCESS) {
       sql_debug("MVCC: failed, %d", __LINE__);
-      RT_ASSERT(false);  // 调试用
+      // RT_ASSERT(false);  // 调试用
       LOG_WARN("MVCC: failed to update new-version record into table when update. rc=%s", strrc(rc));
       return rc;
     }
@@ -248,31 +248,55 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   // 检测并发事务冲突, 将旧版本的end_xid_field置为-trx_id_
   {
     // 读到了其他未提交事务更新的新版本, 不可能出现
-    ASSERT(!(begin_xid < 0 && begin_xid != -trx_id_), "MVCC update: 读到了其他未提交事务更新的新版本, 不可能出现");
+    if (begin_xid < 0 && begin_xid != -trx_id_) {
+      sql_debug("MVCC: failed, %d", __LINE__);
+      // RT_ASSERT(false);  // 调试用
+      LOG_WARN("MVCC update: 读到了其他未提交事务更新的新版本, 不可能出现");
+      return RC::CONCURRENCY_UPDATE_FAIL;
+    }
+    // ASSERT(!(begin_xid < 0 && begin_xid != -trx_id_), "MVCC update: 读到了其他未提交事务更新的新版本, 不可能出现");
 
     // 读到新版本的情况已处理完成, 下面是当前record为即将更新的旧版本
     // 其他事务正在删除/更新当前版本, 中止当前事务
-    ASSERT(end_xid > 0,
-        "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
-        end_xid,
-        trx_id_,
-        record.rid().to_string().c_str());
+    if (end_xid < 0 && -end_xid != trx_id_) {
+      sql_debug("MVCC: failed, %d", __LINE__);
+      // RT_ASSERT(false);  // 调试用
+      LOG_WARN("MVCC update: 其他事务正在删除/更新当前版本, 中止当前事务");
+      return RC::CONCURRENCY_UPDATE_FAIL;
+    }
+    // ASSERT(end_xid > 0,
+    //     "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
+    //     end_xid,
+    //     trx_id_,
+    //     record.rid().to_string().c_str());
 
     // 其他并发事务已经更新并提交了新版本, 中止当前事务
-    ASSERT(end_xid != trx_kit_.max_trx_id(),
-        "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
-        end_xid,
-        trx_id_,
-        record.rid().to_string().c_str());
+    if (end_xid != trx_kit_.max_trx_id()) {
+      sql_debug("MVCC: failed, %d", __LINE__);
+      // RT_ASSERT(false);  // 调试用
+      LOG_WARN("MVCC update: 其他并发事务已经更新并提交了新版本, 中止当前事务");
+      return RC::CONCURRENCY_UPDATE_FAIL;
+    }
+    // ASSERT(end_xid != trx_kit_.max_trx_id(),
+    //     "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
+    //     end_xid,
+    //     trx_id_,
+    //     record.rid().to_string().c_str());
 
     end_xid_field.set_int(record, -trx_id_);  // 假定这个设置是原子性的, 目前的实现似乎还不是
 
     // double-check, 如果自己的原子更新没有抢过其他并发事务, 自己abort
-    ASSERT(end_xid_field.get_int(record) == -trx_id_,
-        "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
-        end_xid,
-        trx_id_,
-        record.rid().to_string().c_str());
+    if (end_xid_field.get_int(record) != -trx_id_) {
+      sql_debug("MVCC: failed, %d", __LINE__);
+      // RT_ASSERT(false);  // 调试用
+      LOG_WARN("MVCC update: double-check, 如果自己的原子更新没有抢过其他并发事务, 自己abort");
+      return RC::CONCURRENCY_UPDATE_FAIL;
+    }
+    // ASSERT(end_xid_field.get_int(record) == -trx_id_,
+    //     "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
+    //     end_xid,
+    //     trx_id_,
+    //     record.rid().to_string().c_str());
   }
 
   // 对异位更新即将插入的new_record设置事务相关元数据

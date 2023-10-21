@@ -50,7 +50,8 @@ public:
   enum class Type : int
   {
     INSERT,
-    // UPDATE, //UPDATE Type是没用的，现在拆解为delete+insert，单事务多个update不会影响时间戳，所以也不需要记录在OperationSet
+    // UPDATE, //UPDATE
+    // Type是没用的，现在拆解为delete+insert，单事务多个update不会影响时间戳，所以也不需要记录在OperationSet
     DELETE,
     UNDEFINED,
   };
