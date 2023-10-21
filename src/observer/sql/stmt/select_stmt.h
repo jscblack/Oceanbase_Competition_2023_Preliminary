@@ -54,6 +54,7 @@ public:
   const std::vector<std::pair<Field, bool>> &order_by() const { return order_by_; }
   bool                                       has_aggregation() const { return has_aggregation_; }
   bool                                       is_simple_select() const { return is_simple_select_; }
+  const std::vector<Stmt*>       &view_stmts() const { return view_stmts_; }
 
 private:
   std::vector<Expression *> query_fields_expressions_;
@@ -74,4 +75,6 @@ private:
   // std::vector<Field>                  group_by_fields_;
   HavingFilterStmt                   *having_filter_stmt_ = nullptr;
   std::vector<std::pair<Field, bool>> order_by_;  // (Field, is_asc)
+
+  std::vector<Stmt*>                  view_stmts_;
 };

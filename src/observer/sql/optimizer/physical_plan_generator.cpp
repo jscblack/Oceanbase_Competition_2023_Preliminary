@@ -37,6 +37,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/sort_physical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/table_scan_physical_operator.h"
+#include "sql/operator/view_get_logical_operator.h"
+#include "sql/operator/view_scan_physical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 #include "sql/operator/update_physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
@@ -54,6 +56,10 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
 
     case LogicalOperatorType::TABLE_GET: {
       return create_plan(static_cast<TableGetLogicalOperator &>(logical_operator), oper);
+    } break;
+
+    case LogicalOperatorType::VIEW_GET: {
+      return create_plan(static_cast<ViewGetLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::PREDICATE: {
@@ -161,6 +167,22 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
     oper = unique_ptr<PhysicalOperator>(table_scan_oper);
     LOG_TRACE("use table scan");
   }
+
+  return RC::SUCCESS;
+}
+
+RC PhysicalPlanGenerator::create_plan(ViewGetLogicalOperator &view_get_oper, unique_ptr<PhysicalOperator> &oper)
+{
+
+  // TODO: 构建child的算子
+
+  vector<unique_ptr<Expression>> &predicates = view_get_oper.predicates();
+  Table *table = view_get_oper.view();
+
+  auto view_scan_oper = new ViewScanPhysicalOperator(table, view_get_oper.readonly());
+  view_scan_oper->set_predicates(std::move(predicates));
+  oper = unique_ptr<PhysicalOperator>(view_scan_oper);
+  LOG_TRACE("use view scan");
 
   return RC::SUCCESS;
 }

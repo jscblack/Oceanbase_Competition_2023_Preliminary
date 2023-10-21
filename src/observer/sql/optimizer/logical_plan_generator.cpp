@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
+#include "sql/operator/view_get_logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 
 #include "sql/stmt/calc_stmt.h"
@@ -92,6 +93,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   const std::vector<Table *>      &tables                 = select_stmt->tables();
   const std::vector<Expression *> &all_fields_expressions = select_stmt->query_fields_expressions();
   // const std::vector<Field>        &all_fields             = select_stmt->query_fields();
+  int view_stmts_idx = 0;
   for (Table *table : tables) {
     // 旧版传fields的代码
     // std::vector<Field> fields;
@@ -121,15 +123,48 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     // }
     // unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true /*readonly*/));
 
-    unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, true /*readonly*/));
+    // TODO: 在这里改TableGet的算子，区分是普通table还是view
+    // 注意这时view中field meta只有name是知道的，其他信息都不知道，可能需要在view计算完之后set一下field
+    // expression中的field
 
-    if (table_oper == nullptr) {
-      table_oper = std::move(table_get_oper);
-    } else {
-      JoinLogicalOperator *join_oper = new JoinLogicalOperator;
-      join_oper->add_child(std::move(table_oper));
-      join_oper->add_child(std::move(table_get_oper));
-      table_oper = unique_ptr<LogicalOperator>(join_oper);
+    // FIXME: 又意识到一个可能不好处理的点，view创建涉及到agg，但是目前agg返回的是valuelisttuple，怎么拿到field的属性？
+
+    if (table->table_meta().is_view() == false) {
+      unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, true /*readonly*/));
+
+      if (table_oper == nullptr) {
+        table_oper = std::move(table_get_oper);
+      } else {
+        JoinLogicalOperator *join_oper = new JoinLogicalOperator;
+        join_oper->add_child(std::move(table_oper));
+        join_oper->add_child(std::move(table_get_oper));
+        table_oper = unique_ptr<LogicalOperator>(join_oper);
+      }
+    } else {  // 从视图中获取记录
+      unique_ptr<LogicalOperator> view_get_oper(new ViewGetLogicalOperator(table, true /*readonly*/));
+
+      // 3. view-sql : optimize
+      unique_ptr<LogicalOperator> view_logical_operator;
+      Stmt                       *view_stmt = select_stmt->view_stmts()[view_stmts_idx++];
+      if (nullptr == view_stmt) {
+        return RC::UNIMPLENMENT;
+      }
+      SelectStmt *view_stmt_cast = static_cast<SelectStmt *>(view_stmt);
+      RC          rc             = create_plan(view_stmt_cast, view_logical_operator);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+
+      view_get_oper->add_child(std::move(view_logical_operator));
+
+      if (table_oper == nullptr) {
+        table_oper = std::move(view_get_oper);
+      } else {
+        JoinLogicalOperator *join_oper = new JoinLogicalOperator;
+        join_oper->add_child(std::move(table_oper));
+        join_oper->add_child(std::move(view_get_oper));
+        table_oper = unique_ptr<LogicalOperator>(join_oper);
+      }
     }
   }
 

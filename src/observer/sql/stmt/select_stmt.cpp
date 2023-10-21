@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/6/6.
 //
 
+#include "sql/parser/parse.h"
 #include "sql/stmt/select_stmt.h"
 #include "common/lang/string.h"
 #include "common/log/log.h"
@@ -238,7 +239,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       } else if (cond->func >= FuncName::LENGTH_FUNC_NUM &&
                  cond->func <= FuncName::DATE_FUNC_NUM) {    // function, 暂不考虑 MAX和MIN
         std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
-        Expression                              *first_arg;
+        Expression *first_arg;
         rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, first_arg, has_aggregation, has_field);
         func_args.push_back(std::unique_ptr<Expression>(first_arg));
         if (cond->right_cond != nullptr) {
@@ -702,6 +703,42 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
   }
 
+  // 看一下tables中是否有视图
+  // 如果有，在这里执行创建视图的sql语句的parse和resolve
+  std::vector<Stmt*>                  view_stmts;
+  for (Table *table : tables) {
+    if (table->table_meta().is_view()) {
+      // 1. view-sql : parse
+      const std::string &view_sql = table->table_meta().view_sql();
+      ParsedSqlResult    parsed_view_sql_result;
+
+      parse(view_sql.c_str(), &parsed_view_sql_result);
+
+      if (parsed_view_sql_result.sql_nodes().empty()) {
+        LOG_WARN("create view sql parsed result empty");
+        return RC::INTERNAL;
+      }
+      if (parsed_view_sql_result.sql_nodes().size() > 1) {
+        LOG_WARN("got multi sql commands but only 1 will be handled");
+      }
+
+      // 2. view-sql : resolve
+      std::unique_ptr<ParsedSqlNode> unique_ptr_sql_node = std::move(parsed_view_sql_result.sql_nodes().front());
+      if (unique_ptr_sql_node->flag == SCF_ERROR) {
+        return RC::SQL_SYNTAX;
+        ;
+      }
+      ParsedSqlNode *sql_node  = unique_ptr_sql_node.get();
+      Stmt          *view_stmt = nullptr;
+      RC             rc        = Stmt::create_stmt(db, *sql_node, view_stmt);
+      if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
+        LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
+        return rc;
+      }
+      view_stmts.emplace_back(view_stmt);
+    }
+  }
+
   // everything alright, set select_stmt
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
@@ -716,6 +753,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     select_stmt->having_filter_stmt_ = having_filter_stmt;
     select_stmt->order_by_.swap(order_by);
     select_stmt->has_aggregation_ = attr_has_aggregation;
+    select_stmt->view_stmts_.swap(view_stmts);
   }
 
   stmt = select_stmt;
