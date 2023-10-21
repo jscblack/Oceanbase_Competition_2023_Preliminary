@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "storage/table/table.h"
 #include "sql/stmt/create_view_stmt.h"
+#include "sql/stmt/select_stmt.h"
 #include "event/sql_event.h"
 #include "event/session_event.h"
 #include "storage/db/db.h"
@@ -32,12 +33,55 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
 
   CreateViewStmt *create_view_stmt = static_cast<CreateViewStmt *>(stmt);
 
-
-  // TODO: 改到了这里
-  const int attribute_count = static_cast<int>(create_view_stmt->attr_infos().size());
+  SelectStmt *select_stmt     = dynamic_cast<SelectStmt *>(create_view_stmt->select_stmt());
+  const int   attribute_count = static_cast<int>(select_stmt->query_fields_expressions().size());
 
   const char *view_name = create_view_stmt->view_name().c_str();
-  RC rc = session->get_current_db()->create_table(view_name, attribute_count, create_view_stmt->attr_infos().data());
+
+  // TODO: 还有一个sql得持久化
+  const std::string &sql = create_view_stmt->sql();
+
+  // 在这里将select子句的查询结果的表头转换成std::vector<AttrInfoSqlNode>
+  std::vector<AttrInfoSqlNode> attr_infos;
+  for (auto expr : select_stmt->query_fields_expressions()) {
+    AttrInfoSqlNode tmp;
+    bool            with_table_name = select_stmt->tables().size() > 1;
+    tmp.name = expr->alias(with_table_name);
+    // 其余信息对于view而言都是不重要的
+    tmp.type = AttrType::UNDEFINED;
+    tmp.length = 0;
+    tmp.nullable = true;
+
+    // 尝试给出view中每个属性的元信息，但是涉及到类型转换，在实际运行前无法准确获取
+    // 以下代码被废弃（本身也不完整）
+    // if (expr->type() == ExprType::FIELD) {
+    //   FieldExpr *field_expr = dynamic_cast<FieldExpr *>(expr);
+    //   tmp.type              = field_expr->field().meta()->type();
+    //   tmp.name              = field_expr->alias(with_table_name);
+    //   tmp.length            = field_expr->field().meta()->len();
+    //   tmp.nullable          = field_expr->field().meta()->nullable();
+    // } else if (expr->type() == ExprType::AGGREGATION) {
+    //   AggregationExpr *aggregation_expr = dynamic_cast<AggregationExpr *>(expr);
+    //   // 强转child为field expression
+    //   FieldExpr *child_cast = dynamic_cast<FieldExpr *>(aggregation_expr->child().get());
+    //   if (aggregation_expr->agg_type() == FuncName::COUNT_FUNC_ENUM) {
+    //     tmp.type = AttrType::INTS;
+    //   } else {
+    //     tmp.type = child_cast->field().meta()->type();
+    //   }
+    //   tmp.name     = aggregation_expr->alias(with_table_name);
+    //   tmp.length   = child_cast->field().meta()->len();
+    //   tmp.nullable = child_cast->field().meta()->nullable();
+    // } else if (expr->type() == ExprType::ARITHMETIC) {
+
+    // } else {
+    //   return RC::INTERNAL;
+    // }
+
+    attr_infos.emplace_back(tmp);
+  }
+
+  RC rc = session->get_current_db()->create_view(view_name, attribute_count, attr_infos.data(), sql);
 
   return rc;
 }

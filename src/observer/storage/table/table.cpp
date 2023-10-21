@@ -122,6 +122,78 @@ RC Table::create(int32_t table_id, const char *path, const char *name, const cha
   return rc;
 }
 
+RC Table::create(int32_t table_id, const char *path, const char *name, const char *base_dir, int attribute_count,
+    const AttrInfoSqlNode attributes[], const std::string &sql)
+{
+  if (table_id < 0) {
+    LOG_WARN("invalid table id. table_id=%d, table_name=%s", table_id, name);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  if (common::is_blank(name)) {
+    LOG_WARN("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+  LOG_INFO("Begin to create table %s:%s", base_dir, name);
+
+  if (attribute_count <= 0 || nullptr == attributes) {
+    LOG_WARN("Invalid arguments. table_name=%s, attribute_count=%d, attributes=%p", name, attribute_count, attributes);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  RC rc = RC::SUCCESS;
+
+  // 使用 table_name.table记录一个表的元数据
+  // 判断表文件是否已经存在
+  int fd = ::open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+  if (fd < 0) {
+    if (EEXIST == errno) {
+      LOG_ERROR("Failed to create table file, it has been created. %s, EEXIST, %s", path, strerror(errno));
+      return RC::SCHEMA_TABLE_EXIST;
+    }
+    LOG_ERROR("Create table file failed. filename=%s, errmsg=%d:%s", path, errno, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  close(fd);
+
+  // 创建文件
+  if ((rc = table_meta_.init(table_id, name, attribute_count, attributes, sql)) != RC::SUCCESS) {
+    LOG_ERROR("Failed to init table meta. name:%s, ret:%d", name, rc);
+    return rc;  // delete table file
+  }
+
+  std::fstream fs;
+  fs.open(path, std::ios_base::out | std::ios_base::binary);
+  if (!fs.is_open()) {
+    LOG_ERROR("Failed to open file for write. file name=%s, errmsg=%s", path, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  // 记录元数据到文件中
+  table_meta_.serialize(fs);
+  fs.close();
+
+  std::string        data_file = table_data_file(base_dir, name);
+  BufferPoolManager &bpm       = BufferPoolManager::instance();
+  rc                           = bpm.create_file(data_file.c_str());
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to create disk buffer pool of data file. file name=%s", data_file.c_str());
+    return rc;
+  }
+
+  rc = init_record_handler(base_dir);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to create table %s due to init record handler failed.", data_file.c_str());
+    // don't need to remove the data_file
+    return rc;
+  }
+
+  base_dir_ = base_dir;
+  LOG_INFO("Successfully create table %s:%s", base_dir, name);
+  return rc;
+}
+
 RC Table::drop(const char *path)
 {
   LOG_INFO("Begin to drop table %s", name());

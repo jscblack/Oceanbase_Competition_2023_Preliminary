@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression.h"
 #include "sql/stmt/select_stmt.h"
 
-RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&stmt)
+RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&stmt, const std::string &sql)
 {
   Stmt *select_stmt = nullptr;
   RC rc = SelectStmt::create(db, create_view.from_select, select_stmt);
@@ -26,9 +26,9 @@ RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&s
     return rc;
   }
   
-  SelectExpr *select_expr = new SelectExpr(select_stmt);
+  // SelectExpr *select_expr = new SelectExpr(select_stmt);
 
-  stmt = new CreateViewStmt(create_view.view_name, select_expr);
+  stmt = new CreateViewStmt(create_view.view_name, select_stmt, sql);
   sql_debug("create view statement: view name %s", create_view.view_name.c_str());
   return RC::SUCCESS;
 }

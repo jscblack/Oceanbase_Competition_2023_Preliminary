@@ -34,7 +34,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/trx_end_stmt.h"
 #include "sql/stmt/update_stmt.h"
 
-RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
+RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::string &sql)
 {
   stmt = nullptr;
 
@@ -57,7 +57,7 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
     }
 
     case SCF_CREATE_VIEW: {
-      return CreateViewStmt::create(db, sql_node.create_view, stmt);
+      return CreateViewStmt::create(db, sql_node.create_view, stmt, sql);
     }
 
     case SCF_CREATE_INDEX: {

@@ -29,19 +29,21 @@ class Db;
 class CreateViewStmt : public Stmt
 {
 public:
-  CreateViewStmt(const std::string &view_name, Expression *select_expr)
-      : view_name_(view_name), select_expr_(select_expr)
+  CreateViewStmt(const std::string &view_name, Stmt *select_stmt, const std::string &sql)
+      : view_name_(view_name), select_stmt_(select_stmt), sql_(sql)
   {}
   virtual ~CreateViewStmt() = default;
 
   StmtType type() const override { return StmtType::CREATE_VIEW; }
 
   const std::string                  &view_name() const { return view_name_; }
-  Expression*                       select_expr() const { return select_expr_; }
+  Stmt*                              select_stmt() const { return select_stmt_; }
+  const std::string                  &sql() const { return sql_; }
 
-  static RC create(Db *db, const CreateViewSqlNode &create_table, Stmt *&stmt);
+  static RC create(Db *db, const CreateViewSqlNode &create_view, Stmt *&stmt, const std::string &sql);
 
 private:
   std::string                  view_name_;
-  Expression*                  select_expr_;
+  Stmt*                        select_stmt_;
+  const std::string&           sql_;
 };
