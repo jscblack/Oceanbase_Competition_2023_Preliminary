@@ -97,6 +97,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 
 //标识tokens
 %token  SEMICOLON
+        AS
         CREATE
         DROP
         TABLE
@@ -112,8 +113,11 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
         AGG_COUNT
         AGG_AVG
         AGG_SUM
+        FUNC_LENGTH
+        FUNC_DATE
+        FUNC_ROUND
         GROUP_BY
-        NULLABLE
+        /* NULLABLE 2023 deprecated */
         UNNULLABLE
         SHOW
         SYNC
@@ -186,7 +190,8 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
   std::vector<ConditionSqlNode> *   a_expr_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
-  std::pair<std::vector<std::string>,ConditionSqlNode *> * join_list; //TODO：待检查是否已重构完成 // relateion_list + condition_list，
+  std::vector<std::pair<std::string, std::string>>* relation_to_alias;
+  std::pair<std::vector<std::pair<std::string, std::string>>,ConditionSqlNode *> * join_list; //TODO：待检查是否已重构完成 // relateion_list + condition_list，
   std::pair<std::vector<std::string>,std::vector<ComplexValue>> * update_expr;
   char *                            string;
   int                               number;
@@ -205,12 +210,14 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <number>              type
 /* %type <condition>           condition  //TODO：待检查是否已重构完成 */
+%type <string>              alias
 %type <value>               value
 %type <value>               value_with_MINUS
+%type <relation_to_alias>   rel_list_with_alias
 %type <number>              number
 /* %type <comp>                comp_op */
 %type <func_name>           func_name
-%type <func_name>           func_LA
+/* %type <func_name>           func_LA */
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
@@ -222,9 +229,11 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 %type <boolean>             unique_marker
 %type <boolean>             asc_or_desc
 %type <boolean>             nullable_marker
+%type <boolean>             as_marker
 %type <a_expr>              where 
 /* %type <condition_list>      condition_list //TODO：待检查是否已重构完成 */
 /* %type <condition_tree>      condition_tree //TODO：待检查是否已重构完成 */
+/* %type <string>              alias */
 %type <a_expr>              a_expr
 %type <a_expr>              c_expr
 %type <a_expr>              select_stmt_with_paren
@@ -324,7 +333,6 @@ exit_stmt:
       (void)yynerrs;  // 这么写为了消除yynerrs未使用的告警。如果你有更好的方法欢迎提PR
       $$ = new ParsedSqlNode(SCF_EXIT);
     };
-
 help_stmt:
     HELP {
       $$ = new ParsedSqlNode(SCF_HELP);
@@ -360,7 +368,6 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
       $$->drop_table.relation_name = $3;
       free($3);
     };
-
 show_tables_stmt:
     SHOW TABLES {
       $$ = new ParsedSqlNode(SCF_SHOW_TABLES);
@@ -374,7 +381,6 @@ show_index_stmt:
       free($4);
     }
     ;
-
 desc_table_stmt:
     DESC ID  {
       $$ = new ParsedSqlNode(SCF_DESC_TABLE);
@@ -437,6 +443,17 @@ nullable_marker:
     }
     ;
 
+as_marker:
+    /* empty */
+    {
+      $$ = false;
+    }
+    | AS
+    {
+      $$ = true;
+    }
+    ;
+
 create_view_stmt:
     CREATE VIEW ID as_marker select_stmt
     {
@@ -449,7 +466,37 @@ create_view_stmt:
     ;
 
 create_table_stmt:    /*create table 语句的语法解析树*/
-    CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE
+    CREATE TABLE ID as_marker select_stmt
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      $$->create_table.relation_name = $3;
+      free($3);
+
+      $$->create_table.from_select=true;
+      $$->create_table.table_select = $5->selection;
+    }
+    | CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE as_marker select_stmt
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      CreateTableSqlNode &create_table = $$->create_table;
+      create_table.relation_name = $3;
+      free($3);
+
+      std::vector<AttrInfoSqlNode> *src_attrs = $6;
+
+      if (src_attrs != nullptr) {
+        create_table.attr_infos.swap(*src_attrs);
+      }
+      create_table.attr_infos.emplace_back(*$5);
+      std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
+      delete $5;
+
+      if ($9 != nullptr) {
+        create_table.from_select=true;
+        create_table.table_select = $9->selection;
+      }
+    }
+    | CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
       CreateTableSqlNode &create_table = $$->create_table;
@@ -607,6 +654,10 @@ value_with_MINUS:
       $$ = new Value((float)$1);
       @$ = @1;
     }
+    | '-' FLOAT {
+      $$ = new Value(-(float)$2);
+      @$ = @2;
+    }
     |DATE {
       char *tmpDate = common::substr($1,1,strlen($1)-2);/*trim the*/
       $$ = new Value(tmpDate);
@@ -747,45 +798,74 @@ update_expr_list:
         delete $4;
     }
     ;
-
+alias:
+    /* empty */ {
+      char *empty = (char*) malloc(1);
+      empty[0] = '\0';
+      $$ = empty;
+    }
+    | AS ID {
+      $$ = $2;
+    }
+    | ID  {
+      $$ = $1;
+    }
+    ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where order group_by having
+    SELECT select_attr {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      $$->selection.is_simple_select=true;
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+    }
+    | SELECT select_attr FROM ID alias rel_list_with_alias where order group_by having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
         $$->selection.attributes.swap(*$2);
         delete $2;
       }
-      if ($5 != nullptr) {
-        LOG_INFO("rel_list not here");
-        $$->selection.relations.swap(*$5);
-        delete $5;
-      }
-      LOG_INFO("id:=%s", $4);
-      $$->selection.relations.push_back($4);
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
- 
-      if ($6 != nullptr) {
-        $$->selection.conditions = $6;
-      }
-      if ($7 != nullptr) {
-        $$->selection.orders.swap(*$7);
-        delete $7;
-      }
 
+      if ($6 != nullptr) {
+        $$->selection.relation_to_alias.swap(*$6);
+        delete $6;
+      }
+      $$->selection.relation_to_alias.push_back(std::make_pair(std::string($4), std::string($5)));
+      std::reverse($$->selection.relation_to_alias.begin(), $$->selection.relation_to_alias.end());
+
+
+      // if ($5 != nullptr) {
+      //   LOG_INFO("rel_list not here");
+      //   $$->selection.relations.swap(*$5);
+      //   delete $5;
+      // }
+      // LOG_INFO("id:=%s", $4);
+      // $$->selection.relations.push_back($4);
+      // std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+
+      if ($7 != nullptr) {
+        $$->selection.conditions = $7;
+      }
       if ($8 != nullptr) {
-        $$->selection.groups.swap(*$8);
-        std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
-        delete $8;
+        $$->selection.orders.swap(*$8);
       }
 
       if ($9 != nullptr) {
+        $$->selection.groups.swap(*$9);
+        std::reverse($$->selection.groups.begin(), $$->selection.groups.end());
+        delete $9;
+      }
+
+      if ($10 != nullptr) {
         // $$->selection.havings.swap(*$9);
-        $$->selection.havings = $9;
+        $$->selection.havings = $10;
         // delete $9;
       }
 
       free($4);
+      free($5);
     }
     | SELECT select_attr FROM join where order group_by having
     {
@@ -796,8 +876,8 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       // 把id挂在where下
       if ($4 != nullptr) {
-        $$->selection.relations.swap($4->first);
-        std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+        $$->selection.relation_to_alias.swap($4->first);
+        std::reverse($$->selection.relation_to_alias.begin(), $$->selection.relation_to_alias.end());
         $$->selection.conditions = $4->second;
       }
       // 在现有where的基础上加上过滤条件
@@ -827,33 +907,38 @@ select_stmt:        /*  select 语句的语法解析树*/
     }
     ;
 join:
-    ID INNER_JOIN ID join_equal join_list
+    ID alias INNER_JOIN ID alias join_equal join_list
+    {
+      if($7 != nullptr) {
+        $$ = $7;
+        $$->second = create_logic_condition(LogiOp::AND_ENUM,$7->second,$6);
+      } else {
+        // $$ = new std::pair<std::vector<std::string>,ConditionSqlNode*>;
+        $$ = new std::pair<std::vector<std::pair<std::string, std::string>>,ConditionSqlNode *>;
+        $$->second = $6;
+      }
+      $$->first.push_back(std::make_pair(std::string($4),std::string($5)));
+      free($4);
+      free($5);
+      $$->first.push_back(std::make_pair(std::string($1),std::string($2)));
+      free($1);
+      free($2);
+    }
+    ;
+join_list:
+    INNER_JOIN ID alias join_equal join_list
     {
       if($5 != nullptr) {
         $$ = $5;
         $$->second = create_logic_condition(LogiOp::AND_ENUM,$5->second,$4);
       } else {
-        $$ = new std::pair<std::vector<std::string>,ConditionSqlNode*>;
+        // $$ = new std::pair<std::vector<std::string>,ConditionSqlNode*>;
+        $$ = new std::pair<std::vector<std::pair<std::string, std::string>>,ConditionSqlNode *>;
         $$->second = $4;
       }
-      $$->first.emplace_back($3);
-      free($3);
-      $$->first.emplace_back($1);
-      free($1);
-    }
-    ;
-join_list:
-    INNER_JOIN ID join_equal join_list
-    {
-      if($4 != nullptr) {
-        $$ = $4;
-        $$->second = create_logic_condition(LogiOp::AND_ENUM,$4->second,$3);
-      } else {
-        $$ = new std::pair<std::vector<std::string>,ConditionSqlNode*>;
-        $$->second = $3;
-      }
-      $$->first.emplace_back($2);
+      $$->first.push_back(std::make_pair(std::string($2),std::string($3)));
       free($2);
+      free($3);
     }
     | /* empty */
     {
@@ -954,7 +1039,8 @@ a_expr:
       $$->binary = false;
       $$->type = FIELD;
       $$->attr = *$1;
-
+      // $$->alias = $2;
+      // free($2);
       delete $1;
     }
     | select_stmt_with_paren {
@@ -1066,9 +1152,13 @@ a_expr:
 c_expr:
     LBRACE a_expr RBRACE {
       $$ = $2;
+      // $$->alias = $4;
+      // free($4);
     } 
     | function {
       $$ = $1;
+      // $$->alias = $2;
+      // free($2);
     }
     | value_list_LALR %prec UMINUS {
       $$ = $1;
@@ -1123,28 +1213,29 @@ select_attr:
 
       $$->emplace_back(attr);
     }
-    | a_expr a_expr_list {
-      if ($2 != nullptr) {
-        $$ = $2;
+    | a_expr alias a_expr_list {
+      if ($3 != nullptr) {
+        $$ = $3;
       } else {
         $$ = new std::vector<ConditionSqlNode>;
       }
-
+      $1->alias = $2;
       $$->emplace_back(*$1);
       delete $1;
+      free($2);
     }
     ;
 // 是否为合法的聚集表达式，将在Resolve阶段判断
 // TODO: 尚未完成列表参数(参数是表达式列表)的部分
 function: // 特殊的表达式，可能有括号内列表，注意无法在此生成Expression，可能有field需要后面才能知道 
-    func_LA a_expr RBRACE { 
+    func_name a_expr RBRACE { 
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FUNC_OR_AGG;
       $$->func = $1;
       $$->left_cond = $2;
     }
-    | func_LA '*' RBRACE {  
+    | func_name '*' RBRACE {  // COUNT(*)
       $$ = new ConditionSqlNode;
       $$->binary = false;
       $$->type = FUNC_OR_AGG;
@@ -1156,6 +1247,48 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
       sub_attr->attr.relation_name = "";
       sub_attr->attr.attribute_name = "*";
       $$->left_cond = sub_attr;
+    }
+    | func_name rel_attr COMMA value_with_MINUS RBRACE { // ROUND / DATE-FORMAT
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FUNC_OR_AGG;
+      $$->func = $1;
+
+      ConditionSqlNode *sub_attr = new ConditionSqlNode;
+      sub_attr->binary = false;
+      sub_attr->type = FIELD;
+      sub_attr->attr.relation_name = $2->relation_name;
+      sub_attr->attr.attribute_name = $2->attribute_name;
+      $$->left_cond = sub_attr;
+
+      ConditionSqlNode *func_arg = new ConditionSqlNode;
+      func_arg->binary = false;
+      func_arg->type = VALUE;
+      func_arg->value = new ValueExpr(*$4);
+      $$->right_cond = func_arg;
+
+      delete $4;
+    }
+    | func_name value_with_MINUS COMMA value_with_MINUS RBRACE {
+      $$ = new ConditionSqlNode;
+      $$->binary = false;
+      $$->type = FUNC_OR_AGG;
+      $$->func = $1;
+
+      ConditionSqlNode *func_arg1 = new ConditionSqlNode;
+      func_arg1->binary = false;
+      func_arg1->type = VALUE;
+      func_arg1->value = new ValueExpr(*$2);
+      $$->left_cond = func_arg1;
+
+      ConditionSqlNode *func_arg2 = new ConditionSqlNode;
+      func_arg2->binary = false;
+      func_arg2->type = VALUE;
+      func_arg2->value = new ValueExpr(*$4);
+      $$->right_cond = func_arg2;
+
+      delete $2;
+      delete $4;
     }
     /* | AGG_COUNT LBRACE NUMBER RBRACE { // FIXME: count(1) 和 count(*) 好像有差别 // 会有移进规约冲突 因为a_expr也可以是NUMBER，所以在后面解决
       $$ = new ConditionSqlNode;
@@ -1171,11 +1304,11 @@ function: // 特殊的表达式，可能有括号内列表，注意无法在此�
       $$->left_cond = sub_attr;
     } */
     ;
-func_LA:
+/* func_LA:
     func_name LBRACE {
       $$ = $1;
     }
-    ;
+    ; */
 func_name: 
     AGG_MAX  {
       $$ = MAX_FUNC_ENUM;
@@ -1192,6 +1325,15 @@ func_name:
     | AGG_SUM {
       $$ = SUM_FUNC_ENUM;
     }
+    | FUNC_LENGTH {
+      $$ = LENGTH_FUNC_NUM;
+    }
+    | FUNC_ROUND {
+      $$ = ROUND_FUNC_NUM;
+    }
+    | FUNC_DATE {
+      $$ = DATE_FUNC_NUM;
+    }
     ;
 rel_attr:
     ID {
@@ -1205,6 +1347,12 @@ rel_attr:
       $$->attribute_name = $3;
       free($1);
       free($3);
+    }
+    | ID DOT '*' {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = "*";
+      free($1);
     }
     ;
 attr_list: // group-by等会使用到，旧版的attr_list
@@ -1227,15 +1375,32 @@ a_expr_list:
     {
       $$ = nullptr;
     }
-    | COMMA a_expr a_expr_list {
-      if ($3 != nullptr) {
-        $$ = $3;
+    | COMMA a_expr alias a_expr_list {
+      if ($4 != nullptr) {
+        $$ = $4;
       } else {
         $$ = new std::vector<ConditionSqlNode>;
       }
 
+      $2->alias = $3;
       $$->emplace_back(*$2); // 最后再reverse顺序(例如select_attr)
       delete $2;
+      free($3);
+    }
+    ;
+rel_list_with_alias:
+    /* empty */ {
+      $$ = nullptr;
+    }
+    | COMMA ID alias rel_list_with_alias {
+      if($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<std::pair<std::string, std::string>>;
+      }
+      $$->push_back(std::make_pair(std::string($2), std::string($3)));
+      free($2);
+      free($3);
     }
     ;
 rel_list:

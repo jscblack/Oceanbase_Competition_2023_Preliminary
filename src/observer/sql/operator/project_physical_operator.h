@@ -39,7 +39,11 @@ public:
   int cell_num() const { return tuple_.cell_num(); }
 
   Tuple *current_tuple() override;
+  void   set_no_table_select(bool no_table_select) { no_table_select_ = no_table_select; }
+  bool   no_table_select() const { return no_table_select_; }
 
 private:
-  ProjectTuple tuple_;
+  inline static int counter_for_select_func = -1;  // select_func只能调用一次next
+  ProjectTuple      tuple_;
+  bool              no_table_select_ = false;
 };
