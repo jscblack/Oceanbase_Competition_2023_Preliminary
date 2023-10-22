@@ -367,7 +367,13 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
       $$ = new ParsedSqlNode(SCF_DROP_TABLE);
       $$->drop_table.relation_name = $3;
       free($3);
-    };
+    }
+    | DROP VIEW ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $3;
+      free($3);
+    }
+    ;
 show_tables_stmt:
     SHOW TABLES {
       $$ = new ParsedSqlNode(SCF_SHOW_TABLES);
