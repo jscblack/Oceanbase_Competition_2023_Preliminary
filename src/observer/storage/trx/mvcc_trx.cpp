@@ -326,7 +326,7 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   RC rc = table->insert_record(new_record);
   if (rc != RC::SUCCESS) {
     sql_debug("MVCC: failed, %d", __LINE__);
-    RT_ASSERT(false);  // 调试用
+    // RT_ASSERT(false);  // 调试用
     LOG_WARN("MVCC: failed to insert new-version record into table when update. rc=%s", strrc(rc));
     return rc;
   }
