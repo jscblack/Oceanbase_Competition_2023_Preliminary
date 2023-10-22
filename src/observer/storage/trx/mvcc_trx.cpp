@@ -130,7 +130,7 @@ RC MvccTrx::insert_record(Table *table, Record &record)
   begin_field.set_int(record, -trx_id_);
   end_field.set_int(record, trx_kit_.max_trx_id());
 
-  RC rc = table->insert_record(record);
+  RC rc = table->insert_record(this, record, false);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to insert record into table. rc=%s", strrc(rc));
     return rc;
@@ -225,7 +225,7 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     record.set_data_owner(record_data, new_record_size);
     begin_xid_field.set_int(record, -trx_id_);
     end_xid_field.set_int(record, trx_kit_.max_trx_id());
-    RC rc = table->update_record(record, record.data());
+    RC rc = table->update_record(this, record, record.data());
     if (rc != RC::SUCCESS) {
       sql_debug("MVCC: failed, %d", __LINE__);
       LOG_WARN("MVCC: failed to update new-version record into table when update. rc=%s", strrc(rc));
@@ -309,7 +309,7 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   begin_xid_field.set_int(new_record, -trx_id_);
   end_xid_field.set_int(new_record, trx_kit_.max_trx_id());
 
-  RC rc = table->insert_record(new_record);
+  RC rc = table->insert_record(this, new_record, true);
   if (rc != RC::SUCCESS) {
     sql_debug("MVCC: failed, %d", __LINE__);
     LOG_WARN("MVCC: failed to insert new-version record into table when update. rc=%s", strrc(rc));
@@ -752,7 +752,7 @@ RC MvccTrx::redo(Db *db, const CLogRecord &log_record)
       // record.set_data(const_cast<char*>(data_record.data_), data_record.data_len_);
       record.set_data_owner(record_data, record_size);
       record.set_rid(data_record.rid_);
-      RC rc = table->update_record(record, record.data());
+      RC rc = table->update_record(this, record, record.data());
       if (OB_FAIL(rc)) {
         LOG_WARN("failed to recover update. table=%s, log record=%s, rc=%s",
                  table->name(), log_record.to_string().c_str(), strrc(rc));
