@@ -270,13 +270,13 @@ RC Table::insert_record(Record &record)
 
   rc = record_handler_->insert_record(record.data(), table_meta_.record_size(), &record.rid());
   if (rc != RC::SUCCESS) {
-    exit(0); 
     LOG_ERROR("Insert record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
   }
 
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) {  // 可能出现了键值重复
+    exit(0);
     RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false /*error_on_not_exists*/);
     if (rc2 != RC::SUCCESS) {
       LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
