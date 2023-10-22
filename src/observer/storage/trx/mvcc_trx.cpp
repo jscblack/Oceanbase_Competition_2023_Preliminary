@@ -200,8 +200,17 @@ RC MvccTrx::delete_record(Table *table, Record &record)
       record.len(),
       strrc(rc));
 
-  operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
-
+  auto ret = operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
+  if (!ret.second) {
+    if (ret.first->type() == Operation::Type::DELETE || ret.first->type() == Operation::Type::DELETE_AFTER_INSERT) {
+      // delete后第二次delete，也应该是success
+      rc = RC::SUCCESS;
+    } else if (ret.first->type() == Operation::Type::INSERT) {
+      // ret.first->set_type(Operation::Type::DELETE_AFTER_INSERT);
+      operations_.erase(ret.first);
+      ret = operations_.insert(Operation(Operation::Type::DELETE_AFTER_INSERT, table, record.rid()));
+    }
+  }
   return RC::SUCCESS;
 }
 
@@ -361,14 +370,19 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   // 但真的会有影响吗? 这个先后顺序? 如果原子提交好像没影响, 现在本来就不能保证原子提交也好像没影响
   pair<OperationSet::iterator, bool> ret = operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
   if (!ret.second) {
-    for (auto &op : operations_) {
-      LOG_INFO("======== %d %d %d =======",op.type(),op.page_num(),op.slot_num());
+    if (ret.first->type() == Operation::Type::DELETE || ret.first->type() == Operation::Type::DELETE_AFTER_INSERT) {
+      // delete后第二次delete，也应该是success
+      rc = RC::SUCCESS;
+    } else if (ret.first->type() == Operation::Type::INSERT) {
+      // ret.first->set_type(Operation::Type::DELETE_AFTER_INSERT);
+      operations_.erase(ret.first);
+      ret = operations_.insert(Operation(Operation::Type::DELETE_AFTER_INSERT, table, record.rid()));
     }
 
-    rc = RC::INTERNAL;
-    sql_debug("MVCC: failed, %d", __LINE__);
-    RT_ASSERT(false);  // 调试用
-    LOG_WARN("failed to insert operation(update) into operation set: duplicate");
+    // rc = RC::INTERNAL;
+    // sql_debug("MVCC: failed, %d", __LINE__);
+    // RT_ASSERT(false);  // 调试用
+    // LOG_WARN("failed to insert operation(update) into operation set: duplicate");
   }
   ret = operations_.insert(Operation(Operation::Type::INSERT, table, new_record.rid()));
   if (!ret.second) {
@@ -395,7 +409,7 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
   for (const Operation &operation : operations_) {
     RID rid(operation.page_num(), operation.slot_num());
     if (record.rid() == rid) {
-      if (operation.type() == Operation::Type::DELETE) {
+      if (operation.type() == Operation::Type::DELETE || operation.type() == Operation::Type::DELETE_AFTER_INSERT) {
         return RC::RECORD_INVISIBLE;
       } else if (operation.type() == Operation::Type::INSERT) {
         return RC::SUCCESS;
@@ -563,6 +577,30 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
             strrc(rc));
       } break;
 
+      case Operation::Type::DELETE_AFTER_INSERT: {
+        Table *table = operation.table();
+        RID    rid(operation.page_num(), operation.slot_num());
+
+        Field begin_xid_field, end_xid_field;
+        trx_fields(table, begin_xid_field, end_xid_field);
+        auto record_updater = [this, &begin_xid_field, &end_xid_field, commit_xid](Record &record) -> RC {
+          (void)this;
+          ASSERT(end_xid_field.get_int(record) == -trx_id_,
+              "got an invalid record while committing. end xid=%d, this trx id=%d",
+              end_xid_field.get_int(record),
+              trx_id_);
+          begin_xid_field.set_int(record, commit_xid);
+          end_xid_field.set_int(record, commit_xid);
+          return RC::SUCCESS;
+        };
+
+        rc = operation.table()->visit_record(rid, false /*readonly*/, record_updater);
+        ASSERT(rc == RC::SUCCESS,
+            "failed to get record while committing. rid=%s, rc=%s",
+            rid.to_string().c_str(),
+            strrc(rc));
+      } break;
+
       default: {
         ASSERT(false, "unsupported operation. type=%d", static_cast<int>(operation.type()));
       }
@@ -585,6 +623,7 @@ RC MvccTrx::rollback()
 
   for (const Operation &operation : operations_) {
     switch (operation.type()) {
+      case Operation::Type::DELETE_AFTER_INSERT:
       case Operation::Type::INSERT: {
         RID    rid(operation.page_num(), operation.slot_num());
         Record record;

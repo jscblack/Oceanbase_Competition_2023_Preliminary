@@ -53,6 +53,7 @@ public:
     // UPDATE, //UPDATE
     // Type是没用的，现在拆解为delete+insert，单事务多个update不会影响时间戳，所以也不需要记录在OperationSet
     DELETE,
+    DELETE_AFTER_INSERT,
     UNDEFINED,
   };
 
@@ -66,6 +67,7 @@ public:
   Table  *table() const { return table_; }
   PageNum page_num() const { return page_num_; }
   SlotNum slot_num() const { return slot_num_; }
+  void    set_type(Type type) { type_ = type; }
 
 private:
   ///< 操作的哪张表。这里直接使用表其实并不准确，因为表中的索引也可能有日志
