@@ -44,14 +44,14 @@ public:
   void set_predicates(std::vector<std::unique_ptr<Expression>> &&exprs);
 
 private:
-  RC filter(RowTuple &tuple, bool &result);
+  RC filter(Tuple *tuple, bool &result);
 
 private:
-  Table                                   *table_    = nullptr;
+  Table                                   *table_    = nullptr; // view
   Trx                                     *trx_      = nullptr;
   bool                                     readonly_ = false;
-  RecordFileScanner                        record_scanner_;
-  Record                                   current_record_;
-  RowTuple                                 tuple_;
   std::vector<std::unique_ptr<Expression>> predicates_;  // TODO chang predicate to table tuple filter
+
+  // Tuple*                                   tuple_;  // 下层算子传上来的project tuple或者valuelist tuple
+  ViewTuple                                   view_tuple_;  // 下层算子传上来的project/valuelist tuple转换为view tuple
 };

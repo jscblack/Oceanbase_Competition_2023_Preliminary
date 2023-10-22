@@ -415,6 +415,61 @@ private:
 };
 
 /**
+ * @brief 从视图中查询组成的Tuple
+ * @ingroup Tuple
+ */
+class ViewTuple : public Tuple
+{
+public:
+  ViewTuple()          = default;
+  virtual ~ViewTuple() = default;
+
+  void set_cells(const std::vector<Value> &cells) { cells_ = cells; }
+
+  virtual int cell_num() const override { return static_cast<int>(cells_.size()); }
+
+  virtual RC cell_at(int index, Value &cell) const override
+  {
+    if (index < 0 || index >= cell_num()) {
+      return RC::NOTFOUND;
+    }
+
+    cell = cells_[index];
+    return RC::SUCCESS;
+  }
+
+  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override {
+    const char *table_name = spec.table_name();
+    const char *field_name = spec.field_name();
+    if (0 != strcmp(table_name, table_->name())) {
+      return RC::NOTFOUND;
+    }
+
+    auto ret = table_->table_meta().field(field_name);
+    if (nullptr == ret) {
+      return RC::NOTFOUND;
+    }
+    return cell_at(table_->table_meta().find_field_index_of_user_field_by_name(field_name), cell);
+  }
+
+  RC clone(Tuple *&tuple) const override
+  {
+    ViewTuple *view_tuple = new ViewTuple();
+    view_tuple->table_ = table_;
+    view_tuple->cells_ = cells_;
+    
+    tuple = view_tuple;
+    return RC::SUCCESS;
+  }
+
+  void set_table(Table *table) { table_ = table; }
+
+private:
+  std::vector<Value> cells_;
+  Table *table_;
+};
+
+/**
  * @brief 将两个tuple合并为一个tuple
  * @ingroup Tuple
  * @details 在join算子中使用

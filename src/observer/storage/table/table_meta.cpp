@@ -213,6 +213,21 @@ int TableMeta::find_field_index_by_name(const char *name) const
   return -1;
 }
 
+int TableMeta::find_field_index_of_user_field_by_name(const char *name) const
+{
+  if (nullptr == name) {
+    return -1;
+  }
+  int i = 0;
+  for (const FieldMeta &field : fields_) {
+    if (0 == strcmp(field.name(), name)) {
+      return i - sys_field_num();
+    }
+    i++;
+  }
+  return -1;
+}
+
 const FieldMeta *TableMeta::field(const char *name) const
 {
   if (nullptr == name) {

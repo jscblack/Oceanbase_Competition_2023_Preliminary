@@ -39,7 +39,11 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
   const char *view_name = create_view_stmt->view_name().c_str();
 
   // TODO: 还有一个sql得持久化
-  const std::string &sql = create_view_stmt->sql();
+  const std::string &create_sql = create_view_stmt->sql();
+  // 去掉 "create view view_name as " 只保留select
+  int select_pos = create_sql.find("select");
+  std::string select_sql = create_sql.substr(select_pos);
+  LOG_DEBUG("==========================create view select sql = %s ==========================log by tyh", select_sql);
 
   // 在这里将select子句的查询结果的表头转换成std::vector<AttrInfoSqlNode>
   std::vector<AttrInfoSqlNode> attr_infos;
@@ -48,9 +52,13 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
     bool            with_table_name = select_stmt->tables().size() > 1;
     tmp.name = expr->alias(with_table_name);
     // 其余信息对于view而言都是不重要的
-    tmp.type = AttrType::UNDEFINED;
-    tmp.length = 0;
+    // tmp.type = AttrType::UNDEFINED;
+    // tmp.length = 0;
+    // tmp.nullable = true;
+    tmp.type = AttrType::FLOATS;
+    tmp.length = 4;
     tmp.nullable = true;
+
 
     // 尝试给出view中每个属性的元信息，但是涉及到类型转换，在实际运行前无法准确获取
     // 以下代码被废弃（本身也不完整）
@@ -81,7 +89,7 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
     attr_infos.emplace_back(tmp);
   }
 
-  RC rc = session->get_current_db()->create_view(view_name, attribute_count, attr_infos.data(), sql);
+  RC rc = session->get_current_db()->create_view(view_name, attribute_count, attr_infos.data(), select_sql);
 
   return rc;
 }

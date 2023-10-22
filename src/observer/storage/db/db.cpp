@@ -114,7 +114,7 @@ RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSq
   std::string table_file_path = table_meta_file(path_.c_str(), table_name);
   Table      *table           = new Table();
   int32_t     table_id        = next_table_id_++;
-  rc = table->create(table_id, table_file_path.c_str(), table_name, path_.c_str(), attribute_count, attributes);
+  rc = table->create(table_id, table_file_path.c_str(), table_name, path_.c_str(), attribute_count, attributes, sql);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to create table %s.", table_name);
     delete table;

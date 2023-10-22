@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/logical_operator.h"
 
 class TableGetLogicalOperator;
+class ViewGetLogicalOperator;
 class PredicateLogicalOperator;
 class ProjectLogicalOperator;
 class AggregateLogicalOperator;
