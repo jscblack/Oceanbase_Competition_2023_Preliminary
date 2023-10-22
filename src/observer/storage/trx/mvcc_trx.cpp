@@ -19,15 +19,6 @@ See the Mulan PSL v2 for more details. */
 #include "storage/field/field.h"
 #include <limits>
 
-// runtime assert
-#define RT_ASSERT(expr)                                                               \
-  {                                                                                   \
-    if (!(expr)) {                                                                    \
-      fprintf(stderr, "RT_ASSERT Error at %s:%d, `%s`\n", __FILE__, __LINE__, #expr); \
-      exit(0);                                                                        \
-    }                                                                                 \
-  }
-
 using namespace std;
 
 MvccTrxKit::~MvccTrxKit()
@@ -237,7 +228,6 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     RC rc = table->update_record(record, record.data());
     if (rc != RC::SUCCESS) {
       sql_debug("MVCC: failed, %d", __LINE__);
-      // RT_ASSERT(false);  // 调试用
       LOG_WARN("MVCC: failed to update new-version record into table when update. rc=%s", strrc(rc));
       return rc;
     }
@@ -264,7 +254,6 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     // TODO 新版：这一步可能仍然是不存在的，因为可见性判断会拦截
     if (begin_xid < 0 && begin_xid != -trx_id_) {
       sql_debug("MVCC: failed, %d", __LINE__);
-      // RT_ASSERT(false);  // 调试用
       LOG_WARN("MVCC update: 读到了其他未提交事务更新的新版本, 不可能出现");
       return RC::CONCURRENCY_UPDATE_FAIL;
     }
@@ -274,7 +263,6 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     // 其他事务正在删除/更新当前版本, 中止当前事务
     if (end_xid < 0 && -end_xid != trx_id_) {
       sql_debug("MVCC: failed, %d", __LINE__);
-      // RT_ASSERT(false);  // 调试用
       LOG_WARN("MVCC update: 其他事务正在删除/更新当前版本, 中止当前事务");
       return RC::CONCURRENCY_UPDATE_FAIL;
     }
@@ -287,7 +275,6 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     // 其他并发事务已经更新并提交了新版本, 中止当前事务
     if (end_xid != trx_kit_.max_trx_id()) {
       sql_debug("MVCC: failed, %d", __LINE__);
-      // RT_ASSERT(false);  // 调试用
       LOG_WARN("MVCC update: 其他并发事务已经更新并提交了新版本, 中止当前事务");
       return RC::CONCURRENCY_UPDATE_FAIL;
     }
@@ -302,7 +289,6 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
     // double-check, 如果自己的原子更新没有抢过其他并发事务, 自己abort
     if (end_xid_field.get_int(record) != -trx_id_) {
       sql_debug("MVCC: failed, %d", __LINE__);
-      // RT_ASSERT(false);  // 调试用
       LOG_WARN("MVCC update: double-check, 如果自己的原子更新没有抢过其他并发事务, 自己abort");
       return RC::CONCURRENCY_UPDATE_FAIL;
     }
@@ -326,7 +312,6 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
   RC rc = table->insert_record(new_record);
   if (rc != RC::SUCCESS) {
     sql_debug("MVCC: failed, %d", __LINE__);
-    // RT_ASSERT(false);  // 调试用
     LOG_WARN("MVCC: failed to insert new-version record into table when update. rc=%s", strrc(rc));
     return rc;
   }
@@ -381,14 +366,12 @@ RC MvccTrx::update_record(Table *table, Record &record, const char *data)
 
     // rc = RC::INTERNAL;
     // sql_debug("MVCC: failed, %d", __LINE__);
-    // RT_ASSERT(false);  // 调试用
     // LOG_WARN("failed to insert operation(update) into operation set: duplicate");
   }
   ret = operations_.insert(Operation(Operation::Type::INSERT, table, new_record.rid()));
   if (!ret.second) {
     rc = RC::INTERNAL;
     sql_debug("MVCC: failed, %d", __LINE__);
-    RT_ASSERT(false);  // 调试用
     LOG_WARN("failed to insert operation(update) into operation set: duplicate");
   }
 
