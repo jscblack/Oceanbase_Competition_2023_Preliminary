@@ -18,7 +18,7 @@
             "label": "make",
             "command": "make",
             "args": [
-                "-j1",
+                "-j",
             ]
         },
         {

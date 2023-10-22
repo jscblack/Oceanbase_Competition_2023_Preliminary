@@ -487,7 +487,7 @@ RC RecordFileHandler::get_record(RecordPageHandler &page_handler, const RID *rid
   return page_handler.get_record(rid, rec);
 }
 
-RC RecordFileHandler::visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor)
+RC RecordFileHandler::visit_record(const RID &rid, bool readonly, std::function<RC(Record &)> visitor)
 {
   RecordPageHandler page_handler;
 
@@ -504,7 +504,7 @@ RC RecordFileHandler::visit_record(const RID &rid, bool readonly, std::function<
     return rc;
   }
 
-  visitor(record);
+  rc = visitor(record);
   return rc;
 }
 

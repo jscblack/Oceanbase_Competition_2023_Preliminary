@@ -290,7 +290,7 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
-RC Table::visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor)
+RC Table::visit_record(const RID &rid, bool readonly, std::function<RC(Record &)> visitor)
 {
   return record_handler_->visit_record(rid, readonly, visitor);
 }
@@ -301,9 +301,10 @@ RC Table::get_record(const RID &rid, Record &record)
   char     *record_data = (char *)malloc(record_size);
   ASSERT(nullptr != record_data, "failed to malloc memory. record data size=%d", record_size);
 
-  auto copier = [&record, record_data, record_size](Record &record_src) {
+  auto copier = [&record, record_data, record_size](Record &record_src) -> RC {
     memcpy(record_data, record_src.data(), record_size);
     record.set_rid(record_src.rid());
+    return RC::SUCCESS;
   };
   RC rc = record_handler_->visit_record(rid, true /*readonly*/, copier);
   if (rc != RC::SUCCESS) {
