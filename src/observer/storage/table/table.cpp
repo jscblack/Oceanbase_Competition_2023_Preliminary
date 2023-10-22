@@ -261,6 +261,7 @@ RC Table::insert_record(Record &record)
       }
 
       if (rids.size() >= 1) {
+        exit(0);
         LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
                   name(), index->index_meta().name(), strrc(rc));
         return RC::UNIQUE_INDEX_CONFLICT;
@@ -276,7 +277,6 @@ RC Table::insert_record(Record &record)
 
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) {  // 可能出现了键值重复
-    exit(0);
     RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false /*error_on_not_exists*/);
     if (rc2 != RC::SUCCESS) {
       LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
