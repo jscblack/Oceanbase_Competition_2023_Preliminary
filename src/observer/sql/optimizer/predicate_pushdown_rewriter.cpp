@@ -35,11 +35,11 @@ RC PredicatePushdownRewriter::rewrite(std::unique_ptr<LogicalOperator> &oper, bo
   }
 
   TableGetLogicalOperator *table_get_oper = nullptr;
-  ViewGetLogicalOperator  *view_get_oper  = nullptr;
+  // ViewGetLogicalOperator  *view_get_oper  = nullptr;
   if (child_oper->type() == LogicalOperatorType::TABLE_GET) {
     table_get_oper = static_cast<TableGetLogicalOperator *>(child_oper.get());
   } else {  // child_oper->type() == LogicalOperatorType::VIEW_GET
-    view_get_oper = static_cast<ViewGetLogicalOperator *>(child_oper.get());
+    // view_get_oper = static_cast<ViewGetLogicalOperator *>(child_oper.get());
   }
 
   std::vector<std::unique_ptr<Expression>> &predicate_oper_exprs = oper->expressions();
@@ -69,7 +69,7 @@ RC PredicatePushdownRewriter::rewrite(std::unique_ptr<LogicalOperator> &oper, bo
     if (child_oper->type() == LogicalOperatorType::TABLE_GET) {
       table_get_oper->set_predicates(std::move(pushdown_exprs));
     } else {  // child_oper->type() == LogicalOperatorType::TABLE_GET
-      view_get_oper->set_predicates(std::move(pushdown_exprs));
+      // view_get_oper->set_predicates(std::move(pushdown_exprs));
     }
   }
   return rc;
