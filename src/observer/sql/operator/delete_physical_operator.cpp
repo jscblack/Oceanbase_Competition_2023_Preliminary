@@ -52,6 +52,19 @@ RC DeletePhysicalOperator::next()
       return rc;
     }
 
+    if (table_->table_meta().is_view()) {
+      // 拿上来的一定是view tuple
+      ViewTuple *view_tuple = dynamic_cast<ViewTuple *>(tuple);
+      // TODO: 可以取出所有的table的映射关系
+      // 注意最前面的是最底层的，因此需要reverse遍历映射回原始表
+
+      // TODO: 将当前的table_转换成原始表
+
+      // TODO: 通过view_tuple拿上来最原始的row tuple
+
+      // TODO: 在原始表中删除相关记录
+    }
+
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record   &record    = row_tuple->record();
     rc                  = trx_->delete_record(table_, record);

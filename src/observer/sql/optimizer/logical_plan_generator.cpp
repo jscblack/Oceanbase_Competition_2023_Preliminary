@@ -349,31 +349,71 @@ RC LogicalPlanGenerator::create_plan(DeleteStmt *delete_stmt, unique_ptr<Logical
 {
   Table             *table       = delete_stmt->table();
   FilterStmt        *filter_stmt = delete_stmt->filter_stmt();
-  std::vector<Field> fields;
-  for (int i = table->table_meta().sys_field_num(); i < table->table_meta().field_num(); i++) {
-    const FieldMeta *field_meta = table->table_meta().field(i);
-    fields.push_back(Field(table, field_meta));
-  }
-  // unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, false /*readonly*/));
-  unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, false /*readonly*/));
 
-  unique_ptr<LogicalOperator> predicate_oper;
-  RC                          rc = create_plan(filter_stmt, predicate_oper);
-  if (rc != RC::SUCCESS) {
+  // 时代的眼泪：TableGetLogicalOperator不需要fields了
+  // std::vector<Field> fields;
+  // for (int i = table->table_meta().sys_field_num(); i < table->table_meta().field_num(); i++) {
+  //   const FieldMeta *field_meta = table->table_meta().field(i);
+  //   fields.push_back(Field(table, field_meta));
+  // }
+  // unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, false /*readonly*/));
+
+  if (!table->table_meta().is_view()) {
+    unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, false /*readonly*/));
+
+    unique_ptr<LogicalOperator> predicate_oper;
+    RC                          rc = create_plan(filter_stmt, predicate_oper);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+
+    unique_ptr<LogicalOperator> delete_oper(new DeleteLogicalOperator(table));
+
+    if (predicate_oper) {
+      predicate_oper->add_child(std::move(table_get_oper));
+      delete_oper->add_child(std::move(predicate_oper));
+    } else {
+      delete_oper->add_child(std::move(table_get_oper));
+    }
+
+    logical_operator = std::move(delete_oper);
     return rc;
   }
+  else {
+    unique_ptr<LogicalOperator> view_get_oper(new ViewGetLogicalOperator(table, false /*readonly*/));
 
-  unique_ptr<LogicalOperator> delete_oper(new DeleteLogicalOperator(table));
+    // 3. view-sql : optimize
+    unique_ptr<LogicalOperator> view_logical_operator;
+    Stmt                       *view_stmt = delete_stmt->view_stmt();
+    if (nullptr == view_stmt) {
+      return RC::UNIMPLENMENT;
+    }
+    SelectStmt *view_stmt_cast = static_cast<SelectStmt *>(view_stmt);
+    RC          rc             = create_plan(view_stmt_cast, view_logical_operator);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
 
-  if (predicate_oper) {
-    predicate_oper->add_child(std::move(table_get_oper));
-    delete_oper->add_child(std::move(predicate_oper));
-  } else {
-    delete_oper->add_child(std::move(table_get_oper));
+    view_get_oper->add_child(std::move(view_logical_operator));
+
+    unique_ptr<LogicalOperator> predicate_oper;  // where ...
+    rc = create_plan(filter_stmt, predicate_oper);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+
+    unique_ptr<LogicalOperator> delete_oper(new DeleteLogicalOperator(table));
+
+    if (predicate_oper) {
+      predicate_oper->add_child(std::move(view_get_oper));
+      delete_oper->add_child(std::move(predicate_oper));
+    } else {
+      delete_oper->add_child(std::move(view_get_oper));
+    }
+
+    logical_operator = std::move(delete_oper);
+    return rc;
   }
-
-  logical_operator = std::move(delete_oper);
-  return rc;
 }
 
 RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, unique_ptr<LogicalOperator> &logical_operator)
@@ -382,31 +422,70 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, unique_ptr<Logical
   const std::vector<std::string> &field_names = update_stmt->field_names();
   const std::vector<ValueOrStmt> &values      = update_stmt->values();
   FilterStmt                     *filter_stmt = update_stmt->filter_stmt();
-  std::vector<Field>              fields;
-  for (int i = table->table_meta().sys_field_num(); i < table->table_meta().field_num(); i++) {
-    const FieldMeta *field_meta = table->table_meta().field(i);
-    fields.push_back(Field(table, field_meta));
-  }
-  // unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, false /*readonly*/));
-  unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, false /*readonly*/));
 
-  unique_ptr<LogicalOperator> predicate_oper;  // where ...
-  RC                          rc = create_plan(filter_stmt, predicate_oper);
-  if (rc != RC::SUCCESS) {
+  // 时代的眼泪：TableGetLogicalOperator不需要fields了
+  // std::vector<Field>              fields;
+  // for (int i = table->table_meta().sys_field_num(); i < table->table_meta().field_num(); i++) {
+  //   const FieldMeta *field_meta = table->table_meta().field(i);
+  //   fields.push_back(Field(table, field_meta));
+  // }
+  // unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, false /*readonly*/));
+
+  if (!table->table_meta().is_view()) {
+    unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, false /*readonly*/));
+
+    unique_ptr<LogicalOperator> predicate_oper;  // where ...
+    RC                          rc = create_plan(filter_stmt, predicate_oper);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+
+    unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, field_names, values));
+
+    if (predicate_oper) {
+      predicate_oper->add_child(std::move(table_get_oper));
+      update_oper->add_child(std::move(predicate_oper));
+    } else {
+      update_oper->add_child(std::move(table_get_oper));
+    }
+
+    logical_operator = std::move(update_oper);
+    return rc;
+  } else {
+    unique_ptr<LogicalOperator> view_get_oper(new ViewGetLogicalOperator(table, false /*readonly*/));
+
+    // 3. view-sql : optimize
+    unique_ptr<LogicalOperator> view_logical_operator;
+    Stmt                       *view_stmt = update_stmt->view_stmt();
+    if (nullptr == view_stmt) {
+      return RC::UNIMPLENMENT;
+    }
+    SelectStmt *view_stmt_cast = static_cast<SelectStmt *>(view_stmt);
+    RC          rc             = create_plan(view_stmt_cast, view_logical_operator);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+
+    view_get_oper->add_child(std::move(view_logical_operator));
+
+    unique_ptr<LogicalOperator> predicate_oper;  // where ...
+    rc = create_plan(filter_stmt, predicate_oper);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+
+    unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, field_names, values));
+
+    if (predicate_oper) {
+      predicate_oper->add_child(std::move(view_get_oper));
+      update_oper->add_child(std::move(predicate_oper));
+    } else {
+      update_oper->add_child(std::move(view_get_oper));
+    }
+
+    logical_operator = std::move(update_oper);
     return rc;
   }
-
-  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, field_names, values));
-
-  if (predicate_oper) {
-    predicate_oper->add_child(std::move(table_get_oper));
-    update_oper->add_child(std::move(predicate_oper));
-  } else {
-    update_oper->add_child(std::move(table_get_oper));
-  }
-
-  logical_operator = std::move(update_oper);
-  return rc;
 }
 
 RC LogicalPlanGenerator::create_plan(ExplainStmt *explain_stmt, unique_ptr<LogicalOperator> &logical_operator)
