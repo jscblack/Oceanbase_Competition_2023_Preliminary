@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/5/22.
 //
 
+#include "sql/parser/parse.h"
 #include "sql/stmt/update_stmt.h"
 #include "common/log/log.h"
 #include "common/rc.h"
@@ -20,8 +21,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 
 UpdateStmt::UpdateStmt(Table *table, const std::vector<std::string> &field_names,
-    const std::vector<ValueOrStmt> &values, FilterStmt *filter_stmt)
-    : table_(table), field_names_(field_names), values_(values), filter_stmt_(filter_stmt)
+    const std::vector<ValueOrStmt> &values, FilterStmt *filter_stmt, Stmt *view_stmt)
+    : table_(table), field_names_(field_names), values_(values), filter_stmt_(filter_stmt), view_stmt_(view_stmt)
 {}
 
 UpdateStmt::~UpdateStmt()
@@ -167,6 +168,38 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
     return rc;
   }
 
-  stmt = new UpdateStmt(table, fields, update_values, filter_stmt);
+  // 看一下table是否为视图
+  // 如果是，在这里执行创建视图的sql语句的parse和resolve
+  Stmt*                  view_stmt = nullptr;
+  if (table->table_meta().is_view()) {
+    // 1. view-sql : parse
+    const std::string &view_sql = table->table_meta().view_sql();
+    ParsedSqlResult    parsed_view_sql_result;
+
+    parse(view_sql.c_str(), &parsed_view_sql_result);
+
+    if (parsed_view_sql_result.sql_nodes().empty()) {
+      LOG_WARN("create view sql parsed result empty");
+      return RC::INTERNAL;
+    }
+    if (parsed_view_sql_result.sql_nodes().size() > 1) {
+      LOG_WARN("got multi sql commands but only 1 will be handled");
+    }
+
+    // 2. view-sql : resolve
+    std::unique_ptr<ParsedSqlNode> unique_ptr_sql_node = std::move(parsed_view_sql_result.sql_nodes().front());
+    if (unique_ptr_sql_node->flag == SCF_ERROR) {
+      return RC::SQL_SYNTAX;
+      ;
+    }
+    ParsedSqlNode *sql_node  = unique_ptr_sql_node.get();
+    RC             rc        = Stmt::create_stmt(db, *sql_node, view_stmt);
+    if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
+      LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
+      return rc;
+    }
+  }
+
+  stmt = new UpdateStmt(table, fields, update_values, filter_stmt, view_stmt);
   return rc;
 }

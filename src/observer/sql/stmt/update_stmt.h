@@ -41,7 +41,7 @@ public:
   // UpdateStmt(
   //     Table *table, const char **field_names, const UpdateValue *values, int value_amount, FilterStmt *filter_stmt);
   UpdateStmt(Table *table, const std::vector<std::string> &field_names, const std::vector<ValueOrStmt> &values,
-      FilterStmt *filter_stmt);
+      FilterStmt *filter_stmt, Stmt *view_stmt);
   ~UpdateStmt() override;
 
 public:
@@ -65,4 +65,5 @@ private:
   std::vector<ValueOrStmt> values_;
   // int                       value_amount_ = 0;
   FilterStmt *filter_stmt_ = nullptr;
+  Stmt* view_stmt_ = nullptr;
 };
