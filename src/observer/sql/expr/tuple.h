@@ -61,6 +61,23 @@ private:
   std::vector<TupleCellSpec> cells_;
 };
 
+
+
+/**
+ * @brief Tuple类型
+ * @ingroup Tuple
+ */
+enum class TupleType
+{
+  ROW_TUPLE,
+  PROJECT_TUPLE,
+  EXPRESSION_TUPLE,
+  VALUELIST_TUPLE,
+  VIEW_TUPLE,
+  JOINED_TUPLE,
+};
+
+
 /**
  * @brief 元组的抽象描述
  * @ingroup Tuple
@@ -94,6 +111,8 @@ public:
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const = 0;
 
   virtual RC clone(Tuple *&tuple) const = 0;
+
+  virtual TupleType type() const = 0;
 
   virtual std::string to_string() const
   {
@@ -233,6 +252,8 @@ public:
     return RC::SUCCESS;
   }
 
+  TupleType type() const override { return TupleType::ROW_TUPLE; }
+
   Record &record() { return *record_; }
 
   const Record &record() const { return *record_; }
@@ -269,6 +290,8 @@ public:
   }
 
   void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
+
+  Tuple* get_tuple() { return tuple_; }
 
   // const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
   // void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
@@ -318,6 +341,8 @@ public:
     tuple = project_tuple;
     return RC::SUCCESS;
   }
+
+  TupleType type() const override { return TupleType::PROJECT_TUPLE; }
 
 public:
   void set_is_func(bool is_func) { is_func_ = is_func; }
@@ -374,6 +399,8 @@ public:
     return RC::INTERNAL;
   }
 
+  TupleType type() const override { return TupleType::EXPRESSION_TUPLE; }
+
 private:
   const std::vector<std::unique_ptr<Expression>> &expressions_;
 };
@@ -409,6 +436,8 @@ public:
     tuple = nullptr;
     return RC::INTERNAL;
   }
+
+  TupleType type() const override { return TupleType::VALUELIST_TUPLE; }
 
 private:
   std::vector<Value> cells_;
@@ -457,16 +486,37 @@ public:
     ViewTuple *view_tuple = new ViewTuple();
     view_tuple->table_ = table_;
     view_tuple->cells_ = cells_;
+    tuple_->clone(view_tuple->tuple_);
     
     tuple = view_tuple;
     return RC::SUCCESS;
   }
 
+  TupleType type() const override { return TupleType::VIEW_TUPLE; }
+
   void set_table(Table *table) { table_ = table; }
+
+  void set_tuple(Tuple *tuple) { tuple_ = tuple; }
+
+  Tuple* get_tuple() { return tuple_; }
+
+  void add_view_map(Table* cur_view, Table* last_view_or_table) { view_map_.emplace_back(cur_view, last_view_or_table); }
+
+  std::vector<std::pair<Table*, Table*>>& get_view_map() { return view_map_; }
+
+  void add_field_map(const char *cur_field, const char* last_field) { field_map_.emplace_back(cur_field, last_field); }
+
+  std::vector<std::pair<std::string, std::string>>& get_field_map() { return field_map_; }
 
 private:
   std::vector<Value> cells_;
   Table *table_;
+  Tuple *tuple_;  // 最下层view创建时基于的那个table的Row Tuple
+                  // 强转可以拿到Row Tuple
+                  // 最后拿到Record
+                  // 在视图update/delete时需要用到
+  std::vector<std::pair<Table*, Table *>> view_map_;
+  std::vector<std::pair<std::string, std::string>> field_map_;
 };
 
 /**
@@ -521,6 +571,8 @@ public:
     tuple = joined_tuple;
     return RC::SUCCESS;
   }
+
+  TupleType type() const override { return TupleType::JOINED_TUPLE; }
 
 private:
   Tuple *left_  = nullptr;
