@@ -247,6 +247,10 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
           rc = attr_cond_to_expr(db, default_table, tables, cond->right_cond, second_arg, has_aggregation, has_field);
           func_args.push_back(std::unique_ptr<Expression>(second_arg));
         }
+        rc = FunctionExpr::is_subexpr_legal(cond->func, func_args);
+        if (OB_FAIL(rc)) {
+          return rc;
+        }
         expr = new FunctionExpr(cond->func, func_args);
       }
     } break;
