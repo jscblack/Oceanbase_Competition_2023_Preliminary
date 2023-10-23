@@ -147,8 +147,8 @@ RC ViewScanPhysicalOperator::next()
         view_tuple_.add_all_field_maps(field_map);
 
       } else if (project_child_tuple->type() == TupleType::JOINED_TUPLE) {  // 暂时不考虑是join tuple的情况
-        rc = RC::INTERNAL;
-        return rc;
+        // rc = RC::INTERNAL;
+        // return rc;
       } else {  // 其余情况不需要处理 expression tuple
         rc = RC::INTERNAL;
         return rc;
