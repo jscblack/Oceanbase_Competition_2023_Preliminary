@@ -89,10 +89,12 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 {
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
-  const std::vector<Table *>      &tables                 = select_stmt->tables();
+  const std::vector<Table *> &tables = select_stmt->tables();
+
   const std::vector<Expression *> &all_fields_expressions = select_stmt->query_fields_expressions();
   // const std::vector<Field>        &all_fields             = select_stmt->query_fields();
-  for (Table *table : tables) {
+  for (int i = 0; i < tables.size(); i++) {
+    Table *table = tables[i];
     // 旧版传fields的代码
     // std::vector<Field> fields;
     // for (const Field &field : all_fields) {
@@ -121,7 +123,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     // }
     // unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true /*readonly*/));
 
-    unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, true /*readonly*/));
+    unique_ptr<LogicalOperator> table_get_oper(
+        new TableGetLogicalOperator(table, true /*readonly*/, select_stmt->relation_to_alias()[i].second));
 
     if (table_oper == nullptr) {
       table_oper = std::move(table_get_oper);

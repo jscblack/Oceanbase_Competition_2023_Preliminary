@@ -147,16 +147,15 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
 
   // if (index != nullptr && value_expr != nullptr && value_expr->get_value().attr_type() != AttrType::NONE) {
   //   ASSERT(value_expr != nullptr, "got an index but value expr is null ?");
-
   //   const Value               &value           = value_expr->get_value();
   //   IndexScanPhysicalOperator *index_scan_oper = new IndexScanPhysicalOperator(
-  //       table, index, table_get_oper.readonly(), &value, true /*left_inclusive*/, &value, true /*right_inclusive*/);
-
+  //       table, index, table_get_oper.readonly(), &value, true /*left_inclusive*/, &value, true /*right_inclusive*/,
+  //       table_get_oper.table_alias());
   //   index_scan_oper->set_predicates(std::move(predicates));
   //   oper = unique_ptr<PhysicalOperator>(index_scan_oper);
   //   LOG_TRACE("use index scan");
   // } else {
-  auto table_scan_oper = new TableScanPhysicalOperator(table, table_get_oper.readonly());
+  auto table_scan_oper = new TableScanPhysicalOperator(table, table_get_oper.readonly(), table_get_oper.table_alias());
   table_scan_oper->set_predicates(std::move(predicates));
   oper = unique_ptr<PhysicalOperator>(table_scan_oper);
   LOG_TRACE("use table scan");

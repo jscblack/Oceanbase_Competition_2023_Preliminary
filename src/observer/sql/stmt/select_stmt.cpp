@@ -38,13 +38,24 @@ SelectStmt::~SelectStmt()
 //   }
 // }
 
-static void wildcard_fields(Table *table, std::vector<Expression *> &field_metas)
+/**
+ * @brief
+ *
+ * @param [in] table
+ * @param [in] alias 注意，如果只有单表，即使select from t as a; 也不要设置alias（因为不会输出表名）；
+ * 并且alias是表名的alias
+ * @param [out] field_metas
+ */
+static void wildcard_fields(Table *table, const std::string &alias, std::vector<Expression *> &field_metas)
 {
   const TableMeta &table_meta = table->table_meta();
   const int        field_num  = table_meta.field_num();
   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
     Expression *field_expr = new FieldExpr(table, table_meta.field(i));
     field_metas.emplace_back(field_expr);
+    if (alias != "") {
+      field_metas[field_metas.size() - 1]->set_alias(alias + "." + table_meta.field(i)->name());  // 默认为""
+    }
   }
 }
 
@@ -331,10 +342,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect tables in `from` statement
-  std::vector<Table *>                                    tables;
-  std::unordered_map<std::string, Table *>                table_map;
-  std::unordered_map<std::string, std::string>            alias_to_tablename;
-  const std::vector<std::pair<std::string, std::string>> &relation_to_alias = select_sql.relation_to_alias;
+  std::vector<Table *>                             tables;
+  std::unordered_map<std::string, Table *>         table_map;
+  std::unordered_map<std::string, std::string>     alias_to_tablename;
+  std::vector<std::pair<std::string, std::string>> relation_to_alias(select_sql.relation_to_alias);
   std::unordered_map<std::string, Table *> stash_table_map;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
 
   for (size_t i = 0; i < select_sql.relation_to_alias.size(); i++) {
@@ -404,8 +415,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         if (common::is_blank(cond.attr.relation_name.c_str())) {  // 表名为空
           if (cond.attr.attribute_name == "*") {                  // 表名为空，且列名为* [].*
             // 将tables展开
-            for (Table *table : tables) {
-              wildcard_fields(table, query_fields_expressions);
+            for (int i = 0; i < tables.size(); i++) {
+              if (tables.size() > 1) {
+                wildcard_fields(tables[i], relation_to_alias[i].second, query_fields_expressions);
+              } else {
+                wildcard_fields(tables[i], "", query_fields_expressions);
+              }
             }
           } else {                     // 表名为空，且列名不为*, [].col
             if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
@@ -422,8 +437,15 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           if (cond.attr.relation_name == "*") {     // 表名为*
             if (cond.attr.attribute_name == "*") {  // *.*
               // 将tables展开
-              for (Table *table : tables) {
-                wildcard_fields(table, query_fields_expressions);
+              // for (Table *table : tables) {
+              //   wildcard_fields(table, query_fields_expressions);
+              // }
+              for (int i = 0; i < tables.size(); i++) {
+                if (tables.size() > 1) {
+                  wildcard_fields(tables[i], relation_to_alias[i].second, query_fields_expressions);
+                } else {
+                  wildcard_fields(tables[i], "", query_fields_expressions);
+                }
               }
             } else {  // *.col
               LOG_WARN("invalid field name while table is *. attr=%s", cond.attr.attribute_name.c_str());
@@ -436,7 +458,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
               return rc;
             }
             if (cond.attr.attribute_name == "*") {  // t.*
-              wildcard_fields(table, query_fields_expressions);
+              // 得先找到它的alias，或者应该就用relation_name? // 得判断它的table数量
+              if (tables.size() > 1) {
+                wildcard_fields(table, cond.attr.relation_name, query_fields_expressions);
+              } else {
+                wildcard_fields(table, "", query_fields_expressions);
+              }
             } else {  // t.col
               RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr, has_aggregation, has_field);
               if (OB_FAIL(rc)) {
@@ -605,7 +632,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           Table *table = iter->second;
           if (0 == strcmp(field_name, "*")) {
             // wildcard_fields(table, group_by_fields);
-            wildcard_fields(table, group_by_fields_expressions);
+            // FIXME 暂时没有考虑ALIAS
+            wildcard_fields(table, "", group_by_fields_expressions);
           } else {
             const FieldMeta *field_meta = table->table_meta().field(field_name);
             if (nullptr == field_meta) {
@@ -720,6 +748,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     select_stmt->having_filter_stmt_ = having_filter_stmt;
     select_stmt->order_by_.swap(order_by);
     select_stmt->has_aggregation_ = attr_has_aggregation;
+    select_stmt->relation_to_alias_.swap(relation_to_alias);
   }
 
   stmt = select_stmt;

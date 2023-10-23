@@ -31,7 +31,7 @@ using namespace std;
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
-  return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
+  return tuple.find_cell(TupleCellSpec(table_name(), field_name(), alias_.c_str()), value);
 }
 
 RC ValueExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const

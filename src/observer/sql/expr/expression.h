@@ -179,7 +179,7 @@ public:
   FieldExpr() = default;
   FieldExpr(const Table *table, const FieldMeta *field) : field_(table, field) {}
   FieldExpr(const Field &field) : field_(field) {}
-  FieldExpr(const FieldExpr &expr) : field_(expr.field_) {}
+  FieldExpr(const FieldExpr &expr) : field_(expr.field_) { alias_ = expr.alias_; }
   FieldExpr &operator=(const FieldExpr &expr)
   {
     field_ = expr.field_;
