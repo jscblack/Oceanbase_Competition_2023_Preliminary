@@ -14,14 +14,14 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/executor/create_view_executor.h"
 
-#include "session/session.h"
 #include "common/log/log.h"
-#include "storage/table/table.h"
+#include "event/session_event.h"
+#include "event/sql_event.h"
+#include "session/session.h"
 #include "sql/stmt/create_view_stmt.h"
 #include "sql/stmt/select_stmt.h"
-#include "event/sql_event.h"
-#include "event/session_event.h"
 #include "storage/db/db.h"
+#include "storage/table/table.h"
 
 RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
 {
@@ -42,6 +42,13 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
   const std::string &create_sql = create_view_stmt->sql();
   // 去掉 "create view view_name as " 只保留select
   int select_pos = create_sql.find("select");
+  if (select_pos == std::string::npos) {
+    select_pos = create_sql.find("SELECT");
+  }
+  if (select_pos == std::string::npos) {
+    LOG_ERROR("create view sql error, no select");
+    return RC::INTERNAL;
+  }
   std::string select_sql = create_sql.substr(select_pos);
   LOG_DEBUG("==========================create view select sql = %s ==========================log by tyh", select_sql);
 
@@ -50,15 +57,14 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
   for (auto expr : select_stmt->query_fields_expressions()) {
     AttrInfoSqlNode tmp;
     bool            with_table_name = select_stmt->tables().size() > 1;
-    tmp.name = expr->alias(with_table_name);
+    tmp.name                        = expr->alias(with_table_name);
     // 其余信息对于view而言都是不重要的
     // tmp.type = AttrType::UNDEFINED;
     // tmp.length = 0;
     // tmp.nullable = true;
-    tmp.type = AttrType::FLOATS;
-    tmp.length = 4;
+    tmp.type     = AttrType::FLOATS;
+    tmp.length   = 4;
     tmp.nullable = true;
-
 
     // 尝试给出view中每个属性的元信息，但是涉及到类型转换，在实际运行前无法准确获取
     // 以下代码被废弃（本身也不完整）
