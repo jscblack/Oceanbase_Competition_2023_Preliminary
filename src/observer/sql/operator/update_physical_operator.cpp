@@ -115,10 +115,19 @@ RC UpdatePhysicalOperator::next()
       // 注意最前面的是最底层的，因此需要reverse遍历映射回原始表
 
       // TODO: 将当前的table_转换成原始表
-
+      const Table *original_table = view_tuple->get_view_map().begin()->second;
+      table_                      = const_cast<Table *>(original_table);
       // TODO: 将当前要更新的列名转换为原始表的field name
-
-      // TODO: 完成对原始表相关列的更新
+      // view_tuple->get_all_field_maps();
+      // 反向遍历vector得到map
+      // iter->first是原始表中的field iter->second是view中的field
+      for (auto iter = view_tuple->get_all_field_maps().rbegin(); iter != view_tuple->get_all_field_maps().rend();
+           iter++) {
+        for (auto &attr_name : attr_names_) {
+          attr_name = iter->at(attr_name);
+        }
+      }
+      tuple = view_tuple->get_tuple();
     }
 
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);

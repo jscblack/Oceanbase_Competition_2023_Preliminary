@@ -10,7 +10,6 @@ SUCCESS
 INSERT INTO view_table VALUES (6,'N4',7,8),(9,'N5',10,11);
 
 2. CREATE VIEW
-
 CREATE VIEW simple_view AS SELECT * FROM view_table;
 SUCCESS
 CREATE VIEW filtered_view AS SELECT id, t_name FROM view_table WHERE col1 > 1;
@@ -28,18 +27,18 @@ id | t_name | col1 | col2
 9 | N5 | 10 | 11
 
 SELECT * FROM filtered_view;
-id | t_name | col1 | col2
-1 | N1 | 1 | 1
-2 | N2 | 1 | 1
-3 | N3 | 2 | 1
-6 | N4 | 7 | 8
-9 | N5 | 10 | 11
-
-SELECT * FROM summary_view;
 id | t_name
 3 | N3
 6 | N4
 9 | N5
+
+SELECT * FROM summary_view;
+t_name | total_col1 | avg_col2
+N1 | 1 | 1
+N2 | 1 | 1
+N3 | 2 | 1
+N4 | 7 | 8
+N5 | 10 | 11
 
 SELECT * FROM summary_view WHERE total_col1 > 5 ORDER BY avg_col2 DESC;
 t_name | total_col1 | avg_col2

@@ -505,7 +505,9 @@ public:
     ViewTuple *view_tuple = new ViewTuple();
     view_tuple->table_    = table_;
     view_tuple->cells_    = cells_;
-    tuple_->clone(view_tuple->tuple_);
+    if (view_tuple->tuple_ != nullptr) {
+      tuple_->clone(view_tuple->tuple_);
+    }
 
     tuple = view_tuple;
     return RC::SUCCESS;
