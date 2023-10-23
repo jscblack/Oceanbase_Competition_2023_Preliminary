@@ -15,8 +15,10 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/update_stmt.h"
 #include "common/log/log.h"
 #include "common/rc.h"
+#include "sql/parser/parse.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+
 UpdateStmt::UpdateStmt(Table *table, const std::vector<std::string> &field_names,
     const std::vector<ValueOrStmt> &values, FilterStmt *filter_stmt)
     : table_(table), field_names_(field_names), values_(values), filter_stmt_(filter_stmt)
@@ -50,7 +52,48 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
   // 检查属性名是否合法，value类型是否与attribute类型匹配
+  while (table->table_meta().is_view()) {
+    // 需要在这里拿到底层的table
+    // 更新table与table_name
+    // 更新inserts.values
 
+    // 这里的value与field_meta里的信息应该是一一对应的
+    // 也就是说得拿到view的字段与底层表的字段的对应关系
+    // 先搞一个最naive的实现法，即simple视图 一对一 的插入情况（只用更新table）
+    const std::string &view_sql = table->table_meta().view_sql();
+    ParsedSqlResult    parsed_view_sql_result;
+
+    parse(view_sql.c_str(), &parsed_view_sql_result);
+
+    if (parsed_view_sql_result.sql_nodes().empty()) {
+      LOG_WARN("create view sql parsed result empty");
+      return RC::INTERNAL;
+    }
+    if (parsed_view_sql_result.sql_nodes().size() > 1) {
+      LOG_WARN("got multi sql commands but only 1 will be handled");
+    }
+
+    // 2. view-sql : resolve
+    std::unique_ptr<ParsedSqlNode> unique_ptr_sql_node = std::move(parsed_view_sql_result.sql_nodes().front());
+    if (unique_ptr_sql_node->flag == SCF_ERROR) {
+      return RC::SQL_SYNTAX;
+      ;
+    }
+    ParsedSqlNode *sql_node  = unique_ptr_sql_node.get();
+    Stmt          *view_stmt = nullptr;
+    RC             rc        = Stmt::create_stmt(db, *sql_node, view_stmt);
+    if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
+      LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
+      return rc;
+    }
+
+    SelectStmt *view_select_stmt = dynamic_cast<SelectStmt *>(view_stmt);
+    if (view_select_stmt->tables().size() > 1) {
+      return RC::SCHEMA_VIEW_NOT_SIMPLE;
+    }
+    table      = view_select_stmt->tables().at(0);
+    table_name = table->table_meta().name();
+  }
   // // check the fields number
   const std::string  *attribute_names = update_sql.attribute_names.data();
   const ComplexValue *complex_values  = update_sql.values.data();
