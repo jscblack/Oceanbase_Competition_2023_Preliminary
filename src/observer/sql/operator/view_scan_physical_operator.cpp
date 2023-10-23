@@ -50,6 +50,69 @@ RC ViewScanPhysicalOperator::next()
     view_tuple_.set_cells(values);
     view_tuple_.set_table(table_);
 
+
+    // TODO: 在这里构建table/field map，并传递row tuple
+
+
+    if (oper->type() == PhysicalOperatorType::PROJECT) {  // 不考虑agg的情况
+      ProjectTuple *project_tuple = dynamic_cast<ProjectTuple *>(tuple);
+      Tuple *project_child_tuple = project_tuple->get_tuple();
+      const std::vector<std::unique_ptr<Expression>>& expressions = project_tuple->expressions();
+
+      if (project_child_tuple->type() == TupleType::ROW_TUPLE) {
+        view_tuple_.set_tuple(project_child_tuple);                         // 只有在视图update/delete时用到，set的是row tuple
+        
+        // 下层的project是单表还是多表，即alias的参数是否为true
+        bool with_table_name = false; // 单表
+        std::vector<std::string> table_name;
+        for (int i = 0; i < expressions.size(); i++) {
+          if (expressions[i]->type() == ExprType::FIELD) {
+            FieldExpr* field_expr = dynamic_cast<FieldExpr*>(expressions[i].get());
+            table_name.emplace_back(field_expr->table_name());
+          }
+          else {  // 其他类型不可更新？
+            // TODO: 在view tuple里面做一个不可更新的标记
+
+          }
+        }
+        for (int i = 0; i < table_name.size() - 1; i++) {
+          if (table_name[i] != table_name[i+1]) {
+            with_table_name = true;
+          }
+        }
+
+        // 添加映射关系
+        const TableMeta& table_meta = table_->table_meta();
+        for (int i = 0; i < table_meta.field_num() - table_meta.sys_field_num(); i++) {
+          const FieldMeta *field = table_meta.field(i + table_meta.sys_field_num());
+          for (int k = 0; k < expressions.size(); k++) {
+            if (strcmp(field->name(), expressions[k]->alias(with_table_name).c_str()) == 0) {
+              // 真实的底层的field name的映射关系
+              if (expressions[k]->type() == ExprType::FIELD) {
+                FieldExpr* field_expr = dynamic_cast<FieldExpr*>(expressions[k].get());
+                view_tuple_.add_field_map(field->name(), field_expr->field_name());
+              }
+            }
+          }
+        }
+
+      } else if (project_child_tuple->type() == TupleType::VIEW_TUPLE) {
+        ViewTuple *project_child_tuple_cast = dynamic_cast<ViewTuple *>(project_child_tuple);
+        view_tuple_.set_tuple(project_child_tuple_cast->get_tuple());       // 只有在视图update/delete时用到，set的是row tuple
+
+
+
+      }
+      else if (project_child_tuple->type() == TupleType::JOINED_TUPLE) {  // 暂时不考虑是join tuple的情况
+        rc = RC::INTERNAL;
+        return rc;
+      }
+      else { // 其余情况不需要处理 expression tuple
+        rc = RC::INTERNAL;
+        return rc;
+      }
+    }
+    
     rc = filter(&view_tuple_, filter_result);
     if (rc != RC::SUCCESS) {
       return rc;
