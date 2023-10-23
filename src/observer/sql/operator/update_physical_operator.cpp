@@ -108,6 +108,21 @@ RC UpdatePhysicalOperator::next()
       }
     }
 
+
+    if (table_->table_meta().is_view()) {
+      // 拿上来的一定是view tuple
+      ViewTuple *view_tuple = dynamic_cast<ViewTuple *>(tuple);
+      // TODO: 可以取出所有的table/field的映射关系
+      // 注意最前面的是最底层的，因此需要reverse遍历映射回原始表
+
+      // TODO: 将当前的table_转换成原始表
+
+      // TODO: 将当前要更新的列名转换为原始表的field name
+
+      // TODO: 完成对原始表相关列的更新
+
+    }
+
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record   &record    = row_tuple->record();
 

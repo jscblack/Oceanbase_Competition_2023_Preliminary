@@ -55,6 +55,7 @@ public:
   const std::vector<ValueOrStmt> &values() const { return values_; }
   // int                              value_amount() const { return value_amount_; }
   FilterStmt *filter_stmt() const { return filter_stmt_; }
+  Stmt       *view_stmt() const { return view_stmt_; }
   StmtType    type() const override { return StmtType::UPDATE; }
 
 private:
