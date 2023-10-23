@@ -260,6 +260,8 @@ public:
 
   const Table &table() const { return *table_; }
 
+  const Table* get_table() const { return table_; }
+
 private:
   Record      *record_ = nullptr;
   const Table *table_  = nullptr;
@@ -496,17 +498,19 @@ public:
 
   void set_table(Table *table) { table_ = table; }
 
+  Table* get_table() { return table_; }
+
   void set_tuple(Tuple *tuple) { tuple_ = tuple; }
 
   Tuple* get_tuple() { return tuple_; }
 
-  void add_view_map(Table* cur_view, Table* last_view_or_table) { view_map_.emplace_back(cur_view, last_view_or_table); }
+  void add_view_map(const Table* cur_view, const Table* last_view_or_table) { view_map_.emplace_back(cur_view, last_view_or_table); }
 
-  std::vector<std::pair<Table*, Table*>>& get_view_map() { return view_map_; }
+  std::vector<std::pair<const Table*, const Table*>>& get_view_map() { return view_map_; }
 
-  void add_field_map(const char *cur_field, const char* last_field) { field_map_.emplace_back(cur_field, last_field); }
+  void add_all_field_maps(std::map<std::string, std::string>& field_map) { all_field_maps_.emplace_back(field_map); }
 
-  std::vector<std::pair<std::string, std::string>>& get_field_map() { return field_map_; }
+  std::vector<std::map<std::string, std::string>>& get_all_field_maps() { return all_field_maps_; }
 
 private:
   std::vector<Value> cells_;
@@ -515,8 +519,8 @@ private:
                   // 强转可以拿到Row Tuple
                   // 最后拿到Record
                   // 在视图update/delete时需要用到
-  std::vector<std::pair<Table*, Table *>> view_map_;
-  std::vector<std::pair<std::string, std::string>> field_map_;
+  std::vector<std::pair<const Table*, const Table*>> view_map_; // 最前面的是最下层的
+  std::vector<std::map<std::string, std::string>> all_field_maps_;  // 最前面的是最下层的
 };
 
 /**
