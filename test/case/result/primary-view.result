@@ -1,0 +1,62 @@
+INITIALIZATION
+CREATE TABLE view_table(id int, t_name char(4), col1 int, col2 int);
+SUCCESS
+
+1. INSERT
+INSERT INTO view_table VALUES (1,'N1',1,1);
+SUCCESS
+INSERT INTO view_table VALUES (2,'N2',1,1),(3,'N3',2,1);
+SUCCESS
+INSERT INTO view_table VALUES (6,'N4',7,8),(9,'N5',10,11);
+
+2. CREATE VIEW
+
+CREATE VIEW simple_view AS SELECT * FROM view_table;
+SUCCESS
+CREATE VIEW filtered_view AS SELECT id, t_name FROM view_table WHERE col1 > 1;
+SUCCESS
+CREATE VIEW summary_view AS SELECT t_name, SUM(col1) AS total_col1, AVG(col2) AS avg_col2 FROM view_table GROUP BY t_name;
+SUCCESS
+
+3. SELECT
+SELECT * FROM simple_view;
+id | t_name | col1 | col2
+1 | N1 | 1 | 1
+2 | N2 | 1 | 1
+3 | N3 | 2 | 1
+6 | N4 | 7 | 8
+9 | N5 | 10 | 11
+
+SELECT * FROM filtered_view;
+id | t_name | col1 | col2
+1 | N1 | 1 | 1
+2 | N2 | 1 | 1
+3 | N3 | 2 | 1
+6 | N4 | 7 | 8
+9 | N5 | 10 | 11
+
+SELECT * FROM summary_view;
+id | t_name
+3 | N3
+6 | N4
+9 | N5
+
+SELECT * FROM summary_view WHERE total_col1 > 5 ORDER BY avg_col2 DESC;
+t_name | total_col1 | avg_col2
+N5 | 10 | 11
+N4 | 7 | 8
+
+4. CREATE COMPLEX VIEW
+CREATE VIEW complex_aggregated_view AS SELECT t_name, COUNT(*) AS record_count, AVG(col1) AS avg_col1 FROM simple_view GROUP BY t_name;
+SUCCESS
+
+SELECT * FROM complex_aggregated_view;
+t_name | record_count | avg_col1
+N1 | 1 | 1
+N2 | 1 | 1
+N3 | 1 | 2
+N4 | 1 | 7
+N5 | 1 | 10
+
+SELECT * FROM complex_aggregated_view WHERE record_count > 1 ORDER BY avg_col1 DESC;
+t_name | record_count | avg_col1
