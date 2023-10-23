@@ -23,7 +23,7 @@ Rewriter::Rewriter()
   // TODO: 目前的逻辑表达式重写存在bug
   rewrite_rules_.emplace_back(new ExpressionRewriter);
   rewrite_rules_.emplace_back(new PredicateRewriteRule);
-  // rewrite_rules_.emplace_back(new PredicatePushdownRewriter);
+  rewrite_rules_.emplace_back(new PredicatePushdownRewriter);
 }
 
 RC Rewriter::rewrite(std::unique_ptr<LogicalOperator> &oper, bool &change_made)

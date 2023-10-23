@@ -107,6 +107,7 @@ RC UpdatePhysicalOperator::next()
         }
       }
     }
+    Table *original_table = table_;
 
     if (table_->table_meta().is_view()) {
       // 拿上来的一定是view tuple
@@ -115,8 +116,7 @@ RC UpdatePhysicalOperator::next()
       // 注意最前面的是最底层的，因此需要reverse遍历映射回原始表
 
       // TODO: 将当前的table_转换成原始表
-      const Table *original_table = view_tuple->get_view_map().begin()->second;
-      table_                      = const_cast<Table *>(original_table);
+      original_table = const_cast<Table *>(view_tuple->get_view_map().begin()->second);
       // TODO: 将当前要更新的列名转换为原始表的field name
       // view_tuple->get_all_field_maps();
       // 反向遍历vector得到map
@@ -130,14 +130,14 @@ RC UpdatePhysicalOperator::next()
       tuple = view_tuple->get_tuple();
     }
 
-    RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
+    RowTuple *row_tuple = dynamic_cast<RowTuple *>(tuple);
     Record   &record    = row_tuple->record();
 
     const char *old_data = record.data();
     // record的rid不会发生变化，只会更改其中的数据
     // 但是需要注意的是，这会对index有影响
     // 根据old_data去构造一个new_data
-    const TableMeta &table_meta  = table_->table_meta();
+    const TableMeta &table_meta  = original_table->table_meta();
     int              record_size = table_meta.record_size();
     char            *new_data    = (char *)malloc(record_size);
     const FieldMeta *null_field  = table_meta.null_field();
@@ -187,7 +187,7 @@ RC UpdatePhysicalOperator::next()
       }
     }
 
-    rc = trx_->update_record(table_, record, new_data);
+    rc = trx_->update_record(original_table, record, new_data);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;
