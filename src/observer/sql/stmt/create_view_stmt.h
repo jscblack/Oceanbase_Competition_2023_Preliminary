@@ -29,21 +29,24 @@ class Db;
 class CreateViewStmt : public Stmt
 {
 public:
-  CreateViewStmt(const std::string &view_name, Stmt *select_stmt, const std::string &sql)
-      : view_name_(view_name), select_stmt_(select_stmt), sql_(sql)
+  CreateViewStmt(
+      const std::string &view_name, std::vector<std::string> view_fields, Stmt *select_stmt, const std::string &sql)
+      : view_name_(view_name), view_fields_(view_fields), select_stmt_(select_stmt), sql_(sql)
   {}
   virtual ~CreateViewStmt() = default;
 
   StmtType type() const override { return StmtType::CREATE_VIEW; }
 
-  const std::string                  &view_name() const { return view_name_; }
-  Stmt*                              select_stmt() const { return select_stmt_; }
-  const std::string                  &sql() const { return sql_; }
+  const std::string              &view_name() const { return view_name_; }
+  const std::vector<std::string> &view_fields() const { return view_fields_; }
+  Stmt                           *select_stmt() const { return select_stmt_; }
+  const std::string              &sql() const { return sql_; }
 
   static RC create(Db *db, const CreateViewSqlNode &create_view, Stmt *&stmt, const std::string &sql);
 
 private:
-  std::string                  view_name_;
-  Stmt*                        select_stmt_;
-  const std::string&           sql_;
+  std::string              view_name_;
+  std::vector<std::string> view_fields_;
+  Stmt                    *select_stmt_;
+  const std::string       &sql_;
 };

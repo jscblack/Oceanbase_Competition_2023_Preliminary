@@ -20,15 +20,18 @@ See the Mulan PSL v2 for more details. */
 RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&stmt, const std::string &sql)
 {
   Stmt *select_stmt = nullptr;
-  RC rc = SelectStmt::create(db, create_view.from_select, select_stmt);
+  RC    rc          = SelectStmt::create(db, create_view.from_select, select_stmt);
   if (rc != RC::SUCCESS) {
     sql_debug("create select statement failed");
     return rc;
   }
-  
-  // SelectExpr *select_expr = new SelectExpr(select_stmt);
 
-  stmt = new CreateViewStmt(create_view.view_name, select_stmt, sql);
+  // SelectExpr *select_expr = new SelectExpr(select_stmt);
+  std::vector<std::string> view_fields;
+  for (auto &field : create_view.attr_names) {
+    view_fields.push_back(field.attribute_name);
+  }
+  stmt = new CreateViewStmt(create_view.view_name, view_fields, select_stmt, sql);
   sql_debug("create view statement: view name %s", create_view.view_name.c_str());
   return RC::SUCCESS;
 }

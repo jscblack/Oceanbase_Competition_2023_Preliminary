@@ -307,8 +307,9 @@ struct AttrInfoSqlNode
  */
 struct CreateViewSqlNode
 {
-  std::string                  view_name;      ///< View name
-  SelectSqlNode                from_select;    ///< select clause
+  std::string                 view_name;    ///< View name
+  std::vector<RelAttrSqlNode> attr_names;   ///< attributes name (like alias)
+  SelectSqlNode               from_select;  ///< select clause
 };
 
 /**

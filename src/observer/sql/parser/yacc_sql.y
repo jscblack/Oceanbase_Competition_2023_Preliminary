@@ -469,6 +469,19 @@ create_view_stmt:
 
       $$->create_view.from_select = $5->selection;
     }
+    | CREATE VIEW ID LBRACE rel_attr attr_list RBRACE as_marker select_stmt
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_VIEW);
+      $$->create_view.view_name = $3;
+      free($3);
+      if($6!=nullptr){
+        $$->create_view.attr_names.swap(*$6);
+      }
+      $$->create_view.attr_names.emplace_back(*$5);
+      std::reverse($$->create_view.attr_names.begin(), $$->create_view.attr_names.end());
+      
+      $$->create_view.from_select = $9->selection;
+    }
     ;
 
 create_table_stmt:    /*create table 语句的语法解析树*/

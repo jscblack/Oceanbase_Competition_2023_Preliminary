@@ -53,11 +53,22 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
   LOG_DEBUG("==========================create view select sql = %s ==========================log by tyh", select_sql);
 
   // 在这里将select子句的查询结果的表头转换成std::vector<AttrInfoSqlNode>
+  if (!create_view_stmt->view_fields().empty() &&
+      create_view_stmt->view_fields().size() != select_stmt->query_fields_expressions().size()) {
+    LOG_ERROR("create view sql error, view_fields size != select_stmt size");
+    return RC::INTERNAL;
+  }
   std::vector<AttrInfoSqlNode> attr_infos;
+  auto                         iter = create_view_stmt->view_fields().begin();
   for (auto expr : select_stmt->query_fields_expressions()) {
     AttrInfoSqlNode tmp;
-    bool            with_table_name = select_stmt->tables().size() > 1;
-    tmp.name                        = expr->alias(with_table_name);
+    if (!create_view_stmt->view_fields().empty()) {
+      tmp.name = *iter;
+      iter++;
+    } else {
+      bool with_table_name = select_stmt->tables().size() > 1;
+      tmp.name             = expr->alias(with_table_name);
+    }
     // 其余信息对于view而言都是不重要的
     // tmp.type = AttrType::UNDEFINED;
     // tmp.length = 0;
