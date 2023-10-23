@@ -12,10 +12,12 @@
             "args": [
                 "-f",
                 "/root/workspace/miniob/etc/observer.ini",
-                "-p",
-                "6789",
-                "-t",
-                "mvcc",
+                "-P",
+                "cli"
+                // "-p",
+                // "6789",
+                // "-t",
+                // "mvcc",
                 // "-s",
                 // "miniob.sock"
             ],

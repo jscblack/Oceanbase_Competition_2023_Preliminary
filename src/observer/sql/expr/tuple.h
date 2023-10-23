@@ -450,6 +450,8 @@ public:
 
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
+    // TODO: 自连接时spec无法判断来自左或右
+    // 问题来源应该是是alias的问题，tuplecellsepc没有考虑到alias
     RC rc = left_->find_cell(spec, value);
     if (rc == RC::SUCCESS || rc != RC::NOTFOUND) {
       return rc;

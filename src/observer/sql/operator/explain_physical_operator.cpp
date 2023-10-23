@@ -24,10 +24,7 @@ RC ExplainPhysicalOperator::open(Trx *)
   return RC::SUCCESS;
 }
 
-RC ExplainPhysicalOperator::close()
-{
-  return RC::SUCCESS;
-}
+RC ExplainPhysicalOperator::close() { return RC::SUCCESS; }
 
 RC ExplainPhysicalOperator::next()
 {
