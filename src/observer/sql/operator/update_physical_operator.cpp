@@ -113,7 +113,7 @@ RC UpdatePhysicalOperator::next()
       ViewTuple *view_tuple = dynamic_cast<ViewTuple *>(tuple);
       // TODO: 可以取出所有的table/field的映射关系
       // 注意最前面的是最底层的，因此需要reverse遍历映射回原始表
-
+      
       // TODO: 将当前的table_转换成原始表
       const Table *original_table = view_tuple->get_view_map().begin()->second;
       table_                      = const_cast<Table *>(original_table);
