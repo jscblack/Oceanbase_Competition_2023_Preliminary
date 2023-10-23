@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/stmt/insert_stmt.h"
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/parse.h"
 #include "sql/stmt/select_stmt.h"
 #include "storage/db/db.h"
@@ -23,7 +24,7 @@ InsertStmt::InsertStmt(Table *table, std::vector<std::vector<Value>> values, int
     : table_(table), values_(values), value_amount_(value_amount), record_amount_(record_amount)
 {}
 
-RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
+RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
 {
   RC          rc         = RC::SUCCESS;
   const char *table_name = inserts.relation_name.c_str();
@@ -75,11 +76,41 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     }
 
     SelectStmt *view_select_stmt = dynamic_cast<SelectStmt *>(view_stmt);
-    if (view_select_stmt->tables().size() > 1) {
+    if (view_select_stmt->tables().size() != 1) {
       return RC::SCHEMA_VIEW_NOT_SIMPLE;
     }
-    table      = view_select_stmt->tables().at(0);
-    table_name = table->table_meta().name();
+    Table *original_table = view_select_stmt->tables().at(0);
+    // 这里需要根据现有的fields与original_table的fields进行对应
+    std::vector<std::vector<Value>> re_values;
+    re_values.resize(inserts.values.size());
+    for (int i = 0; i < inserts.values.size(); i++) {
+      re_values[i].resize(original_table->table_meta().field_num() - original_table->table_meta().sys_field_num());
+      // 每一个都给null value
+      Value null_value;
+      null_value.set_type(AttrType::NONE);
+      for (int j = 0; j < re_values[i].size(); j++) {
+        re_values[i][j] = null_value;
+        const char *cur_fd_name =
+            original_table->table_meta().field_metas()->at(j + original_table->table_meta().sys_field_num()).name();
+        // 去query的field里找对应的field
+        for (int k = 0; k < view_select_stmt->query_fields_expressions().size(); k++) {
+          Expression *fd_expr = view_select_stmt->query_fields_expressions().at(k);
+          if (fd_expr->type() == ExprType::FIELD) {
+            FieldExpr *fd_field_expr = dynamic_cast<FieldExpr *>(fd_expr);
+            if (strcmp(fd_field_expr->field_name(), cur_fd_name) == 0) {
+              re_values[i][j] = inserts.values[i][k];
+              break;
+            }
+          } else {
+            return RC::SCHEMA_VIEW_NOT_SIMPLE;
+          }
+        }
+      }
+    }
+
+    table          = view_select_stmt->tables().at(0);
+    table_name     = table->table_meta().name();
+    inserts.values = re_values;
   }
   // 真实表的原始流程
   // check the fields number
