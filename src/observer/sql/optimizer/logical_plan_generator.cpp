@@ -25,8 +25,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
-#include "sql/operator/view_get_logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
+#include "sql/operator/view_get_logical_operator.h"
 
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/delete_stmt.h"
@@ -90,11 +90,13 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 {
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
-  const std::vector<Table *>      &tables                 = select_stmt->tables();
+  const std::vector<Table *> &tables = select_stmt->tables();
+
   const std::vector<Expression *> &all_fields_expressions = select_stmt->query_fields_expressions();
   // const std::vector<Field>        &all_fields             = select_stmt->query_fields();
   int view_stmts_idx = 0;
-  for (Table *table : tables) {
+  for (int i = 0; i < tables.size(); i++) {
+    Table *table = tables[i];
     // 旧版传fields的代码
     // std::vector<Field> fields;
     // for (const Field &field : all_fields) {
@@ -130,7 +132,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     // FIXME: 又意识到一个可能不好处理的点，view创建涉及到agg，但是目前agg返回的是valuelisttuple，怎么拿到field的属性？
 
     if (table->table_meta().is_view() == false) {
-      unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, true /*readonly*/));
+      unique_ptr<LogicalOperator> table_get_oper(
+          new TableGetLogicalOperator(table, true /*readonly*/, select_stmt->relation_to_alias()[i].second));
 
       if (table_oper == nullptr) {
         table_oper = std::move(table_get_oper);
@@ -166,6 +169,19 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         table_oper = unique_ptr<LogicalOperator>(join_oper);
       }
     }
+
+    // unique_ptr<LogicalOperator> table_get_oper(
+    //     new TableGetLogicalOperator(table, true /*readonly*/, select_stmt->relation_to_alias()[i].second));
+
+    // if (table_oper == nullptr) {
+    //   table_oper = std::move(table_get_oper);
+    // } else {  //
+    // 注意，JoinLogicalOperator的add_child并未重载，仍然是LogicalOperator的将它们放到children_数组中，此时还没有join-tree的结构
+    //   JoinLogicalOperator *join_oper = new JoinLogicalOperator;
+    //   join_oper->add_child(std::move(table_oper));
+    //   join_oper->add_child(std::move(table_get_oper));
+    //   table_oper = unique_ptr<LogicalOperator>(join_oper);
+    // }
   }
 
   unique_ptr<LogicalOperator> predicate_oper;
@@ -205,6 +221,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
       }
     }
   }
+  // 注意此时的逻辑树是， (project) -> (predicate) -> (table_oper|table_get / join)
 
   if (select_stmt->has_aggregation()) {  // 存在聚合子句
     // TODO: 还不知道怎么拿出havingfilterstmt中的expr

@@ -179,7 +179,7 @@ public:
   FieldExpr() = default;
   FieldExpr(const Table *table, const FieldMeta *field) : field_(table, field) {}
   FieldExpr(const Field &field) : field_(field) {}
-  FieldExpr(const FieldExpr &expr) : field_(expr.field_) {}
+  FieldExpr(const FieldExpr &expr) : field_(expr.field_) { alias_ = expr.alias_; }
   FieldExpr &operator=(const FieldExpr &expr)
   {
     field_ = expr.field_;
@@ -628,7 +628,7 @@ public:
           LOG_WARN("func date_format has improper argument number");
           return RC::FUNC_EXPR_ERROR;
         }
-        // 判断是否可以转成date，得拿出tuple之后才知道？ 
+        // 判断是否可以转成date，得拿出tuple之后才知道？
         // Field可以看fieldmeta
         // 由于日期不能参与算术运算，所以【0】必须是field或value
         if (expr_list[0]->type() != ExprType::FIELD && expr_list[0]->type() != ExprType::VALUE) {
@@ -641,7 +641,7 @@ public:
           Value v;
           expr_list[0]->try_get_value(v);
           rc = v.auto_cast(AttrType::DATES);
-          if(OB_FAIL(rc)) {
+          if (OB_FAIL(rc)) {
             return rc;
           }
         }

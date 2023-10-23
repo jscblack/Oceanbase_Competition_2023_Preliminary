@@ -24,13 +24,7 @@ RC ExplainPhysicalOperator::open(Trx *)
   return RC::SUCCESS;
 }
 
-RC ExplainPhysicalOperator::close()
-{
-  for (std::unique_ptr<PhysicalOperator> &child_oper : children_) {
-    child_oper->close();
-  }
-  return RC::SUCCESS;
-}
+RC ExplainPhysicalOperator::close() { return RC::SUCCESS; }
 
 RC ExplainPhysicalOperator::next()
 {

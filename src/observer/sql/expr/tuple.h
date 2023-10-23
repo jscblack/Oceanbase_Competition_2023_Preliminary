@@ -141,6 +141,7 @@ public:
   }
 
   void set_table(const Table *table) { table_ = table; }
+  void set_table_alias(const std::string &table_alias) { table_alias_ = table_alias; }
 
   // void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
   // {
@@ -184,8 +185,24 @@ public:
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
-    const char *table_name = spec.table_name();
-    const char *field_name = spec.field_name();
+    const char       *table_name = spec.table_name();
+    const char       *field_name = spec.field_name();
+    const std::string alias_name = spec.alias();  // 得提取出alias中的table部分，然后比较
+
+    if (std::string("") != alias_name) {
+      size_t      pos = alias_name.find(".");
+      std::string table_alias;
+      if (pos != std::string::npos) {
+        table_alias = alias_name.substr(0, pos);
+        if (table_alias != table_alias_) {
+          return RC::NOTFOUND;
+        }
+      } else {
+        // 找不到table，但又有alias，应该是单表，或者不带表名的别名
+        // table_alias == "";
+      }
+    }
+
     if (0 != strcmp(table_name, table_->name())) {
       return RC::NOTFOUND;
     }
@@ -224,8 +241,9 @@ public:
     RowTuple *row_tuple = new RowTuple();
     Record   *record =
         new Record(*record_);  // 假定data被深拷贝了,但其实得看record是否是data的owner,不知道data的生命周期如何
-    row_tuple->record_ = record;
-    row_tuple->table_  = table_;
+    row_tuple->record_      = record;
+    row_tuple->table_       = table_;
+    row_tuple->table_alias_ = table_alias_;
     // for (const FieldExpr *field_expr : speces_) {
     //   row_tuple->speces_.push_back(new FieldExpr(field_expr->field()));
     // }
@@ -240,8 +258,9 @@ public:
   const Table &table() const { return *table_; }
 
 private:
-  Record      *record_ = nullptr;
-  const Table *table_  = nullptr;
+  Record      *record_      = nullptr;
+  const Table *table_       = nullptr;
+  std::string  table_alias_ = "";
 
   // 旧版的tuple的field是由query_field一路往后传的，也就是限制了tuple的可选列
   // std::vector<FieldExpr *> speces_;
@@ -505,6 +524,8 @@ public:
 
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
+    // TODO: 自连接时spec无法判断来自左或右
+    // 问题来源应该是是alias的问题，tuplecellsepc没有考虑到alias
     RC rc = left_->find_cell(spec, value);
     if (rc == RC::SUCCESS || rc != RC::NOTFOUND) {
       return rc;

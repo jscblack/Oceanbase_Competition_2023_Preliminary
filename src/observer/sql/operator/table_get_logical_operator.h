@@ -25,20 +25,22 @@ class TableGetLogicalOperator : public LogicalOperator
 {
 public:
   // TableGetLogicalOperator(Table *table, const std::vector<Field> &fields, bool readonly);
-  TableGetLogicalOperator(Table *table, bool readonly);
+  TableGetLogicalOperator(Table *table, bool readonly, const std::string &table_alias = "");
 
   virtual ~TableGetLogicalOperator() = default;
 
   LogicalOperatorType type() const override { return LogicalOperatorType::TABLE_GET; }
 
-  Table *table() const { return table_; }
-  bool   readonly() const { return readonly_; }
+  Table      *table() const { return table_; }
+  std::string table_alias() const { return table_alias_; }
+  bool        readonly() const { return readonly_; }
 
   void                                      set_predicates(std::vector<std::unique_ptr<Expression>> &&exprs);
   std::vector<std::unique_ptr<Expression>> &predicates() { return predicates_; }
 
 private:
-  Table *table_ = nullptr;
+  Table      *table_       = nullptr;
+  std::string table_alias_ = "";
   // std::vector<Field> fields_; // 废弃
   bool readonly_ = false;
 

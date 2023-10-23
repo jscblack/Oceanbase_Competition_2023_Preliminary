@@ -31,7 +31,7 @@ using namespace std;
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
-  return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
+  return tuple.find_cell(TupleCellSpec(table_name(), field_name(), alias_.c_str()), value);
 }
 
 RC ValueExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
@@ -888,7 +888,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   RC rc = RC::SUCCESS;
   if (func_type_ == FuncName::LENGTH_FUNC_NUM) {
-    if(expr_list_.size() != 1) {
+    if (expr_list_.size() != 1) {
       return RC::FUNC_EXPR_ERROR;
     }
     // ASSERT(expr_list_.size() == 1, "Function(Length) must have only one arguement");
@@ -909,7 +909,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   }
 
   if (func_type_ == FuncName::ROUND_FUNC_NUM) {
-    if(!(expr_list_.size() == 2 || expr_list_.size() == 1)) {
+    if (!(expr_list_.size() == 2 || expr_list_.size() == 1)) {
       return RC::FUNC_EXPR_ERROR;
     }
     // ASSERT(expr_list_.size() == 2 || expr_list_.size() == 1, "Function(Round) must have exact two arguement");
@@ -945,7 +945,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   }
 
   if (func_type_ == FuncName::DATE_FUNC_NUM) {
-    if(expr_list_.size() != 2) {
+    if (expr_list_.size() != 2) {
       return RC::FUNC_EXPR_ERROR;
     }
     Expression *date_expr = expr_list_[0].get();
@@ -958,7 +958,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 
     rc = date_str.auto_cast(AttrType::DATES);
     if (OB_FAIL(rc)) {
-      if(rc == RC::VALUE_DATE_INVALID) {
+      if (rc == RC::VALUE_DATE_INVALID) {
         return RC::FUNC_EXPR_ERROR;
       }
       return rc;

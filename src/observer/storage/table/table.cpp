@@ -285,7 +285,7 @@ RC Table::open(const char *meta_file, const char *base_dir)
   return rc;
 }
 
-RC Table::insert_record(Record &record)
+RC Table::insert_record(Trx *trx, Record &record, bool is_update)
 {
   RC rc = RC::SUCCESS;
   // 检查索引中是否有存在的项
@@ -317,9 +317,9 @@ RC Table::insert_record(Record &record)
       // 如果有，那就不构成重复
       for (auto rid : rids) {
         RecordPageHandler record_page_handler;
+        Record            tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, false /*readonly*/, &tmp_record);
         record_page_handler.cleanup();
-        Record tmp_record;
-        rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
         if (rc != RC::SUCCESS) {
           LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
                       name(), strrc(rc));
@@ -332,11 +332,51 @@ RC Table::insert_record(Record &record)
         }
       }
 
-      if (rids.size() >= 1) {
-        LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
-                  name(), index->index_meta().name(), strrc(rc));
-        return RC::UNIQUE_INDEX_CONFLICT;
+      int visible_counter = 0;
+      for (auto rid : rids) {
+        RecordPageHandler record_page_handler;
+        Record            tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, false /*readonly*/, &tmp_record);
+        record_page_handler.cleanup();
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
+                      name(), strrc(rc));
+          return rc;
+        }
+        if (nullptr != trx) {
+          rc = trx->visit_record(this, tmp_record, true);
+          if (rc == RC::SUCCESS) {  // 可见
+            visible_counter++;
+          }
+        } else {
+          visible_counter++;  // 兼容load data的设计
+        }
       }
+
+      if (is_update) {
+        if (visible_counter == 1) {
+          // 第一次update调用的insert环节，此前当前最新版本没有进入operationSet，所以能看到一个版本
+          // 成功进入后续的插入索引环节
+        } else {
+          if (visible_counter == 0) {
+            ASSERT(false, "insert new record when update, there must be an old visible record.");
+            exit(0);
+            return RC::INTERNAL;
+          }
+          return RC::UNIQUE_INDEX_CONFLICT;
+        }
+      } else {
+        if (visible_counter >= 1) {
+          return RC::UNIQUE_INDEX_CONFLICT;
+        }
+      }
+
+      // if (rids.size() >= 1) {
+      //   exit(0);
+      //   LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
+      //             name(), index->index_meta().name(), strrc(rc));
+      //   return RC::UNIQUE_INDEX_CONFLICT;
+      // }
     }
   }
 
@@ -348,6 +388,7 @@ RC Table::insert_record(Record &record)
 
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) {  // 可能出现了键值重复
+    exit(0);                // 不知道如何处理
     RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false /*error_on_not_exists*/);
     if (rc2 != RC::SUCCESS) {
       LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
@@ -362,7 +403,7 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
-RC Table::visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor)
+RC Table::visit_record(const RID &rid, bool readonly, std::function<RC(Record &)> visitor)
 {
   return record_handler_->visit_record(rid, readonly, visitor);
 }
@@ -373,9 +414,10 @@ RC Table::get_record(const RID &rid, Record &record)
   char     *record_data = (char *)malloc(record_size);
   ASSERT(nullptr != record_data, "failed to malloc memory. record data size=%d", record_size);
 
-  auto copier = [&record, record_data, record_size](Record &record_src) {
+  auto copier = [&record, record_data, record_size](Record &record_src) -> RC {
     memcpy(record_data, record_src.data(), record_size);
     record.set_rid(record_src.rid());
+    return RC::SUCCESS;
   };
   RC rc = record_handler_->visit_record(rid, true /*readonly*/, copier);
   if (rc != RC::SUCCESS) {
@@ -674,7 +716,7 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
-RC Table::update_record(const Record &record, const char *data)
+RC Table::update_record(Trx *trx, const Record &record, const char *data)
 {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
@@ -723,9 +765,9 @@ RC Table::update_record(const Record &record, const char *data)
       rids.remove_if([&record](const RID &rid) { return rid == record.rid(); });
       for (auto rid : rids) {
         RecordPageHandler record_page_handler;
-        record_page_handler.cleanup();
-        Record tmp_record;
+        Record            tmp_record;
         rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
+        record_page_handler.cleanup();
         if (rc != RC::SUCCESS) {
           LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
                       name(), strrc(rc));
@@ -737,11 +779,31 @@ RC Table::update_record(const Record &record, const char *data)
           }
         }
       }
-      if (rids.size() >= 1) {
-        LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
-                  name(), index->index_meta().name(), strrc(rc));
+      int visible_counter = 0;
+      for (auto rid : rids) {
+        RecordPageHandler record_page_handler;
+        Record            tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
+        record_page_handler.cleanup();
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
+                      name(), strrc(rc));
+          return rc;
+        }
+        rc = trx->visit_record(this, tmp_record, true);
+        if (rc == RC::SUCCESS) {  // 可见
+          visible_counter++;
+        }
+      }
+      if (visible_counter >= 1) {
+        // Update调用前，之前可见的版本也不可见了
         return RC::UNIQUE_INDEX_CONFLICT;
       }
+      // if (rids.size() >= 1) {
+      //   LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
+      //             name(), index->index_meta().name(), strrc(rc));
+      //   return RC::UNIQUE_INDEX_CONFLICT;
+      // }
     }
   }
   // 这里需要做update
@@ -761,6 +823,8 @@ RC Table::update_record(const Record &record, const char *data)
     LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
   }
+  // Losk:??????? 看不懂这里, record.data()难道被上面的record_handler_->update_record修改过?? 感觉并没有,
+  // 那这个record.data()岂不是返回的仍然是旧data?
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) {  // 可能出现了键值重复
     RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false /*error_on_not_exists*/);

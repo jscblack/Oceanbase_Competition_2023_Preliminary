@@ -50,17 +50,19 @@ public:
   // const std::vector<std::pair<std::string, Field>> &aggregation_func() const { return aggregation_func_; }
   const std::vector<Expression *> &group_by_fields_expressions() const { return group_by_fields_expressions_; }
   // const std::vector<Field>        &group_by_fields() const { return group_by_fields_; }
-  HavingFilterStmt                          *having_filter_stmt() const { return having_filter_stmt_; }
-  const std::vector<std::pair<Field, bool>> &order_by() const { return order_by_; }
-  bool                                       has_aggregation() const { return has_aggregation_; }
-  bool                                       is_simple_select() const { return is_simple_select_; }
-  const std::vector<Stmt*>       &view_stmts() const { return view_stmts_; }
+  HavingFilterStmt                                       *having_filter_stmt() const { return having_filter_stmt_; }
+  const std::vector<std::pair<Field, bool>>              &order_by() const { return order_by_; }
+  bool                                                    has_aggregation() const { return has_aggregation_; }
+  bool                                                    is_simple_select() const { return is_simple_select_; }
+  const std::vector<Stmt *>                              &view_stmts() const { return view_stmts_; }
+  const std::vector<std::pair<std::string, std::string>> &relation_to_alias() const { return relation_to_alias_; }
 
 private:
   std::vector<Expression *> query_fields_expressions_;
   // std::vector<Field>                         query_fields_;
-  std::vector<Table *> tables_;
-  FilterStmt          *filter_stmt_ = nullptr;
+  std::vector<Table *>                             tables_;
+  std::vector<std::pair<std::string, std::string>> relation_to_alias_;
+  FilterStmt                                      *filter_stmt_ = nullptr;
   // std::vector<std::pair<std::string, Field>> aggregation_func_;  // (aggregation_function_type, Field)
   // std::vector<Expression *>                  query_exprs_;
 
@@ -76,5 +78,5 @@ private:
   HavingFilterStmt                   *having_filter_stmt_ = nullptr;
   std::vector<std::pair<Field, bool>> order_by_;  // (Field, is_asc)
 
-  std::vector<Stmt*>                  view_stmts_;
+  std::vector<Stmt *> view_stmts_;
 };

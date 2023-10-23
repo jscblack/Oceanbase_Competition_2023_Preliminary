@@ -170,6 +170,7 @@ RC UpdatePhysicalOperator::next()
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;
     }
+    free(new_data);
   }
 
   return RC::RECORD_EOF;
@@ -180,5 +181,6 @@ RC UpdatePhysicalOperator::close()
   if (!children_.empty()) {
     children_[0]->close();
   }
+
   return RC::SUCCESS;
 }
