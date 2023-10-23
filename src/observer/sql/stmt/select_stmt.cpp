@@ -737,7 +737,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // 看一下tables中是否有视图
   // 如果有，在这里执行创建视图的sql语句的parse和resolve
-  std::vector<Stmt*>                  view_stmts;
+  std::vector<Stmt *> view_stmts;
   for (Table *table : tables) {
     if (table->table_meta().is_view()) {
       // 1. view-sql : parse

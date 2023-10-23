@@ -121,8 +121,7 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::st
 
   if (sql_node.flag == SCF_CREATE_VIEW) {
     return CreateViewStmt::create(db, sql_node.create_view, stmt, sql);
-  }
-  else {
+  } else {
     LOG_INFO("Command::type %d doesn't need to create statement with sql.", sql_node.flag);
   }
   return RC::UNIMPLENMENT;

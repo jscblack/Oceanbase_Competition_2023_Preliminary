@@ -47,11 +47,11 @@ private:
   RC filter(Tuple *tuple, bool &result);
 
 private:
-  Table                                   *table_    = nullptr; // view
+  Table                                   *table_    = nullptr;  // view
   Trx                                     *trx_      = nullptr;
   bool                                     readonly_ = false;
   std::vector<std::unique_ptr<Expression>> predicates_;  // TODO chang predicate to table tuple filter
 
   // Tuple*                                   tuple_;  // 下层算子传上来的project tuple或者valuelist tuple
-  ViewTuple                                   view_tuple_;  // 下层算子传上来的project/valuelist tuple转换为view tuple
+  ViewTuple view_tuple_;  // 下层算子传上来的project/valuelist tuple转换为view tuple
 };

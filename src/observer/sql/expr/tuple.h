@@ -457,7 +457,8 @@ public:
     return RC::SUCCESS;
   }
 
-  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override {
+  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override
+  {
     const char *table_name = spec.table_name();
     const char *field_name = spec.field_name();
     if (0 != strcmp(table_name, table_->name())) {
@@ -474,9 +475,9 @@ public:
   RC clone(Tuple *&tuple) const override
   {
     ViewTuple *view_tuple = new ViewTuple();
-    view_tuple->table_ = table_;
-    view_tuple->cells_ = cells_;
-    
+    view_tuple->table_    = table_;
+    view_tuple->cells_    = cells_;
+
     tuple = view_tuple;
     return RC::SUCCESS;
   }
@@ -485,7 +486,7 @@ public:
 
 private:
   std::vector<Value> cells_;
-  Table *table_;
+  Table             *table_;
 };
 
 /**

@@ -30,9 +30,9 @@ RC ViewScanPhysicalOperator::open(Trx *trx)
 
 RC ViewScanPhysicalOperator::next()
 {
-  RC   rc            = RC::SUCCESS;
-  bool filter_result = false;
-  PhysicalOperator *oper = children_.front().get();
+  RC                rc            = RC::SUCCESS;
+  bool              filter_result = false;
+  PhysicalOperator *oper          = children_.front().get();
 
   while ((rc = oper->next()) == RC::SUCCESS) {
     Tuple *tuple = oper->current_tuple();
@@ -40,7 +40,7 @@ RC ViewScanPhysicalOperator::next()
     // TODO: 需要将tuple转换，尤其是需要先把视图的select计算出来，调用child oper的cell_at
     // 新搞一个view tuple
 
-    int cell_num = tuple->cell_num();
+    int                cell_num = tuple->cell_num();
     std::vector<Value> values;
     for (int i = 0; i < cell_num; i++) {
       Value value;
@@ -50,7 +50,6 @@ RC ViewScanPhysicalOperator::next()
     view_tuple_.set_cells(values);
     view_tuple_.set_table(table_);
 
-    
     rc = filter(&view_tuple_, filter_result);
     if (rc != RC::SUCCESS) {
       return rc;
@@ -67,15 +66,13 @@ RC ViewScanPhysicalOperator::next()
   return rc;
 }
 
-RC ViewScanPhysicalOperator::close() { 
+RC ViewScanPhysicalOperator::close()
+{
   children_[0]->close();
   return RC::SUCCESS;
 }
 
-Tuple *ViewScanPhysicalOperator::current_tuple()
-{
-  return &view_tuple_;
-}
+Tuple *ViewScanPhysicalOperator::current_tuple() { return &view_tuple_; }
 
 string ViewScanPhysicalOperator::param() const { return table_->name(); }
 

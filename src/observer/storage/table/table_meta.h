@@ -39,7 +39,8 @@ public:
 
   RC init(int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[]);
 
-  RC init(int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[], const std::string &sql);
+  RC init(
+      int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[], const std::string &sql);
 
   RC add_index(const IndexMeta &index);
 
@@ -88,6 +89,6 @@ protected:
 
   int record_size_ = 0;
 
-  bool is_view_;
-  std::string            view_sql_;
+  bool        is_view_;
+  std::string view_sql_;
 };

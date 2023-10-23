@@ -101,7 +101,8 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfoS
   return RC::SUCCESS;
 }
 
-RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, const std::string &sql)
+RC Db::create_view(
+    const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, const std::string &sql)
 {
   RC rc = RC::SUCCESS;
   // check table_name

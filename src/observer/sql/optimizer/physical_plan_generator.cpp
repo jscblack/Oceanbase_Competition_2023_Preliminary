@@ -174,11 +174,11 @@ RC PhysicalPlanGenerator::create_plan(ViewGetLogicalOperator &view_get_oper, uni
 {
   // 构建child的算子
   vector<unique_ptr<LogicalOperator>> &child_opers = view_get_oper.children();
-  unique_ptr<PhysicalOperator> child_phy_oper;
-  RC rc = RC::SUCCESS;
+  unique_ptr<PhysicalOperator>         child_phy_oper;
+  RC                                   rc = RC::SUCCESS;
   if (!child_opers.empty()) {
     LogicalOperator *child_oper = child_opers.front().get();
-    rc = create(*child_oper, child_phy_oper);
+    rc                          = create(*child_oper, child_phy_oper);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to create view get logical operator's child physical operator. rc=%s", strrc(rc));
       return rc;
@@ -186,7 +186,7 @@ RC PhysicalPlanGenerator::create_plan(ViewGetLogicalOperator &view_get_oper, uni
   }
 
   vector<unique_ptr<Expression>> &predicates = view_get_oper.predicates();
-  Table *table = view_get_oper.view();
+  Table                          *table      = view_get_oper.view();
 
   auto view_scan_oper = new ViewScanPhysicalOperator(table, view_get_oper.readonly());
   view_scan_oper->set_predicates(std::move(predicates));

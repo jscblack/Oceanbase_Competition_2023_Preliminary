@@ -37,7 +37,7 @@ public:
   std::vector<std::unique_ptr<Expression>> &predicates() { return predicates_; }
 
 private:
-  Table *table_    = nullptr;  // 视图
-  bool   readonly_ = false;
+  Table                                   *table_    = nullptr;  // 视图
+  bool                                     readonly_ = false;
   std::vector<std::unique_ptr<Expression>> predicates_;
 };

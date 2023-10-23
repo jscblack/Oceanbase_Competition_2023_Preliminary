@@ -107,12 +107,13 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
   table_id_ = table_id;
   name_     = name;
-  is_view_ = false;
+  is_view_  = false;
   LOG_INFO("Sussessfully initialized table meta. table id=%d, name=%s", table_id, name);
   return RC::SUCCESS;
 }
 
-RC TableMeta::init(int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[], const std::string &sql)
+RC TableMeta::init(
+    int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[], const std::string &sql)
 {
   if (common::is_blank(name)) {
     LOG_ERROR("Name cannot be empty");
@@ -174,7 +175,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
   table_id_ = table_id;
   name_     = name;
-  is_view_ = true;
+  is_view_  = true;
   view_sql_ = sql;
   LOG_INFO("Sussessfully initialized table meta. table id=%d, name=%s", table_id, name);
   return RC::SUCCESS;
@@ -437,7 +438,7 @@ int TableMeta::deserialize(std::istream &is)
   }
 
   bool is_view = is_view_value.asBool();
-  is_view_ = is_view;
+  is_view_     = is_view;
 
   if (is_view) {
     const Json::Value &view_sql_value = table_value[FIELD_VIEW_SQL];
