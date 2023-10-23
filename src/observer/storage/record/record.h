@@ -128,18 +128,8 @@ public:
 
   void set_data(char *data, int len = 0)
   {
-    // this->data_ = data;
-    // this->len_  = len;
-    // fix here 都拷贝一份
-    if (data != nullptr) {
-      char *tmp = (char *)malloc(len);
-      ASSERT(nullptr != tmp, "failed to allocate memory. size=%d", len);
-      memcpy(tmp, data, len);
-      set_data_owner(tmp, len);
-    } else {
-      this->data_ = data;
-      this->len_  = len;
-    }
+    this->data_ = data;
+    this->len_  = len;
   }
   void set_data_owner(char *data, int len)
   {
