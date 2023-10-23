@@ -89,15 +89,15 @@ RC DeleteStmt::create(Db *db, const DeleteSqlNode &delete_sql, Stmt *&stmt)
   //   table      = view_select_stmt->tables().at(0);
   //   table_name = table->table_meta().name();
   // }
-  // std::unordered_map<std::string, Table *> table_map;
-  // table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
+  std::unordered_map<std::string, Table *> table_map;
+  table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
-  // FilterStmt *filter_stmt = nullptr;
-  // RC          rc          = FilterStmt::create(db, table, &table_map, delete_sql.conditions, filter_stmt);
-  // if (rc != RC::SUCCESS) {
-  //   LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
-  //   return rc;
-  // }
+  FilterStmt *filter_stmt = nullptr;
+  RC          rc          = FilterStmt::create(db, table, &table_map, delete_sql.conditions, filter_stmt);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
+    return rc;
+  }
 
   // 看一下table是否为视图
   // 如果是，在这里执行创建视图的sql语句的parse和resolve
