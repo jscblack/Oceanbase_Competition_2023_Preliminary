@@ -62,7 +62,8 @@ RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::str
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field);
 
 RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *cond, bool is_having, Expression *&expr);
+    std::vector<std::pair<std::string, std::string>> &relation_to_alias, const ConditionSqlNode *cond, bool is_having,
+    Expression *&expr);
 
 /**
  * @brief Filter/谓词/过滤语句
@@ -85,7 +86,8 @@ public:
 
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode *conditions, FilterStmt *&stmt);
+      std::vector<std::pair<std::string, std::string>> &relation_to_alias, const ConditionSqlNode *conditions,
+      FilterStmt *&stmt);
 
   // static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
   //     const ConditionSqlNode &condition, FilterUnit *&filter_unit);

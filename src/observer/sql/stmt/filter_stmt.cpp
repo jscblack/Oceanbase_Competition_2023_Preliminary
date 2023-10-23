@@ -33,7 +33,8 @@ See the Mulan PSL v2 for more details. */
  * @return RC
  */
 RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *cond, bool is_having, Expression *&expr)
+    std::vector<std::pair<std::string, std::string>> &relation_to_alias, const ConditionSqlNode *cond, bool is_having,
+    Expression *&expr)
 {
   RC rc = RC::SUCCESS;
   expr  = nullptr;
@@ -55,6 +56,12 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         return rc;
       }
       expr = new FieldExpr(table, field);
+      for (auto rel_to_ali : relation_to_alias) {
+        if (rel_to_ali.second == cond->attr.relation_name) {
+          expr->set_alias(cond->attr.relation_name + "." + cond->attr.attribute_name);
+          break;
+        }
+      }
     } break;
 
     case SUB_SELECT: {
@@ -77,12 +84,12 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
       if (cond->binary) {
         Expression *left_expr;
         Expression *right_expr;
-        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, left_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Left . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
-        rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->right_cond, is_having, right_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Right . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -94,7 +101,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         }
       } else {
         Expression *sub_expr;
-        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, sub_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, sub_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Sub . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -118,12 +125,12 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         // 正常双目比较
         Expression *left_expr;
         Expression *right_expr;
-        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, left_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Left . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
-        rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->right_cond, is_having, right_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Right . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -140,7 +147,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         // TODO: 我只处理exist/not exist这种
         if (cond->comp == CompOp::EXISTS_ENUM || cond->comp == CompOp::NOT_EXISTS_ENUM) {
           Expression *left_expr;
-          rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+          rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, left_expr);
           if (OB_FAIL(rc)) {
             LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Sub . rc=%d:%s", rc, strrc(rc));
             return rc;
@@ -197,7 +204,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
               expr     = new AggregationExpr(cond->func, sub_expr);
             }
           } else {
-            rc   = cond_to_expr(db, default_table, tables, sub_cond, is_having, sub_expr);
+            rc   = cond_to_expr(db, default_table, tables, relation_to_alias, sub_cond, is_having, sub_expr);
             expr = new AggregationExpr(cond->func, sub_expr);
           }
         }
@@ -207,11 +214,11 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
             cond->func <= FuncName::DATE_FUNC_NUM) {           // function, 暂不考虑 MAX和MIN
           std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
           Expression                              *first_arg;
-          rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, first_arg);
+          rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, first_arg);
           func_args.push_back(std::unique_ptr<Expression>(first_arg));
           if (cond->right_cond != nullptr) {
             Expression *second_arg;
-            rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, second_arg);
+            rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->right_cond, is_having, second_arg);
             func_args.push_back(std::unique_ptr<Expression>(second_arg));
           }
           rc = FunctionExpr::is_subexpr_legal(cond->func, func_args);
@@ -232,12 +239,12 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
       }
       Expression *left_expr;
       Expression *right_expr;
-      rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+      rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, left_expr);
       if (OB_FAIL(rc)) {
         LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Left . rc=%d:%s", rc, strrc(rc));
         return rc;
       }
-      rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+      rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->right_cond, is_having, right_expr);
       if (OB_FAIL(rc)) {
         LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Right . rc=%d:%s", rc, strrc(rc));
         return rc;
@@ -284,7 +291,8 @@ RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::str
 }
 
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, FilterStmt *&stmt)
+    std::vector<std::pair<std::string, std::string>> &relation_to_alias, const ConditionSqlNode *conditions,
+    FilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt  = nullptr;
@@ -292,7 +300,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     return rc;
   }
   Expression *filter_expr = nullptr;
-  rc                      = cond_to_expr(db, default_table, tables, conditions, false, filter_expr);
+  rc                      = cond_to_expr(db, default_table, tables, relation_to_alias, conditions, false, filter_expr);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to convert ConditionSqlNode to Expression. rc=%d:%s", rc, strrc(rc));
     return rc;

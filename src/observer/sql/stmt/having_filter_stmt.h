@@ -93,7 +93,8 @@ public:
 
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode *conditions, HavingFilterStmt *&stmt);
+      std::vector<std::pair<std::string, std::string>> &relation_to_alias, const ConditionSqlNode *conditions,
+      HavingFilterStmt *&stmt);
 
   // static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
   //     const ConditionSqlNode &condition, HavingFilterUnit *&filter_unit);

@@ -20,7 +20,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 
 RC HavingFilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, HavingFilterStmt *&stmt)
+    std::vector<std::pair<std::string, std::string>> &relation_to_alias, const ConditionSqlNode *conditions,
+    HavingFilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt  = nullptr;
@@ -29,7 +30,7 @@ RC HavingFilterStmt::create(Db *db, Table *default_table, std::unordered_map<std
   }
 
   Expression *filter_expr = nullptr;
-  rc                      = cond_to_expr(db, default_table, tables, conditions, true, filter_expr);
+  rc                      = cond_to_expr(db, default_table, tables, relation_to_alias, conditions, true, filter_expr);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to convert ConditionSqlNode to Expression. rc=%d:%s", rc, strrc(rc));
     return rc;

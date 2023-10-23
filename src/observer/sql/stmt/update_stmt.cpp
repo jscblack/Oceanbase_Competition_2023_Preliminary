@@ -174,8 +174,9 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update_sql, Stmt *&stmt)
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
-  FilterStmt *filter_stmt = nullptr;
-  rc                      = FilterStmt::create(db, table, &table_map, update_sql.conditions, filter_stmt);
+  std::vector<std::pair<std::string, std::string>> relation_to_alias;  // placeholder, 兼容select那边用的
+  FilterStmt                                      *filter_stmt = nullptr;
+  rc = FilterStmt::create(db, table, &table_map, relation_to_alias, update_sql.conditions, filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;
