@@ -380,7 +380,7 @@ RC LogicalPlanGenerator::create_plan(DeleteStmt *delete_stmt, unique_ptr<Logical
     view_get_oper->add_child(std::move(view_logical_operator));
 
     unique_ptr<LogicalOperator> predicate_oper;  // where ...
-    RC                          rc = create_plan(filter_stmt, predicate_oper);
+    rc = create_plan(filter_stmt, predicate_oper);
     if (rc != RC::SUCCESS) {
       return rc;
     }
@@ -452,7 +452,7 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, unique_ptr<Logical
     view_get_oper->add_child(std::move(view_logical_operator));
 
     unique_ptr<LogicalOperator> predicate_oper;  // where ...
-    RC                          rc = create_plan(filter_stmt, predicate_oper);
+    rc = create_plan(filter_stmt, predicate_oper);
     if (rc != RC::SUCCESS) {
       return rc;
     }
