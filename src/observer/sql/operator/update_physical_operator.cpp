@@ -108,7 +108,6 @@ RC UpdatePhysicalOperator::next()
       }
     }
 
-
     if (table_->table_meta().is_view()) {
       // 拿上来的一定是view tuple
       ViewTuple *view_tuple = dynamic_cast<ViewTuple *>(tuple);
@@ -120,7 +119,6 @@ RC UpdatePhysicalOperator::next()
       // TODO: 将当前要更新的列名转换为原始表的field name
 
       // TODO: 完成对原始表相关列的更新
-
     }
 
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);

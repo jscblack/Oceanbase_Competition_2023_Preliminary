@@ -66,5 +66,5 @@ private:
   std::vector<ValueOrStmt> values_;
   // int                       value_amount_ = 0;
   FilterStmt *filter_stmt_ = nullptr;
-  Stmt* view_stmt_ = nullptr;
+  Stmt       *view_stmt_   = nullptr;
 };

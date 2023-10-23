@@ -347,8 +347,8 @@ RC LogicalPlanGenerator::create_plan(InsertStmt *insert_stmt, unique_ptr<Logical
 
 RC LogicalPlanGenerator::create_plan(DeleteStmt *delete_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
-  Table             *table       = delete_stmt->table();
-  FilterStmt        *filter_stmt = delete_stmt->filter_stmt();
+  Table      *table       = delete_stmt->table();
+  FilterStmt *filter_stmt = delete_stmt->filter_stmt();
 
   // 时代的眼泪：TableGetLogicalOperator不需要fields了
   // std::vector<Field> fields;
@@ -378,8 +378,7 @@ RC LogicalPlanGenerator::create_plan(DeleteStmt *delete_stmt, unique_ptr<Logical
 
     logical_operator = std::move(delete_oper);
     return rc;
-  }
-  else {
+  } else {
     unique_ptr<LogicalOperator> view_get_oper(new ViewGetLogicalOperator(table, false /*readonly*/));
 
     // 3. view-sql : optimize

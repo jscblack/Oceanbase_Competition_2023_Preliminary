@@ -61,8 +61,6 @@ private:
   std::vector<TupleCellSpec> cells_;
 };
 
-
-
 /**
  * @brief Tuple类型
  * @ingroup Tuple
@@ -76,7 +74,6 @@ enum class TupleType
   VIEW_TUPLE,
   JOINED_TUPLE,
 };
-
 
 /**
  * @brief 元组的抽象描述
@@ -278,7 +275,7 @@ public:
 
   const Table &table() const { return *table_; }
 
-  const Table* get_table() const { return table_; }
+  const Table *get_table() const { return table_; }
 
 private:
   Record      *record_      = nullptr;
@@ -312,7 +309,7 @@ public:
 
   void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
 
-  Tuple* get_tuple() { return tuple_; }
+  Tuple *get_tuple() { return tuple_; }
 
   // const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
   // void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
@@ -506,10 +503,10 @@ public:
   RC clone(Tuple *&tuple) const override
   {
     ViewTuple *view_tuple = new ViewTuple();
-    view_tuple->table_ = table_;
-    view_tuple->cells_ = cells_;
+    view_tuple->table_    = table_;
+    view_tuple->cells_    = cells_;
     tuple_->clone(view_tuple->tuple_);
-    
+
     tuple = view_tuple;
     return RC::SUCCESS;
   }
@@ -518,29 +515,32 @@ public:
 
   void set_table(Table *table) { table_ = table; }
 
-  Table* get_table() { return table_; }
+  Table *get_table() { return table_; }
 
   void set_tuple(Tuple *tuple) { tuple_ = tuple; }
 
-  Tuple* get_tuple() { return tuple_; }
+  Tuple *get_tuple() { return tuple_; }
 
-  void add_view_map(const Table* cur_view, const Table* last_view_or_table) { view_map_.emplace_back(cur_view, last_view_or_table); }
+  void add_view_map(const Table *cur_view, const Table *last_view_or_table)
+  {
+    view_map_.emplace_back(cur_view, last_view_or_table);
+  }
 
-  std::vector<std::pair<const Table*, const Table*>>& get_view_map() { return view_map_; }
+  std::vector<std::pair<const Table *, const Table *>> &get_view_map() { return view_map_; }
 
-  void add_all_field_maps(std::map<std::string, std::string>& field_map) { all_field_maps_.emplace_back(field_map); }
+  void add_all_field_maps(std::map<std::string, std::string> &field_map) { all_field_maps_.emplace_back(field_map); }
 
-  std::vector<std::map<std::string, std::string>>& get_all_field_maps() { return all_field_maps_; }
+  std::vector<std::map<std::string, std::string>> &get_all_field_maps() { return all_field_maps_; }
 
 private:
   std::vector<Value> cells_;
-  Table *table_;
-  Tuple *tuple_;  // 最下层view创建时基于的那个table的Row Tuple
-                  // 强转可以拿到Row Tuple
-                  // 最后拿到Record
-                  // 在视图update/delete时需要用到
-  std::vector<std::pair<const Table*, const Table*>> view_map_; // 最前面的是最下层的
-  std::vector<std::map<std::string, std::string>> all_field_maps_;  // 最前面的是最下层的
+  Table             *table_;
+  Tuple             *tuple_;  // 最下层view创建时基于的那个table的Row Tuple
+                              // 强转可以拿到Row Tuple
+                              // 最后拿到Record
+                              // 在视图update/delete时需要用到
+  std::vector<std::pair<const Table *, const Table *>> view_map_;        // 最前面的是最下层的
+  std::vector<std::map<std::string, std::string>>      all_field_maps_;  // 最前面的是最下层的
 };
 
 /**

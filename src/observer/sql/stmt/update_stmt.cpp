@@ -170,7 +170,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
 
   // 看一下table是否为视图
   // 如果是，在这里执行创建视图的sql语句的parse和resolve
-  Stmt*                  view_stmt = nullptr;
+  Stmt *view_stmt = nullptr;
   if (table->table_meta().is_view()) {
     // 1. view-sql : parse
     const std::string &view_sql = table->table_meta().view_sql();
@@ -192,8 +192,8 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
       return RC::SQL_SYNTAX;
       ;
     }
-    ParsedSqlNode *sql_node  = unique_ptr_sql_node.get();
-    RC             rc        = Stmt::create_stmt(db, *sql_node, view_stmt);
+    ParsedSqlNode *sql_node = unique_ptr_sql_node.get();
+    RC             rc       = Stmt::create_stmt(db, *sql_node, view_stmt);
     if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
       LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
       return rc;
