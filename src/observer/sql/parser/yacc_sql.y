@@ -437,7 +437,7 @@ drop_index_stmt:      /*drop index 语句的语法解析树*/
 nullable_marker:
     /* empty */
     {
-      $$ = false;
+      $$ = true;
     }
     | UNNULLABLE
     {
