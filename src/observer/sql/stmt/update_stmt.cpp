@@ -54,89 +54,53 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update_sql, Stmt *&stmt)
   // 检查属性名是否合法，value类型是否与attribute类型匹配
   // 无pred才可以这么搞
   // 废弃，还是正经写法
-  // while (table->table_meta().is_view()) {
-  //   // 需要在这里拿到底层的table
-  //   // 更新table与table_name
-  //   // 更新inserts.values
+  while (table->table_meta().is_view()) {
+    // 需要在这里拿到底层的table
+    // 更新table与table_name
+    // 更新inserts.values
 
-  //   // 这里的value与field_meta里的信息应该是一一对应的
-  //   // 也就是说得拿到view的字段与底层表的字段的对应关系
-  //   // 先搞一个最naive的实现法，即simple视图 一对一 的插入情况（只用更新table）
-  //   const std::string &view_sql = table->table_meta().view_sql();
-  //   ParsedSqlResult    parsed_view_sql_result;
+    // 这里的value与field_meta里的信息应该是一一对应的
+    // 也就是说得拿到view的字段与底层表的字段的对应关系
+    // 先搞一个最naive的实现法，即simple视图 一对一 的插入情况（只用更新table）
+    const std::string &view_sql = table->table_meta().view_sql();
+    // 如果是select * from 那么继续
+    if (view_sql.find("select *") == std::string::npos) {
+      // select * 可以无脑替换，否则需要检查字段是否一致
+      continue;
+    }
+    ParsedSqlResult parsed_view_sql_result;
 
-  //   parse(view_sql.c_str(), &parsed_view_sql_result);
+    parse(view_sql.c_str(), &parsed_view_sql_result);
 
-  //   if (parsed_view_sql_result.sql_nodes().empty()) {
-  //     LOG_WARN("create view sql parsed result empty");
-  //     return RC::INTERNAL;
-  //   }
-  //   if (parsed_view_sql_result.sql_nodes().size() > 1) {
-  //     LOG_WARN("got multi sql commands but only 1 will be handled");
-  //   }
+    if (parsed_view_sql_result.sql_nodes().empty()) {
+      LOG_WARN("create view sql parsed result empty");
+      return RC::INTERNAL;
+    }
+    if (parsed_view_sql_result.sql_nodes().size() > 1) {
+      LOG_WARN("got multi sql commands but only 1 will be handled");
+    }
 
-  //   // 2. view-sql : resolve
-  //   std::unique_ptr<ParsedSqlNode> unique_ptr_sql_node = std::move(parsed_view_sql_result.sql_nodes().front());
-  //   if (unique_ptr_sql_node->flag == SCF_ERROR) {
-  //     return RC::SQL_SYNTAX;
-  //     ;
-  //   }
-  //   ParsedSqlNode *sql_node  = unique_ptr_sql_node.get();
-  //   Stmt          *view_stmt = nullptr;
-  //   RC             rc        = Stmt::create_stmt(db, *sql_node, view_stmt);
-  //   if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
-  //     LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
-  //     return rc;
-  //   }
+    // 2. view-sql : resolve
+    std::unique_ptr<ParsedSqlNode> unique_ptr_sql_node = std::move(parsed_view_sql_result.sql_nodes().front());
+    if (unique_ptr_sql_node->flag == SCF_ERROR) {
+      return RC::SQL_SYNTAX;
+      ;
+    }
+    ParsedSqlNode *sql_node  = unique_ptr_sql_node.get();
+    Stmt          *view_stmt = nullptr;
+    RC             rc        = Stmt::create_stmt(db, *sql_node, view_stmt);
+    if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
+      LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
+      return rc;
+    }
 
-  //   SelectStmt *view_select_stmt = dynamic_cast<SelectStmt *>(view_stmt);
-  //   if (view_select_stmt->tables().size() > 1) {
-  //     return RC::SCHEMA_VIEW_NOT_SIMPLE;
-  //   }
-  //   Table *original_table = view_select_stmt->tables().at(0);
-  //   // 这里需要根据现有的fields与original_table的fields进行对应
-  //   std::vector<std::string> re_name;
-  //   re_name.resize(update_sql.attribute_names.size());
-  //   for (int i = 0; i < re_name.size(); i++) {
-  //     re_name[i] = update_sql.attribute_names[i];  // 这里需要modify 名称，即还原一下
-  //     for (int j = 0; j < table->table_meta().field_metas()->size(); j++) {
-  //       const char *aliased_name = table->table_meta().field_metas()->at(j).name();
-  //       if (strcmp(aliased_name, update_sql.attribute_names[i].c_str()) == 0) {
-  //         Expression *fd_expr = view_select_stmt->query_fields_expressions().at(j);
-  //         if (fd_expr->type() == ExprType::FIELD) {
-  //           FieldExpr *fd_field_expr = dynamic_cast<FieldExpr *>(fd_expr);
-  //           re_name[i]               = fd_field_expr->field_name();
-  //         } else {
-  //           return RC::SCHEMA_VIEW_NOT_SIMPLE;
-  //         }
-  //       }
-  //     }
-
-  //     // re_values[i].resize(original_table->table_meta().field_num() -
-  //     original_table->table_meta().sys_field_num());
-  //     // // 每一个都给null value
-  //     // Value null_value;
-  //     // null_value.set_type(AttrType::NONE);
-  //     // for (int j = 0; j < re_values[i].size(); j++) {
-  //     //   re_values[i][j] = null_value;
-  //     //   const char *cur_fd_name =
-  //     //       original_table->table_meta().field_metas()->at(j +
-  //     original_table->table_meta().sys_field_num()).name();
-  //     //   // 去query的field里找对应的field
-  //     //   for (int k = 0; k < view_select_stmt->query_fields_expressions().size(); k++) {
-  //     //     Expression *fd_expr = view_select_stmt->query_fields_expressions().at(k);
-  //     //     if (fd_expr->type() == ExprType::FIELD) {
-  //     //       FieldExpr *fd_field_expr = dynamic_cast<FieldExpr *>(fd_expr);
-  //     //       if (strcmp(fd_field_expr->field_name(), cur_fd_name) == 0) {
-  //     //         re_values[i][j] = inserts.values[i][k];
-  //     //         break;
-  //     //       }
-  //     //     } else {
-  //     //       return RC::SCHEMA_VIEW_NOT_SIMPLE;
-  //     //     }
-  //     //   }
-  //     // }
-  //   }
+    SelectStmt *view_select_stmt = dynamic_cast<SelectStmt *>(view_stmt);
+    if (view_select_stmt->tables().size() > 1) {
+      return RC::SCHEMA_VIEW_NOT_SIMPLE;
+    }
+    table      = view_select_stmt->tables().at(0);
+    table_name = table->table_meta().name();
+  }
 
   //   table                      = view_select_stmt->tables().at(0);
   //   table_name                 = table->table_meta().name();
