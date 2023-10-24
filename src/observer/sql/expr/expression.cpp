@@ -1219,6 +1219,14 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
         value.set_float(left_value.get_float());
       }
     } break;
+
+    case ArithOp::PAREN: {
+      if (target_type == AttrType::INTS) {
+        value.set_int(left_value.get_int());
+      } else {
+        value.set_float(left_value.get_float());
+      }
+    } break;
     default: {
       rc = RC::INTERNAL;
       LOG_WARN("unsupported arithmetic type. %d", arithmetic_type_);
@@ -1239,7 +1247,7 @@ RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE) {
+  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE && arithmetic_type_ != PAREN) {
     rc = right_->get_value(tuple, right_value);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
@@ -1261,7 +1269,7 @@ RC ArithmeticExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) c
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE) {
+  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE && arithmetic_type_ != PAREN) {
     rc = right_->get_value(tuples, right_value);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
@@ -1297,7 +1305,7 @@ RC ArithmeticExpr::try_get_value(Value &value) const
 
 Expression *ArithmeticExpr::clone() const
 {
-  if (arithmetic_type_ == POSITIVE || arithmetic_type_ == NEGATIVE) {
+  if (arithmetic_type_ == POSITIVE || arithmetic_type_ == NEGATIVE || arithmetic_type_ == PAREN) {
     return new ArithmeticExpr(arithmetic_type_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>());
   }
 

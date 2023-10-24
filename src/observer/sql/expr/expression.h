@@ -302,8 +302,6 @@ private:
   std::vector<Value> value_list_;
 };
 
-// TODO 这个后面会是一个expression
-
 /**
  * @brief 类型转换表达式
  * @ingroup Expression
@@ -744,7 +742,10 @@ public:
    */
   static bool is_legal_subexpr(ArithOp type, const Expression *left, const Expression *right)
   {
-
+    if (type == ArithOp::PAREN) {
+      // 忽略括号
+      return true;
+    }
     if (nullptr == left) {
       return false;
     } else if (nullptr == right) {
@@ -787,6 +788,9 @@ public:
       } break;
       case ArithOp::POSITIVE: {
         return left_alias;
+      } break;
+      case ArithOp::PAREN: {
+        return "(" + left_alias + ")";
       } break;
       default: {
         ASSERT(false, "ArithmeticExpr::const std::string alias(bool with_table_name) UNREACHABLE!!!");

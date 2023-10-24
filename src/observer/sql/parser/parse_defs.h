@@ -88,7 +88,7 @@ enum ArithOp
   DIV,
   NEGATIVE,
   POSITIVE,
-  // PAREN,  // 括号 似乎用不上
+  PAREN,  // 括号
 };
 
 /**
