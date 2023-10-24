@@ -20,7 +20,7 @@ See the Mulan PSL v2 for more details. */
 RC try_to_get_bool_constant(std::unique_ptr<Expression> &expr, bool &constant_value)
 {
   if (expr->type() == ExprType::VALUE && expr->value_type() == BOOLEANS) {
-    auto value_expr = static_cast<ValueExpr *>(expr.get());
+    auto value_expr = dynamic_cast<ValueExpr *>(expr.get());
     constant_value  = value_expr->get_value().get_boolean();
     return RC::SUCCESS;
   }
@@ -37,7 +37,7 @@ RC LogicalCalcSimplificationRule::rewrite(std::unique_ptr<Expression> &expr, boo
   }
 
   change_made           = false;
-  auto logicalcalc_expr = static_cast<LogicalCalcExpr *>(expr.get());
+  auto logicalcalc_expr = dynamic_cast<LogicalCalcExpr *>(expr.get());
   // 检查左右两边是否有可以直接计算的表达式
   std::unique_ptr<Expression> &left_expr  = logicalcalc_expr->left();
   std::unique_ptr<Expression> &right_expr = logicalcalc_expr->right();

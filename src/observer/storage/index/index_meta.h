@@ -44,8 +44,7 @@ public:
   RC init(const char *name, const std::vector<const FieldMeta *> &fields, IndexType type = IndexType::NonUnique);
 
 public:
-  const char *name() const;
-  // const char     *field() const;
+  const char                     *name() const;
   const std::vector<std::string> &fields() const;
   const IndexType                 type() const;
   bool                            is_unique() const;
@@ -57,8 +56,7 @@ public:
   static RC from_json(const TableMeta &table, const Json::Value &json_value, IndexMeta &index);
 
 protected:
-  std::string name_;  // index's name
-  // std::string field_;  // field's name
+  std::string              name_;    // index's name
   std::vector<std::string> fields_;  // fields's name
   IndexType                type_;    // index's type
 };

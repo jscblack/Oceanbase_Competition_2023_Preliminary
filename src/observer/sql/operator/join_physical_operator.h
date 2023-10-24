@@ -14,8 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include "sql/parser/parse.h"
 #include "sql/operator/physical_operator.h"
+#include "sql/parser/parse.h"
 
 /**
  * @brief 最简单的两表（称为左表、右表）join算子
@@ -52,7 +52,12 @@ private:
   bool              right_closed_ = true;  //! 右表算子是否已经关闭
 };
 
-/* // 暂时不写先
+/* HASH JOIN
+ * @brief 最简单的两表（称为左表、右表）join算子
+ * @details 依次遍历左表的每一行，然后关联右表的每一行
+ * @ingroup PhysicalOperator
+ */
+/*
 class HashJoinPhysicalOperator : public PhysicalOperator {
 public:
   HashJoinPhysicalOperator();

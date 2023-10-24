@@ -37,10 +37,10 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/sort_physical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/table_scan_physical_operator.h"
-#include "sql/operator/view_get_logical_operator.h"
-#include "sql/operator/view_scan_physical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 #include "sql/operator/update_physical_operator.h"
+#include "sql/operator/view_get_logical_operator.h"
+#include "sql/operator/view_scan_physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
 
 using namespace std;
@@ -51,51 +51,51 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
 
   switch (logical_operator.type()) {
     case LogicalOperatorType::CALC: {
-      return create_plan(static_cast<CalcLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<CalcLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::TABLE_GET: {
-      return create_plan(static_cast<TableGetLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<TableGetLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::VIEW_GET: {
-      return create_plan(static_cast<ViewGetLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<ViewGetLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::PREDICATE: {
-      return create_plan(static_cast<PredicateLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<PredicateLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::PROJECTION: {
-      return create_plan(static_cast<ProjectLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<ProjectLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::AGGREGATE: {
-      return create_plan(static_cast<AggregateLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<AggregateLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::INSERT: {
-      return create_plan(static_cast<InsertLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<InsertLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::DELETE: {
-      return create_plan(static_cast<DeleteLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<DeleteLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::UPDATE: {
-      return create_plan(static_cast<UpdateLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<UpdateLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::EXPLAIN: {
-      return create_plan(static_cast<ExplainLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<ExplainLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::JOIN: {
-      return create_plan(static_cast<JoinLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<JoinLogicalOperator &>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::SORT: {
-      return create_plan(static_cast<SortLogicalOperator &>(logical_operator), oper);
+      return create_plan(dynamic_cast<SortLogicalOperator &>(logical_operator), oper);
     }
 
     default: {
@@ -115,7 +115,7 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
   ValueExpr *value_expr = nullptr;
   for (auto &expr : predicates) {
     if (expr->type() == ExprType::COMPARISON) {
-      auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
+      auto comparison_expr = dynamic_cast<ComparisonExpr *>(expr.get());
       // 简单处理，就找等值查询，对应算子下推的处理逻辑
       if (comparison_expr->comp() != EQUAL_TO) {
         continue;
@@ -131,12 +131,12 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
       FieldExpr *field_expr = nullptr;
       if (left_expr->type() == ExprType::FIELD) {
         ASSERT(right_expr->type() == ExprType::VALUE, "right expr should be a value expr while left is field expr");
-        field_expr = static_cast<FieldExpr *>(left_expr.get());
-        value_expr = static_cast<ValueExpr *>(right_expr.get());
+        field_expr = dynamic_cast<FieldExpr *>(left_expr.get());
+        value_expr = dynamic_cast<ValueExpr *>(right_expr.get());
       } else if (right_expr->type() == ExprType::FIELD) {
         ASSERT(left_expr->type() == ExprType::VALUE, "left expr should be a value expr while right is a field expr");
-        field_expr = static_cast<FieldExpr *>(right_expr.get());
-        value_expr = static_cast<ValueExpr *>(left_expr.get());
+        field_expr = dynamic_cast<FieldExpr *>(right_expr.get());
+        value_expr = dynamic_cast<ValueExpr *>(left_expr.get());
       }
 
       if (field_expr == nullptr) {
@@ -151,21 +151,27 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
     }
   }
 
-  // if (index != nullptr && value_expr != nullptr && value_expr->get_value().attr_type() != AttrType::NONE) {
-  //   ASSERT(value_expr != nullptr, "got an index but value expr is null ?");
-  //   const Value               &value           = value_expr->get_value();
-  //   IndexScanPhysicalOperator *index_scan_oper = new IndexScanPhysicalOperator(
-  //       table, index, table_get_oper.readonly(), &value, true /*left_inclusive*/, &value, true /*right_inclusive*/,
-  //       table_get_oper.table_alias());
-  //   index_scan_oper->set_predicates(std::move(predicates));
-  //   oper = unique_ptr<PhysicalOperator>(index_scan_oper);
-  //   LOG_TRACE("use index scan");
-  // } else {
-  auto table_scan_oper = new TableScanPhysicalOperator(table, table_get_oper.readonly(), table_get_oper.table_alias());
-  table_scan_oper->set_predicates(std::move(predicates));
-  oper = unique_ptr<PhysicalOperator>(table_scan_oper);
-  LOG_TRACE("use table scan");
-  // }
+  if (index != nullptr && value_expr != nullptr && value_expr->get_value().attr_type() != AttrType::NONE) {
+    ASSERT(value_expr != nullptr, "got an index but value expr is null ?");
+    const Value               &value           = value_expr->get_value();
+    IndexScanPhysicalOperator *index_scan_oper = new IndexScanPhysicalOperator(table,
+        index,
+        table_get_oper.readonly(),
+        &value,
+        true /*left_inclusive*/,
+        &value,
+        true /*right_inclusive*/,
+        table_get_oper.table_alias());
+    index_scan_oper->set_predicates(std::move(predicates));
+    oper = unique_ptr<PhysicalOperator>(index_scan_oper);
+    LOG_TRACE("use index scan");
+  } else {
+    auto table_scan_oper =
+        new TableScanPhysicalOperator(table, table_get_oper.readonly(), table_get_oper.table_alias());
+    table_scan_oper->set_predicates(std::move(predicates));
+    oper = unique_ptr<PhysicalOperator>(table_scan_oper);
+    LOG_TRACE("use table scan");
+  }
 
   return RC::SUCCESS;
 }
@@ -240,10 +246,6 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
   }
 
   ProjectPhysicalOperator *project_operator = new ProjectPhysicalOperator;
-  // const vector<Field>     &project_fields   = project_oper.fields();
-  // for (const Field &field : project_fields) {
-  //   project_operator->add_projection(field.table(), field.meta());
-  // }
   project_operator->add_expressions(project_oper.expressions());
   project_operator->set_no_table_select(project_oper.no_table_select());
   if (child_phy_oper) {
@@ -291,26 +293,6 @@ RC PhysicalPlanGenerator::create_plan(AggregateLogicalOperator &aggregate_oper, 
     }
     oper = unique_ptr<PhysicalOperator>(aggregate_operator);
   }
-
-  // AggregatePhysicalOperator *aggregate_operator = new AggregatePhysicalOperator(
-  //     aggregate_oper.aggregations(), aggregate_oper.fields(), aggregate_oper.fields_expressions());
-
-  // if (!aggregate_oper.group_by_fields().empty()) {
-  //   aggregate_operator->set_group_by_fields(aggregate_oper.group_by_fields());
-  // }
-
-  // if (!aggregate_oper.expressions().empty()) {
-  //   vector<unique_ptr<Expression>> &expressions = aggregate_oper.expressions();
-  //   unique_ptr<Expression>          expression  = std::move(expressions.front());
-  //   aggregate_operator->set_having_filter_units(aggregate_oper.having_filter_units());
-  //   aggregate_operator->set_having_filters(std::move(expression));
-  // }
-
-  // if (child_phy_oper) {
-  //   aggregate_operator->add_child(std::move(child_phy_oper));
-  // }
-
-  // oper = unique_ptr<PhysicalOperator>(aggregate_operator);
 
   LOG_TRACE("create a aggregate physical operator");
   return rc;

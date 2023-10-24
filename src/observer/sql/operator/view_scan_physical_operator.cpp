@@ -13,8 +13,8 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/operator/view_scan_physical_operator.h"
-#include "storage/table/table.h"
 #include "event/sql_debug.h"
+#include "storage/table/table.h"
 
 using namespace std;
 
@@ -146,9 +146,8 @@ RC ViewScanPhysicalOperator::next()
         }
         view_tuple_.add_all_field_maps(field_map);
 
-      } else if (project_child_tuple->type() == TupleType::JOINED_TUPLE) {  // 暂时不考虑是join tuple的情况
-        // rc = RC::INTERNAL;
-        // return rc;
+      } else if (project_child_tuple->type() == TupleType::JOINED_TUPLE) {
+        // join tuple不需要复杂考虑，不需要携带额外信息
       } else {  // 其余情况不需要处理 expression tuple
         rc = RC::INTERNAL;
         return rc;

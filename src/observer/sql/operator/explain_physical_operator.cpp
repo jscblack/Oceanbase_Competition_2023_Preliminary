@@ -12,9 +12,9 @@ See the Mulan PSL v2 for more details. */
 // Created by WangYunlai on 2022/12/27.
 //
 
-#include <sstream>
 #include "sql/operator/explain_physical_operator.h"
 #include "common/log/log.h"
+#include <sstream>
 
 using namespace std;
 

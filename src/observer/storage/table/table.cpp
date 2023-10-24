@@ -370,13 +370,6 @@ RC Table::insert_record(Trx *trx, Record &record, bool is_update)
           return RC::UNIQUE_INDEX_CONFLICT;
         }
       }
-
-      // if (rids.size() >= 1) {
-      //   exit(0);
-      //   LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
-      //             name(), index->index_meta().name(), strrc(rc));
-      //   return RC::UNIQUE_INDEX_CONFLICT;
-      // }
     }
   }
 
@@ -670,7 +663,7 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, con
 
   /// 内存中有一份元数据，磁盘文件也有一份元数据。修改磁盘文件时，先创建一个临时文件，写入完成后再rename为正式文件
   /// 这样可以防止文件内容不完整
-  // 创建元数据临时文件
+  /// 创建元数据临时文件
   std::string  tmp_file = table_meta_file(base_dir_.c_str(), name()) + ".tmp";
   std::fstream fs;
   fs.open(tmp_file, std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
@@ -799,11 +792,6 @@ RC Table::update_record(Trx *trx, const Record &record, const char *data)
         // Update调用前，之前可见的版本也不可见了
         return RC::UNIQUE_INDEX_CONFLICT;
       }
-      // if (rids.size() >= 1) {
-      //   LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
-      //             name(), index->index_meta().name(), strrc(rc));
-      //   return RC::UNIQUE_INDEX_CONFLICT;
-      // }
     }
   }
   // 这里需要做update
@@ -823,8 +811,6 @@ RC Table::update_record(Trx *trx, const Record &record, const char *data)
     LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
   }
-  // Losk:??????? 看不懂这里, record.data()难道被上面的record_handler_->update_record修改过?? 感觉并没有,
-  // 那这个record.data()岂不是返回的仍然是旧data?
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) {  // 可能出现了键值重复
     RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false /*error_on_not_exists*/);

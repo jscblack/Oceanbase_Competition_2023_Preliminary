@@ -14,9 +14,6 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/table_get_logical_operator.h"
 
-// TableGetLogicalOperator::TableGetLogicalOperator(Table *table, const std::vector<Field> &fields, bool readonly)
-//     : table_(table), fields_(fields), readonly_(readonly)
-// {}
 TableGetLogicalOperator::TableGetLogicalOperator(Table *table, bool readonly, const std::string &table_alias)
     : table_(table), readonly_(readonly), table_alias_(table_alias)
 {}

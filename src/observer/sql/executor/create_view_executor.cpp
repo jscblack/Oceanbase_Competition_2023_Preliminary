@@ -31,7 +31,7 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
       "create table executor can not run this command: %d",
       static_cast<int>(stmt->type()));
 
-  CreateViewStmt *create_view_stmt = static_cast<CreateViewStmt *>(stmt);
+  CreateViewStmt *create_view_stmt = dynamic_cast<CreateViewStmt *>(stmt);
 
   SelectStmt *select_stmt     = dynamic_cast<SelectStmt *>(create_view_stmt->select_stmt());
   const int   attribute_count = static_cast<int>(select_stmt->query_fields_expressions().size());

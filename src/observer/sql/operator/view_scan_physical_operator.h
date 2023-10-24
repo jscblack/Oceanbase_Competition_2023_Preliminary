@@ -52,6 +52,5 @@ private:
   bool                                     readonly_ = false;
   std::vector<std::unique_ptr<Expression>> predicates_;  // TODO chang predicate to table tuple filter
 
-  // Tuple*                                   tuple_;  // 下层算子传上来的project tuple或者valuelist tuple
   ViewTuple view_tuple_;  // 下层算子传上来的project/valuelist tuple转换为view tuple
 };

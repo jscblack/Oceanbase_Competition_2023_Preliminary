@@ -55,16 +55,12 @@ RC DeletePhysicalOperator::next()
 
     if (table_->table_meta().is_view()) {
       // 拿上来的一定是view tuple
+      if (TupleType::VIEW_TUPLE != tuple->type()) {
+        return RC::INTERNAL;
+      }
       ViewTuple *view_tuple = dynamic_cast<ViewTuple *>(tuple);
-      // TODO: 可以取出所有的table的映射关系
-      // 注意最前面的是最底层的，因此需要reverse遍历映射回原始表
-
-      // TODO: 将当前的table_转换成原始表
-      original_table = const_cast<Table *>(view_tuple->get_view_map().begin()->second);
-
-      // TODO: 通过view_tuple拿上来最原始的row tuple
-      tuple = view_tuple->get_tuple();
-      // TODO: 在原始表中删除相关记录
+      original_table        = const_cast<Table *>(view_tuple->get_view_map().begin()->second);
+      tuple                 = view_tuple->get_tuple();
     }
 
     RowTuple *row_tuple = dynamic_cast<RowTuple *>(tuple);

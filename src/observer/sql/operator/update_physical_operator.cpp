@@ -111,16 +111,13 @@ RC UpdatePhysicalOperator::next()
 
     if (table_->table_meta().is_view()) {
       // 拿上来的一定是view tuple
+      if (TupleType::VIEW_TUPLE != tuple->type()) {
+        return RC::INTERNAL;
+      }
       ViewTuple *view_tuple = dynamic_cast<ViewTuple *>(tuple);
-      // TODO: 可以取出所有的table/field的映射关系
-      // 注意最前面的是最底层的，因此需要reverse遍历映射回原始表
 
-      // TODO: 将当前的table_转换成原始表
       original_table = const_cast<Table *>(view_tuple->get_view_map().begin()->second);
-      // TODO: 将当前要更新的列名转换为原始表的field name
-      // view_tuple->get_all_field_maps();
-      // 反向遍历vector得到map
-      // iter->first是原始表中的field iter->second是view中的field
+
       for (auto iter = view_tuple->get_all_field_maps().rbegin(); iter != view_tuple->get_all_field_maps().rend();
            iter++) {
         for (auto &attr_name : attr_names_) {

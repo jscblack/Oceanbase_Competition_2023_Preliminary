@@ -37,9 +37,9 @@ RC PredicatePushdownRewriter::rewrite(std::unique_ptr<LogicalOperator> &oper, bo
   TableGetLogicalOperator *table_get_oper = nullptr;
   ViewGetLogicalOperator  *view_get_oper  = nullptr;
   if (child_oper->type() == LogicalOperatorType::TABLE_GET) {
-    table_get_oper = static_cast<TableGetLogicalOperator *>(child_oper.get());
-  } else {  // child_oper->type() == LogicalOperatorType::VIEW_GET
-    view_get_oper = static_cast<ViewGetLogicalOperator *>(child_oper.get());
+    table_get_oper = dynamic_cast<TableGetLogicalOperator *>(child_oper.get());
+  } else if (child_oper->type() == LogicalOperatorType::VIEW_GET) {
+    view_get_oper = dynamic_cast<ViewGetLogicalOperator *>(child_oper.get());
   }
 
   std::vector<std::unique_ptr<Expression>> &predicate_oper_exprs = oper->expressions();
@@ -68,7 +68,7 @@ RC PredicatePushdownRewriter::rewrite(std::unique_ptr<LogicalOperator> &oper, bo
     change_made = true;
     if (child_oper->type() == LogicalOperatorType::TABLE_GET) {
       table_get_oper->set_predicates(std::move(pushdown_exprs));
-    } else {  // child_oper->type() == LogicalOperatorType::TABLE_GET
+    } else if (child_oper->type() == LogicalOperatorType::VIEW_GET) {
       view_get_oper->set_predicates(std::move(pushdown_exprs));
     }
   }
@@ -87,7 +87,7 @@ RC PredicatePushdownRewriter::get_exprs_can_pushdown(
   RC rc = RC::SUCCESS;
   // 从下往上递归子表达式，如果某个叶子节点可以下放，那么就把它从当前节点中删除
   if (expr->type() == ExprType::LOGICALCALC) {
-    LogicalCalcExpr *logical_calc_expr = static_cast<LogicalCalcExpr *>(expr.get());
+    LogicalCalcExpr *logical_calc_expr = dynamic_cast<LogicalCalcExpr *>(expr.get());
     // 或 操作的比较，太复杂，现在不考虑
     if (logical_calc_expr->logical_calc_type() != LogiOp::AND_ENUM) {
       return rc;
@@ -119,7 +119,7 @@ RC PredicatePushdownRewriter::get_exprs_can_pushdown(
     }
   } else if (expr->type() == ExprType::COMPARISON) {
     // 如果是比较操作，并且比较的左边或右边是表某个列值，那么就下推下去
-    auto   comparison_expr = static_cast<ComparisonExpr *>(expr.get());
+    auto   comparison_expr = dynamic_cast<ComparisonExpr *>(expr.get());
     CompOp comp            = comparison_expr->comp();
     if (comp != EQUAL_TO) {
       // 简单处理，仅取等值比较。当然还可以取一些范围比较，还有 like % 等操作
