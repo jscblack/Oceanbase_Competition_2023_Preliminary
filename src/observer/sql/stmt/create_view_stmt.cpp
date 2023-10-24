@@ -26,7 +26,6 @@ RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&s
     return rc;
   }
 
-  // SelectExpr *select_expr = new SelectExpr(select_stmt);
   std::vector<std::string> view_fields;
   for (auto &field : create_view.attr_names) {
     view_fields.push_back(field.attribute_name);

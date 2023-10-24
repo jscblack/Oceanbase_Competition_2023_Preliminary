@@ -43,8 +43,7 @@ public:
   const std::string                  &table_name() const { return table_name_; }
   bool                                from_select() const { return from_select_; }
   const std::vector<AttrInfoSqlNode> &attr_infos() const { return attr_infos_; }
-  // Stmt                               *select_stmt() const { return select_stmt_; }
-  Expression *select_expr() const { return select_expr_; }
+  Expression                         *select_expr() const { return select_expr_; }
 
   static RC create(Db *db, const CreateTableSqlNode &create_table, Stmt *&stmt);
 
@@ -52,6 +51,5 @@ private:
   std::string                  table_name_;
   bool                         from_select_ = false;
   std::vector<AttrInfoSqlNode> attr_infos_;
-  // Stmt                        *select_stmt_ = nullptr;  ///< select clause
-  Expression *select_expr_ = nullptr;
+  Expression                  *select_expr_ = nullptr;
 };

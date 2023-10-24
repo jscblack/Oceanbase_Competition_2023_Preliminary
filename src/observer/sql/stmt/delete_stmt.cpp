@@ -47,48 +47,7 @@ RC DeleteStmt::create(Db *db, const DeleteSqlNode &delete_sql, Stmt *&stmt)
     LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
-  // while (table->table_meta().is_view()) {
-  //   // 需要在这里拿到底层的table
-  //   // 更新table与table_name
-  //   // 更新inserts.values
 
-  //   // 这里的value与field_meta里的信息应该是一一对应的
-  //   // 也就是说得拿到view的字段与底层表的字段的对应关系
-  //   // 先搞一个最naive的实现法，即simple视图 一对一 的插入情况（只用更新table）
-  //   const std::string &view_sql = table->table_meta().view_sql();
-  //   ParsedSqlResult    parsed_view_sql_result;
-
-  //   parse(view_sql.c_str(), &parsed_view_sql_result);
-
-  //   if (parsed_view_sql_result.sql_nodes().empty()) {
-  //     LOG_WARN("create view sql parsed result empty");
-  //     return RC::INTERNAL;
-  //   }
-  //   if (parsed_view_sql_result.sql_nodes().size() > 1) {
-  //     LOG_WARN("got multi sql commands but only 1 will be handled");
-  //   }
-
-  //   // 2. view-sql : resolve
-  //   std::unique_ptr<ParsedSqlNode> unique_ptr_sql_node = std::move(parsed_view_sql_result.sql_nodes().front());
-  //   if (unique_ptr_sql_node->flag == SCF_ERROR) {
-  //     return RC::SQL_SYNTAX;
-  //     ;
-  //   }
-  //   ParsedSqlNode *sql_node  = unique_ptr_sql_node.get();
-  //   Stmt          *view_stmt = nullptr;
-  //   RC             rc        = Stmt::create_stmt(db, *sql_node, view_stmt);
-  //   if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
-  //     LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
-  //     return rc;
-  //   }
-
-  //   SelectStmt *view_select_stmt = dynamic_cast<SelectStmt *>(view_stmt);
-  //   if (view_select_stmt->tables().size() > 1) {
-  //     return RC::SCHEMA_VIEW_NOT_SIMPLE;
-  //   }
-  //   table      = view_select_stmt->tables().at(0);
-  //   table_name = table->table_meta().name();
-  // }
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 

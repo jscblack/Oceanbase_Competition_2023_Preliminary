@@ -20,9 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-InsertStmt::InsertStmt(Table *table, std::vector<std::vector<Value>> values, int value_amount, int record_amount)
-    : table_(table), values_(values), value_amount_(value_amount), record_amount_(record_amount)
-{}
+InsertStmt::InsertStmt(Table *table, std::vector<std::vector<Value>> values) : table_(table), values_(values) {}
 
 RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
 {
@@ -47,7 +45,6 @@ RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
 
     // 这里的value与field_meta里的信息应该是一一对应的
     // 也就是说得拿到view的字段与底层表的字段的对应关系
-    // 先搞一个最naive的实现法，即simple视图 一对一 的插入情况（只用更新table）
     const std::string &view_sql = table->table_meta().view_sql();
     ParsedSqlResult    parsed_view_sql_result;
 
@@ -113,14 +110,13 @@ RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
     inserts.values = re_values;
   }
   // 真实表的原始流程
-  // check the fields number
-  // const std::vector<Value> *tmp = inserts.values.data();
   const std::vector<std::vector<Value>> values     = inserts.values;
   const int                             record_num = static_cast<int>(inserts.values.size());
   const int                             value_num  = static_cast<int>(inserts.values[0].size());
+  const TableMeta                      &table_meta = table->table_meta();
 
-  const TableMeta &table_meta = table->table_meta();
-  const int        field_num  = table_meta.field_num() - table_meta.sys_field_num();
+  // check the fields number
+  const int field_num = table_meta.field_num() - table_meta.sys_field_num();
   if (field_num != value_num) {
     LOG_WARN("schema mismatch. value num=%d, field num in schema=%d", value_num, field_num);
     return RC::SCHEMA_FIELD_MISSING;
@@ -134,21 +130,8 @@ RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
       const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
       const AttrType   field_type = field_meta->type();
       const AttrType   value_type = cur_values[i].attr_type();
-
-      // check the value length
-      // 2023年10月17日18:22:03 取消长度检查，改为默认截断
-      // if (field_type == AttrType::CHARS && value_type == AttrType::CHARS) {
-      //   const int field_len = field_meta->len();
-      //   const int value_len = cur_values[i].length();
-
-      //   if (value_len > field_len) {
-      //     LOG_WARN("field length mismatch. table=%s, field=%s, field length=%d, value length=%d",
-      //              table_name, field_meta->name(), field_len, value_len);
-      //     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      //   }
-      // }
-
-      if (field_type != value_type) {  // TODO try to convert the value type to field type
+      // try to convert the value type to field type
+      if (field_type != value_type) {
         if (value_type == AttrType::NONE) {
           // 空值检查
           if (!field_meta->nullable()) {
@@ -171,6 +154,6 @@ RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
   }
 
   // everything alright
-  stmt = new InsertStmt(table, values, value_num, record_num);
+  stmt = new InsertStmt(table, values);
   return RC::SUCCESS;
 }

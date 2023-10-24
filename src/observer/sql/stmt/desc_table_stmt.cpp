@@ -14,11 +14,16 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/stmt/desc_table_stmt.h"
 #include "storage/db/db.h"
+#include "storage/table/table.h"
 
 RC DescTableStmt::create(Db *db, const DescTableSqlNode &desc_table, Stmt *&stmt)
 {
-  if (db->find_table(desc_table.relation_name.c_str()) == nullptr) {
+  Table *table = db->find_table(desc_table.relation_name.c_str());
+  if (table == nullptr) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+  if (table->table_meta().is_view()) {
+    return RC::UNIMPLENMENT;
   }
   stmt = new DescTableStmt(desc_table.relation_name);
   return RC::SUCCESS;

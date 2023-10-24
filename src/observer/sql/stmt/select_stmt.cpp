@@ -12,10 +12,10 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/6/6.
 //
 
-#include "sql/parser/parse.h"
 #include "sql/stmt/select_stmt.h"
 #include "common/lang/string.h"
 #include "common/log/log.h"
+#include "sql/parser/parse.h"
 #include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/having_filter_stmt.h"
 #include "storage/db/db.h"
@@ -29,15 +29,6 @@ SelectStmt::~SelectStmt()
     filter_stmt_ = nullptr;
   }
 }
-
-// static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
-// {
-//   const TableMeta &table_meta = table->table_meta();
-//   const int        field_num  = table_meta.field_num();
-//   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-//     field_metas.push_back(Field(table, table_meta.field(i)));
-//   }
-// }
 
 /**
  * @brief
@@ -150,11 +141,11 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
     } break;
 
     case FIELD: {
-      // 得把真实的表名填入，不能为STAR, 似乎无需特殊处理STAR，因为找不到
-      // if (cond->attr.attribute_name == "*" || cond->attr.relation_name == "*") {
-      //   LOG_WARN("STAR * cannot be subexpr of field");
-      //   return RC::SCHEMA_FIELD_MISSING;
-      // }
+      // 得把真实的表名填入，不能为STAR, 但似乎无需特殊处理STAR，因为目前找不到
+      if (cond->attr.attribute_name == "*" || cond->attr.relation_name == "*") {
+        LOG_WARN("STAR * cannot be subexpr of field");
+        return RC::SCHEMA_FIELD_MISSING;
+      }
       has_field              = true;
       Table           *table = nullptr;
       const FieldMeta *field = nullptr;
@@ -279,37 +270,6 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
   expr->set_alias(cond->alias);  // 默认为""
   return rc;
 }
-
-// /**
-//  * @brief 判别一个expr及其儿子中是否有符合条件的选项，有则返回true; 想法很好但没实现child的访问统一接口，故而搁置
-//  *
-//  * @param expr
-//  * @param judge
-//  * @return true
-//  * @return false
-//  */
-// bool judge_attr_expr(Expression *expr, std::function<bool(ExprType)> judge)
-// {
-//   switch (expr->type()) {
-//     // 没有子表达式
-//     case ExprType::FIELD:
-//     case ExprType::SELECT:
-//     case ExprType::VALUE:
-//     case ExprType::VALUELIST: {
-//       return judge(expr->type());
-//     } break;
-//     case ExprType::AGGREGATION: {
-//       return judge(expr->type()) || judge_attr_expr(expr->child_,judge);
-//     }
-//     case ExprType::ARITHMETIC:
-//     case ExprType::FUNCTION:
-//     case ExprType::CAST:
-//     case ExprType::LOGICALCALC:
-//     case ExprType::COMPARISON:
-//     default:
-//     break;
-//   }
-// }
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
@@ -438,9 +398,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           if (cond.attr.relation_name == "*") {     // 表名为*
             if (cond.attr.attribute_name == "*") {  // *.*
               // 将tables展开
-              // for (Table *table : tables) {
-              //   wildcard_fields(table, query_fields_expressions);
-              // }
               for (int i = 0; i < tables.size(); i++) {
                 if (tables.size() > 1) {
                   wildcard_fields(tables[i], relation_to_alias[i].second, query_fields_expressions);
@@ -498,17 +455,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // group_by + aggregate 相关的语法合法性检测
-  if (select_sql.groups.empty()) {  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
-    // bool has_normal_field = false;
-    // bool has_agg_field    = false;
-    // for (auto query_fields_expr : query_fields_expressions) {
-    //   if (query_fields_expr->type() == ExprType::FIELD) {
-    //     has_normal_field = true;
-    //   }
-    //   if (query_fields_expr->type() == ExprType::AGGREGATION) {
-    //     has_agg_field = true;
-    //   }
-    // }
+  if (select_sql.groups.empty()) {
+    // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
     if (attr_has_aggregation && attr_has_only_field) {
       LOG_WARN("Aggregated-attr cannot appear with normal-attr without group-by");
       return RC::SQL_SYNTAX;
@@ -566,7 +514,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       }
     }
 
-    if (have_agg) {  // 存在聚合时，非聚合属性必须∈{group by id}
+    if (have_agg) {
+      // 存在聚合时，非聚合属性必须∈{group by id}
       // 在有group by语句时，如果有聚合，则非聚合的属性一定要作为group by的属性，
       // 对于非聚合属性，确认是group by的属性
       for (auto field_expr : not_agg_query_fields) {
@@ -600,7 +549,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect group by fields
-  // std::vector<Field>        group_by_fields;
   std::vector<Expression *> group_by_fields_expressions;
   {
     for (int i = 0; i < static_cast<int>(select_sql.groups.size()); i++) {
@@ -660,7 +608,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           return RC::SCHEMA_FIELD_MISSING;
         }
 
-        // group_by_fields.push_back(Field(table, field_meta));
         Expression *field_expr = new FieldExpr(table, field_meta);
         group_by_fields_expressions.emplace_back(field_expr);
       }
@@ -685,10 +632,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     for (int i = static_cast<int>(select_sql.orders.size()) - 1; i >= 0; i--) {
       const RelAttrSqlNode &order_attr = select_sql.orders.at(i).attr;
       bool                  is_asc     = select_sql.orders.at(i).is_asc;
-
-      // if (0 != strcmp(order_attr.aggregation_func.c_str(), "")) {  // 处理一下aggregate的特殊场景
-      //   return RC::SQL_SYNTAX;
-      // }
 
       if (common::is_blank(order_attr.relation_name.c_str()) &&
           0 == strcmp(order_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询*
@@ -774,15 +717,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // everything alright, set select_stmt
   SelectStmt *select_stmt = new SelectStmt();
-  // TODO add expression copy
   {
     select_stmt->tables_.swap(tables);
     select_stmt->query_fields_expressions_.swap(query_fields_expressions);
-    // select_stmt->query_fields_.swap(query_fields);
     select_stmt->filter_stmt_ = filter_stmt;
-    // select_stmt->aggregation_func_.swap(aggregation_func);
     select_stmt->group_by_fields_expressions_.swap(group_by_fields_expressions);
-    // select_stmt->group_by_fields_.swap(group_by_fields);
     select_stmt->having_filter_stmt_ = having_filter_stmt;
     select_stmt->order_by_.swap(order_by);
     select_stmt->has_aggregation_ = attr_has_aggregation;

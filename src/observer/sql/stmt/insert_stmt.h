@@ -29,7 +29,7 @@ class InsertStmt : public Stmt
 {
 public:
   InsertStmt() = default;
-  InsertStmt(Table *table, std::vector<std::vector<Value>> values, int value_amount, int record_amount);
+  InsertStmt(Table *table, std::vector<std::vector<Value>> values);
 
   StmtType type() const override { return StmtType::INSERT; }
 
@@ -37,16 +37,10 @@ public:
   static RC create(Db *db, InsertSqlNode &insert_sql, Stmt *&stmt);
 
 public:
-  Table *table() const { return table_; }
-  // const Value **values() const { return values_; }
+  Table                                 *table() const { return table_; }
   const std::vector<std::vector<Value>> &values() const { return values_; }
-
-  int value_amount() const { return value_amount_; }
-  int record_amount() const { return record_amount_; }
 
 private:
   Table                          *table_ = nullptr;
   std::vector<std::vector<Value>> values_;
-  int                             value_amount_  = 0;  // 现在已经不用了
-  int                             record_amount_ = 0;
 };
