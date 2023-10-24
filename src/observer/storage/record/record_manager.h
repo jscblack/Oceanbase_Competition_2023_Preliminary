@@ -320,7 +320,7 @@ public:
    * @param readonly 是否会修改记录
    * @param visitor  访问记录的回调函数
    */
-  RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
+  RC visit_record(const RID &rid, bool readonly, std::function<RC(Record &)> visitor);
 
 private:
   /**

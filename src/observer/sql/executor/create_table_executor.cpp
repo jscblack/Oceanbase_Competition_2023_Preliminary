@@ -31,7 +31,7 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
       "create table executor can not run this command: %d",
       static_cast<int>(stmt->type()));
 
-  CreateTableStmt *create_table_stmt = static_cast<CreateTableStmt *>(stmt);
+  CreateTableStmt *create_table_stmt = dynamic_cast<CreateTableStmt *>(stmt);
   if (create_table_stmt->from_select()) {
     RC rc = RC::SUCCESS;
     // Expression *select_expr = create_table_stmt->select_expr();

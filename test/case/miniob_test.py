@@ -269,7 +269,7 @@ class MiniObClient:
   测试客户端。使用TCP连接，向服务器发送命令并反馈结果
   '''
 
-  def __init__(self, server_port: int, server_socket: str, time_limit:int = 10):
+  def __init__(self, server_port: int, server_socket: str, time_limit:int = 30):
     if (server_port < 0 or server_port > 65535) and server_socket is None:
       raise(Exception("Invalid server port: " + str(server_port)))
 
@@ -674,13 +674,16 @@ class TestSuite:
     with open(file1, 'r') as f1, open(file2, 'r') as f2:
       lines1 = f1.readlines()
       lines2 = f2.readlines()
-      if len(lines1) != len(lines2):
-        return False
+      # compare line to line
+      # + for wrong result
+      # - for missing result
 
-      line_num = len(lines1)
-      for i in range(line_num):
-        if lines1[i].upper() != lines2[i].upper():
-          _logger.info('file1=%s, file2=%s, line1=%s, line2=%s', file1, file2, lines1[i], lines2[i])
+      line_number=0
+      for usr_line, sys_line in zip(lines1, lines2):
+        line_number += 1
+        if usr_line.upper() != sys_line.upper():
+          _logger.info('+ %s : %d', usr_line, line_number)
+          _logger.info('- %s : %d', sys_line, line_number)
           return False
       return True
 
@@ -973,7 +976,7 @@ def __run_shell_command(command_args):
       return return_code, outputs
 
 def run_cmake(work_dir: str, build_path: str, cmake_args: str):
-  cmake_command = ["cmake", "-B", build_path, "--log-level=WARNING"]
+  cmake_command = ["cmake", "-DCMAKE_BUILD_TYPE=RelWithDebInfo", "-DDEBUG=OFF","-B", build_path, "--log-level=WARNING"]
   if isinstance(cmake_args, str):
     args = cmake_args.split(';')
     for arg in args:

@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/logical_operator.h"
 
 class TableGetLogicalOperator;
+class ViewGetLogicalOperator;
 class PredicateLogicalOperator;
 class ProjectLogicalOperator;
 class AggregateLogicalOperator;
@@ -48,6 +49,7 @@ public:
 
 private:
   RC create_plan(TableGetLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
+  RC create_plan(ViewGetLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   RC create_plan(PredicateLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   RC create_plan(ProjectLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   RC create_plan(AggregateLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);

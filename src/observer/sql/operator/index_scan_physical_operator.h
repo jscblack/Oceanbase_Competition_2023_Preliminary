@@ -26,7 +26,7 @@ class IndexScanPhysicalOperator : public PhysicalOperator
 {
 public:
   IndexScanPhysicalOperator(Table *table, Index *index, bool readonly, const Value *left_value, bool left_inclusive,
-      const Value *right_value, bool right_inclusive);
+      const Value *right_value, bool right_inclusive, const std::string table_alias = "");
 
   virtual ~IndexScanPhysicalOperator() = default;
 
@@ -49,6 +49,7 @@ private:
 private:
   Trx               *trx_            = nullptr;
   Table             *table_          = nullptr;
+  std::string        table_alias_    = "";
   Index             *index_          = nullptr;
   bool               readonly_       = false;
   IndexScanner      *index_scanner_  = nullptr;

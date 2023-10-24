@@ -38,18 +38,8 @@ public:
   const std::vector<std::unique_ptr<Expression>> &expressions() const { return expressions_; }
 
   bool no_table_select() const { return no_table_select_; }
-  // const std::vector<Field>                       &fields() const { return fields_; }
-  // const std::vector<Expression *> &fields_expressions() const { return fields_expresions_; }
 
-  // private:
-  //! 投影映射的字段名称
-  //! 并不是所有的select都会查看表字段，也可能是常量数字、字符串，
-  //! 或者是执行某个函数。所以这里应该是表达式Expression。
-  //! 不过现在简单处理，就使用字段来描述
-  // std::vector<Field> fields_;
-  // std::vector<Expression *> fields_expressions_;
-
-  // 不需要一个新的fields_expressions, 用基类LogicalOperator中的即可
 private:
+  // 不需要一个新的fields_expressions, 用基类LogicalOperator中的即可
   bool no_table_select_ = false;
 };

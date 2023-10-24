@@ -33,7 +33,8 @@ See the Mulan PSL v2 for more details. */
  * @return RC
  */
 RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *cond, bool is_having, Expression *&expr)
+    std::vector<std::pair<std::string, std::string>> &relation_to_alias, const ConditionSqlNode *cond, bool is_having,
+    Expression *&expr)
 {
   RC rc = RC::SUCCESS;
   expr  = nullptr;
@@ -55,6 +56,12 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         return rc;
       }
       expr = new FieldExpr(table, field);
+      for (auto rel_to_ali : relation_to_alias) {
+        if (rel_to_ali.second == cond->attr.relation_name) {
+          expr->set_alias(cond->attr.relation_name + "." + cond->attr.attribute_name);
+          break;
+        }
+      }
     } break;
 
     case SUB_SELECT: {
@@ -77,12 +84,12 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
       if (cond->binary) {
         Expression *left_expr;
         Expression *right_expr;
-        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, left_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Left . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
-        rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->right_cond, is_having, right_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Right . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -94,7 +101,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         }
       } else {
         Expression *sub_expr;
-        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, sub_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, sub_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ArithmeticExpr: Sub . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -118,12 +125,12 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         // 正常双目比较
         Expression *left_expr;
         Expression *right_expr;
-        rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, left_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Left . rc=%d:%s", rc, strrc(rc));
           return rc;
         }
-        rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+        rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->right_cond, is_having, right_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Right . rc=%d:%s", rc, strrc(rc));
           return rc;
@@ -140,7 +147,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
         // TODO: 我只处理exist/not exist这种
         if (cond->comp == CompOp::EXISTS_ENUM || cond->comp == CompOp::NOT_EXISTS_ENUM) {
           Expression *left_expr;
-          rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+          rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, left_expr);
           if (OB_FAIL(rc)) {
             LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Sub . rc=%d:%s", rc, strrc(rc));
             return rc;
@@ -197,7 +204,7 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
               expr     = new AggregationExpr(cond->func, sub_expr);
             }
           } else {
-            rc   = cond_to_expr(db, default_table, tables, sub_cond, is_having, sub_expr);
+            rc   = cond_to_expr(db, default_table, tables, relation_to_alias, sub_cond, is_having, sub_expr);
             expr = new AggregationExpr(cond->func, sub_expr);
           }
         }
@@ -207,15 +214,15 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
             cond->func <= FuncName::DATE_FUNC_NUM) {           // function, 暂不考虑 MAX和MIN
           std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
           Expression                              *first_arg;
-          rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, first_arg);
+          rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, first_arg);
           func_args.push_back(std::unique_ptr<Expression>(first_arg));
           if (cond->right_cond != nullptr) {
             Expression *second_arg;
-            rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, second_arg);
+            rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->right_cond, is_having, second_arg);
             func_args.push_back(std::unique_ptr<Expression>(second_arg));
           }
           rc = FunctionExpr::is_subexpr_legal(cond->func, func_args);
-          if(OB_FAIL(rc)) {
+          if (OB_FAIL(rc)) {
             return rc;
           }
           expr = new FunctionExpr(cond->func, func_args);
@@ -232,12 +239,12 @@ RC cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::string, Ta
       }
       Expression *left_expr;
       Expression *right_expr;
-      rc = cond_to_expr(db, default_table, tables, cond->left_cond, is_having, left_expr);
+      rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->left_cond, is_having, left_expr);
       if (OB_FAIL(rc)) {
         LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Left . rc=%d:%s", rc, strrc(rc));
         return rc;
       }
-      rc = cond_to_expr(db, default_table, tables, cond->right_cond, is_having, right_expr);
+      rc = cond_to_expr(db, default_table, tables, relation_to_alias, cond->right_cond, is_having, right_expr);
       if (OB_FAIL(rc)) {
         LOG_WARN("failed to convert ConditionSqlNode to ComparisonExpr: Right . rc=%d:%s", rc, strrc(rc));
         return rc;
@@ -284,7 +291,8 @@ RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::str
 }
 
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, FilterStmt *&stmt)
+    std::vector<std::pair<std::string, std::string>> &relation_to_alias, const ConditionSqlNode *conditions,
+    FilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt  = nullptr;
@@ -292,7 +300,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     return rc;
   }
   Expression *filter_expr = nullptr;
-  rc                      = cond_to_expr(db, default_table, tables, conditions, false, filter_expr);
+  rc                      = cond_to_expr(db, default_table, tables, relation_to_alias, conditions, false, filter_expr);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to convert ConditionSqlNode to Expression. rc=%d:%s", rc, strrc(rc));
     return rc;
@@ -301,185 +309,3 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
   stmt->filter_expr_ = filter_expr;
   return rc;
 }
-
-// RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-//     const ConditionSqlNode &condition, FilterUnit *&filter_unit)
-// {
-//   RC rc = RC::SUCCESS;
-
-//   CompOp comp = condition.comp;
-//   if (comp < EQUAL_TO || comp >= NO_OP) {
-//     LOG_WARN("invalid compare operator : %d", comp);
-//     return RC::INVALID_ARGUMENT;
-//   }
-
-//   filter_unit         = new FilterUnit;
-//   AttrType type_left  = UNDEFINED;
-//   AttrType type_right = UNDEFINED;
-//   // TODO: 实现exist
-//   switch (condition.left_type) {
-//     case 0: {
-//       // value (expr)
-//       FilterObj filter_obj;
-//       filter_obj.init_expr(condition.left_expr);
-//       filter_unit->set_left(filter_obj);
-//       type_left = filter_obj.expr->value_type();
-//     } break;
-//     case 1: {
-//       // attr
-//       Table           *table = nullptr;
-//       const FieldMeta *field = nullptr;
-//       rc                     = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
-//       if (rc != RC::SUCCESS) {
-//         LOG_WARN("cannot find attr");
-//         return rc;
-//       }
-//       FilterObj filter_obj;
-//       filter_obj.init_expr(new FieldExpr(table, field));
-//       filter_unit->set_left(filter_obj);
-//       type_left = field->type();
-//     } break;
-//     case 2: {
-//       // sub select
-//       Stmt *select_stmt = nullptr;
-//       rc                = SelectStmt::create(db, *condition.left_select, select_stmt);
-//       if (rc != RC::SUCCESS) {
-//         LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
-//         return rc;
-//       }
-//       if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
-//         LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt
-//         *>(select_stmt)->query_fields().size()); return RC::INVALID_ARGUMENT;
-//       }
-//       filter_unit->left().init_expr(new SelectExpr(select_stmt));
-//       type_left = reinterpret_cast<SelectStmt *>(select_stmt)->query_fields()[0].attr_type();
-//     } break;
-//     default: {
-//       delete filter_unit;
-//       LOG_WARN("invalid left_type: %d", condition.left_type);
-//       return RC::INVALID_ARGUMENT;
-//     }
-//   }
-
-//   switch (condition.right_type) {
-//     case 0: {
-//       // value (expr)
-//       FilterObj filter_obj;
-//       filter_obj.init_expr(condition.right_expr);
-//       filter_unit->set_right(filter_obj);
-//       type_right = filter_obj.expr->value_type();
-//     } break;
-//     case 1: {
-//       // attr
-//       Table           *table = nullptr;
-//       const FieldMeta *field = nullptr;
-//       rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
-//       if (rc != RC::SUCCESS) {
-//         LOG_WARN("cannot find attr");
-//         return rc;
-//       }
-//       FilterObj filter_obj;
-//       filter_obj.init_expr(new FieldExpr(table, field));
-//       filter_unit->set_right(filter_obj);
-//       type_right = field->type();
-//     } break;
-//     case 2: {
-//       // sub select
-//       Stmt *select_stmt = nullptr;
-//       rc                = SelectStmt::create(db, *condition.right_select, select_stmt);
-//       if (rc != RC::SUCCESS) {
-//         LOG_WARN("failed to create select statement. rc=%d:%s", rc, strrc(rc));
-//         return rc;
-//       }
-//       if (reinterpret_cast<SelectStmt *>(select_stmt)->query_fields().size() != 1) {
-//         LOG_WARN("invalid select statement. select_stmt->query_fields().size()=%d", reinterpret_cast<SelectStmt
-//         *>(select_stmt)->query_fields().size()); return RC::INVALID_ARGUMENT;
-//       }
-//       filter_unit->right().init_expr(new SelectExpr(select_stmt));
-//       type_right = reinterpret_cast<SelectStmt *>(select_stmt)->query_fields()[0].attr_type();
-//     } break;
-//     default: {
-//       delete filter_unit;
-//       LOG_WARN("invalid right_type: %d", condition.right_type);
-//       return RC::INVALID_ARGUMENT;
-//     }
-//   }
-
-//   filter_unit->set_comp(comp);
-
-//   // like的语法检测, 必须左边是属性(字符串field), 右边是字符串
-//   // 目前应该不需要支持右边是非字符串转成字符串???
-//   if (LIKE_ENUM == comp || NOT_LIKE_ENUM == comp) {
-//     if (condition.left_type == 1 && condition.right_type == 0) {
-//       if (type_left != CHARS || type_right != CHARS) {
-//         delete filter_unit;
-//         LOG_WARN("attr LIKE/NOT LIKE value, attr and value must be CHARS");
-//         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-//       }
-//     } else {  // 不满足 condition.left_is_attr && !condition.right_is_attr
-//       delete filter_unit;
-//       LOG_WARN("LIKE/NOT LIKE must be 'attr LIKE value'");
-//       return RC::SQL_SYNTAX;
-//     }
-//   }
-
-//   // fix: 这个处理可能是多余的，待查证
-//   // 检查两个类型是否能够比较
-//   if (type_left != type_right) {
-//     if (type_left == DATES || type_right == DATES) {
-//       // date conversation
-//       // advance check for date
-//       if (filter_unit->left().expr->type() == ExprType::VALUE &&
-//           filter_unit->right().expr->type() == ExprType::FIELD) {  // left:value, right:attr
-//         if (type_right == DATES) {
-//           // the attr is date type, so we need to convert the value to date type
-//           if (filter_unit->left().expr->value_type() == CHARS) {
-//             rc = dynamic_cast<ValueExpr *>(filter_unit->left().expr)->get_value().auto_cast(DATES);
-//             if (rc != RC::SUCCESS) {
-//               delete filter_unit;
-//               return rc;
-//             }
-//           }
-//         }
-//       } else if (filter_unit->left().expr->type() == ExprType::FIELD &&
-//                  filter_unit->right().expr->type() == ExprType::VALUE) {  // left:attr, right:value
-//         if (type_left == DATES) {
-//           // the attr is date type, so we need to convert the value to date type
-//           if (filter_unit->right().expr->value_type() == CHARS) {
-//             rc = dynamic_cast<ValueExpr *>(filter_unit->right().expr)->get_value().auto_cast(DATES);
-//             if (rc != RC::SUCCESS) {
-//               delete filter_unit;
-//               return rc;
-//             }
-//           }
-//         }
-//       }
-//     } else if (type_left == CHARS && (type_right == FLOATS || type_right == INTS)) {
-//       // left is a string, and right is s a number
-//       // convert the string to number
-//       if (filter_unit->left().expr->type() == ExprType::VALUE) {
-//         // left is a value
-//         rc = dynamic_cast<ValueExpr *>(filter_unit->left().expr)->get_value().str_to_number();
-
-//         if (rc != RC::SUCCESS) {
-//           delete filter_unit;
-//           return rc;
-//         }
-//       }
-//     } else if ((type_left == FLOATS || type_left == INTS) && type_right == CHARS) {
-//       // left is a number, and right is a string
-//       // convert the string to number
-//       if (filter_unit->right().expr->type() == ExprType::VALUE) {
-//         // right is a value
-//         rc = dynamic_cast<ValueExpr *>(filter_unit->right().expr)->get_value().str_to_number();
-
-//         if (rc != RC::SUCCESS) {
-//           delete filter_unit;
-//           return rc;
-//         }
-//       }
-//     }
-//   }
-
-//   return rc;
-// }

@@ -9,6 +9,7 @@
             "args": [
                 "-DDEBUG=ON",
                 "-DENABLE_ASAN=ON",
+                "-DCONCURRENCY=OFF",
                 "--log-level=DEBUG",
                 ".."
             ]

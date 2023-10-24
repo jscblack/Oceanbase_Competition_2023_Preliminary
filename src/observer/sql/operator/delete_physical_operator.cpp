@@ -12,12 +12,12 @@ See the Mulan PSL v2 for more details. */
 // Created by WangYunlai on 2022/6/27.
 //
 
-#include "common/log/log.h"
 #include "sql/operator/delete_physical_operator.h"
+#include "common/log/log.h"
+#include "sql/stmt/delete_stmt.h"
 #include "storage/record/record.h"
 #include "storage/table/table.h"
 #include "storage/trx/trx.h"
-#include "sql/stmt/delete_stmt.h"
 
 RC DeletePhysicalOperator::open(Trx *trx)
 {
@@ -51,10 +51,21 @@ RC DeletePhysicalOperator::next()
       LOG_WARN("failed to get current record: %s", strrc(rc));
       return rc;
     }
+    Table *original_table = table_;
 
-    RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
+    if (table_->table_meta().is_view()) {
+      // 拿上来的一定是view tuple
+      if (TupleType::VIEW_TUPLE != tuple->type()) {
+        return RC::INTERNAL;
+      }
+      ViewTuple *view_tuple = dynamic_cast<ViewTuple *>(tuple);
+      original_table        = const_cast<Table *>(view_tuple->get_view_map().begin()->second);
+      tuple                 = view_tuple->get_tuple();
+    }
+
+    RowTuple *row_tuple = dynamic_cast<RowTuple *>(tuple);
     Record   &record    = row_tuple->record();
-    rc                  = trx_->delete_record(table_, record);
+    rc                  = trx_->delete_record(original_table, record);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to delete record: %s", strrc(rc));
       return rc;

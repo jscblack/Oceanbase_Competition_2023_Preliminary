@@ -57,5 +57,5 @@ protected:
   int         attr_offset_;  // 数据偏移量
   int         attr_len_;     // 数据长度
   bool        nullable_;     // 是否可空（默认可空）
-  bool        visible_;
+  bool        visible_;      // 是否可见（默认可见）
 };

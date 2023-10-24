@@ -26,6 +26,8 @@ static const Json::StaticString FIELD_TABLE_ID("table_id");
 static const Json::StaticString FIELD_TABLE_NAME("table_name");
 static const Json::StaticString FIELD_FIELDS("fields");
 static const Json::StaticString FIELD_INDEXES("indexes");
+static const Json::StaticString FIELD_IS_VIEW("is_view");
+static const Json::StaticString FIELD_VIEW_SQL("view_sql");
 
 TableMeta::TableMeta(const TableMeta &other)
     : table_id_(other.table_id_),
@@ -105,6 +107,76 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
   table_id_ = table_id;
   name_     = name;
+  is_view_  = false;
+  LOG_INFO("Sussessfully initialized table meta. table id=%d, name=%s", table_id, name);
+  return RC::SUCCESS;
+}
+
+RC TableMeta::init(
+    int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[], const std::string &sql)
+{
+  if (common::is_blank(name)) {
+    LOG_ERROR("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+
+  if (field_num <= 0 || nullptr == attributes) {
+    LOG_ERROR("Invalid argument. name=%s, field_num=%d, attributes=%p", name, field_num, attributes);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  RC rc = RC::SUCCESS;
+
+  int field_offset = 0;
+  // 添加系统字段，trxfield，不可见
+  int                      sys_field_num = 0;
+  int                      trx_field_num = 0;
+  const vector<FieldMeta> *trx_fields    = TrxKit::instance()->trx_fields();
+  if (trx_fields != nullptr) {
+    fields_.resize(field_num + trx_fields->size());
+
+    for (size_t i = 0; i < trx_fields->size(); i++) {
+      const FieldMeta &field_meta = (*trx_fields)[i];
+      fields_[i]                  = FieldMeta(
+          field_meta.name(), field_meta.type(), field_offset, field_meta.len(), false /*nullable*/, false /*visible*/);
+      field_offset += field_meta.len();
+    }
+
+    trx_field_num = static_cast<int>(trx_fields->size());
+  } else {
+    fields_.resize(field_num);
+  }
+  sys_field_num += trx_field_num;
+
+  // 添加系统字段，nullfield，不可见
+  // 是一个bitmap，每个bit对应一个字段，表示该字段是否为null
+  // 一个字段占一个bit，使用chars去保存，每个char占8bit，所以需要的长度为ceil(field_num/8)
+  fields_.resize(fields_.size() + 1);
+  int null_field_len     = (field_num + 7) / 8;
+  fields_[sys_field_num] = FieldMeta(
+      "__field_is_null", AttrType::CHARS, field_offset, null_field_len, false /*nullable*/, false /*visible*/);
+  field_offset += 1;
+  sys_field_num += 1;
+
+  // 添加数据字段
+  for (int i = 0; i < field_num; i++) {
+    const AttrInfoSqlNode &attr_info = attributes[i];
+    rc                               = fields_[i + sys_field_num].init(
+        attr_info.name.c_str(), attr_info.type, field_offset, attr_info.length, attr_info.nullable, true /*visible*/);
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("Failed to init field meta. table name=%s, field name: %s", name, attr_info.name.c_str());
+      return rc;
+    }
+
+    field_offset += attr_info.length;
+  }
+
+  record_size_ = field_offset;
+
+  table_id_ = table_id;
+  name_     = name;
+  is_view_  = true;
+  view_sql_ = sql;
   LOG_INFO("Sussessfully initialized table meta. table id=%d, name=%s", table_id, name);
   return RC::SUCCESS;
 }
@@ -136,6 +208,21 @@ int TableMeta::find_field_index_by_name(const char *name) const
   for (const FieldMeta &field : fields_) {
     if (0 == strcmp(field.name(), name)) {
       return i;
+    }
+    i++;
+  }
+  return -1;
+}
+
+int TableMeta::find_field_index_of_user_field_by_name(const char *name) const
+{
+  if (nullptr == name) {
+    return -1;
+  }
+  int i = 0;
+  for (const FieldMeta &field : fields_) {
+    if (0 == strcmp(field.name(), name)) {
+      return i - sys_field_num();
     }
     i++;
   }
@@ -250,6 +337,12 @@ int TableMeta::serialize(std::ostream &ss) const
   }
   table_value[FIELD_INDEXES] = std::move(indexes_value);
 
+  table_value[FIELD_IS_VIEW] = is_view_;
+
+  if (is_view_) {
+    table_value[FIELD_VIEW_SQL] = view_sql_;
+  }
+
   Json::StreamWriterBuilder builder;
   Json::StreamWriter       *writer = builder.newStreamWriter();
 
@@ -336,6 +429,25 @@ int TableMeta::deserialize(std::istream &is)
       }
     }
     indexes_.swap(indexes);
+  }
+
+  const Json::Value &is_view_value = table_value[FIELD_IS_VIEW];
+  if (!is_view_value.isBool()) {
+    LOG_ERROR("Invalid table is_view. json value=%s",is_view_value.toStyledString().c_str());
+    return -1;
+  }
+
+  bool is_view = is_view_value.asBool();
+  is_view_     = is_view;
+
+  if (is_view) {
+    const Json::Value &view_sql_value = table_value[FIELD_VIEW_SQL];
+    if (!view_sql_value.isString()) {
+      LOG_ERROR("Invalid view sql. json value=%s", view_sql_value.toStyledString().c_str());
+      return -1;
+    }
+    std::string view_sql = view_sql_value.asString();
+    view_sql_.swap(view_sql);
   }
 
   return (int)(is.tellg() - old_pos);

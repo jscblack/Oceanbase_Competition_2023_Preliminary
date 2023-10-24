@@ -18,8 +18,3 @@ AggregateLogicalOperator::AggregateLogicalOperator(
     const std::vector<Expression *> &fields_expressions, const std::vector<Expression *> &group_by_fields_expressions)
     : fields_expressions_(fields_expressions), group_by_fields_expressions_(group_by_fields_expressions)
 {}
-
-// AggregateLogicalOperator::AggregateLogicalOperator(const std::vector<std::pair<std::string, Field>> &aggregations,
-//     const std::vector<Field> &fields, const std::vector<Expression *> &fields_expressions)
-//     : aggregations_(aggregations), fields_(fields), fields_expressions_(fields_expressions)
-// {}

@@ -15,11 +15,13 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/update_stmt.h"
 #include "common/log/log.h"
 #include "common/rc.h"
+#include "sql/parser/parse.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+
 UpdateStmt::UpdateStmt(Table *table, const std::vector<std::string> &field_names,
-    const std::vector<ValueOrStmt> &values, FilterStmt *filter_stmt)
-    : table_(table), field_names_(field_names), values_(values), filter_stmt_(filter_stmt)
+    const std::vector<ValueOrStmt> &values, FilterStmt *filter_stmt, Stmt *view_stmt)
+    : table_(table), field_names_(field_names), values_(values), filter_stmt_(filter_stmt), view_stmt_(view_stmt)
 {}
 
 UpdateStmt::~UpdateStmt()
@@ -30,7 +32,7 @@ UpdateStmt::~UpdateStmt()
   }
 }
 
-RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
+RC UpdateStmt::create(Db *db, UpdateSqlNode &update_sql, Stmt *&stmt)
 {
   const char *table_name = update_sql.relation_name.c_str();
   // 检查参数合法
@@ -51,7 +53,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
   }
   // 检查属性名是否合法，value类型是否与attribute类型匹配
 
-  // // check the fields number
+  // check the fields number
   const std::string  *attribute_names = update_sql.attribute_names.data();
   const ComplexValue *complex_values  = update_sql.values.data();
   const int           value_num       = static_cast<int>(update_sql.values.size());
@@ -117,13 +119,46 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
-  FilterStmt *filter_stmt = nullptr;
-  rc                      = FilterStmt::create(db, table, &table_map, update_sql.conditions, filter_stmt);
+  std::vector<std::pair<std::string, std::string>> relation_to_alias;  // placeholder, 兼容select那边用的
+  FilterStmt                                      *filter_stmt = nullptr;
+  rc = FilterStmt::create(db, table, &table_map, relation_to_alias, update_sql.conditions, filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;
   }
 
-  stmt = new UpdateStmt(table, fields, update_values, filter_stmt);
+  // 看一下table是否为视图
+  // 如果是，在这里执行创建视图的sql语句的parse和resolve
+  Stmt *view_stmt = nullptr;
+  if (table->table_meta().is_view()) {
+    // 1. view-sql : parse
+    const std::string &view_sql = table->table_meta().view_sql();
+    ParsedSqlResult    parsed_view_sql_result;
+
+    parse(view_sql.c_str(), &parsed_view_sql_result);
+
+    if (parsed_view_sql_result.sql_nodes().empty()) {
+      LOG_WARN("create view sql parsed result empty");
+      return RC::INTERNAL;
+    }
+    if (parsed_view_sql_result.sql_nodes().size() > 1) {
+      LOG_WARN("got multi sql commands but only 1 will be handled");
+    }
+
+    // 2. view-sql : resolve
+    std::unique_ptr<ParsedSqlNode> unique_ptr_sql_node = std::move(parsed_view_sql_result.sql_nodes().front());
+    if (unique_ptr_sql_node->flag == SCF_ERROR) {
+      return RC::SQL_SYNTAX;
+      ;
+    }
+    ParsedSqlNode *sql_node = unique_ptr_sql_node.get();
+    RC             rc       = Stmt::create_stmt(db, *sql_node, view_stmt);
+    if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
+      LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
+      return rc;
+    }
+  }
+
+  stmt = new UpdateStmt(table, fields, update_values, filter_stmt, view_stmt);
   return rc;
 }

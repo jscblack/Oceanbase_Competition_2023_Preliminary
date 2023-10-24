@@ -28,7 +28,7 @@ RC CreateIndexExecutor::execute(SQLStageEvent *sql_event)
       "create index executor can not run this command: %d",
       static_cast<int>(stmt->type()));
 
-  CreateIndexStmt *create_index_stmt = static_cast<CreateIndexStmt *>(stmt);
+  CreateIndexStmt *create_index_stmt = dynamic_cast<CreateIndexStmt *>(stmt);
 
   Trx   *trx   = session->current_trx();
   Table *table = create_index_stmt->table();

@@ -38,31 +38,25 @@ class UpdateStmt : public Stmt
 {
 public:
   UpdateStmt() = default;
-  // UpdateStmt(
-  //     Table *table, const char **field_names, const UpdateValue *values, int value_amount, FilterStmt *filter_stmt);
   UpdateStmt(Table *table, const std::vector<std::string> &field_names, const std::vector<ValueOrStmt> &values,
-      FilterStmt *filter_stmt);
+      FilterStmt *filter_stmt, Stmt *view_stmt);
   ~UpdateStmt() override;
 
 public:
-  static RC create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt);
+  static RC create(Db *db, UpdateSqlNode &update_sql, Stmt *&stmt);
 
 public:
-  Table *table() const { return table_; }
-  // const char       **field_names() const { return field_names_; }
-  // const UpdateValue *values() const { return values_; }
+  Table                          *table() const { return table_; }
   const std::vector<std::string> &field_names() const { return field_names_; }
   const std::vector<ValueOrStmt> &values() const { return values_; }
-  // int                              value_amount() const { return value_amount_; }
-  FilterStmt *filter_stmt() const { return filter_stmt_; }
-  StmtType    type() const override { return StmtType::UPDATE; }
+  FilterStmt                     *filter_stmt() const { return filter_stmt_; }
+  Stmt                           *view_stmt() const { return view_stmt_; }
+  StmtType                        type() const override { return StmtType::UPDATE; }
 
 private:
-  Table *table_ = nullptr;
-  // const char       **field_names_  = nullptr;
-  // const UpdateValue *values_       = nullptr;
+  Table                   *table_ = nullptr;
   std::vector<std::string> field_names_;
   std::vector<ValueOrStmt> values_;
-  // int                       value_amount_ = 0;
-  FilterStmt *filter_stmt_ = nullptr;
+  FilterStmt              *filter_stmt_ = nullptr;
+  Stmt                    *view_stmt_   = nullptr;
 };

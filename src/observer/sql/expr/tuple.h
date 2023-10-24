@@ -62,6 +62,20 @@ private:
 };
 
 /**
+ * @brief Tuple类型
+ * @ingroup Tuple
+ */
+enum class TupleType
+{
+  ROW_TUPLE,
+  PROJECT_TUPLE,
+  EXPRESSION_TUPLE,
+  VALUELIST_TUPLE,
+  VIEW_TUPLE,
+  JOINED_TUPLE,
+};
+
+/**
  * @brief 元组的抽象描述
  * @ingroup Tuple
  */
@@ -94,6 +108,8 @@ public:
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const = 0;
 
   virtual RC clone(Tuple *&tuple) const = 0;
+
+  virtual TupleType type() const = 0;
 
   virtual std::string to_string() const
   {
@@ -141,6 +157,7 @@ public:
   }
 
   void set_table(const Table *table) { table_ = table; }
+  void set_table_alias(const std::string &table_alias) { table_alias_ = table_alias; }
 
   // void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
   // {
@@ -184,8 +201,24 @@ public:
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
-    const char *table_name = spec.table_name();
-    const char *field_name = spec.field_name();
+    const char       *table_name = spec.table_name();
+    const char       *field_name = spec.field_name();
+    const std::string alias_name = spec.alias();  // 得提取出alias中的table部分，然后比较
+
+    if (std::string("") != alias_name) {
+      size_t      pos = alias_name.find(".");
+      std::string table_alias;
+      if (pos != std::string::npos) {
+        table_alias = alias_name.substr(0, pos);
+        if (table_alias != table_alias_) {
+          return RC::NOTFOUND;
+        }
+      } else {
+        // 找不到table，但又有alias，应该是单表，或者不带表名的别名
+        // table_alias == "";
+      }
+    }
+
     if (0 != strcmp(table_name, table_->name())) {
       return RC::NOTFOUND;
     }
@@ -224,8 +257,9 @@ public:
     RowTuple *row_tuple = new RowTuple();
     Record   *record =
         new Record(*record_);  // 假定data被深拷贝了,但其实得看record是否是data的owner,不知道data的生命周期如何
-    row_tuple->record_ = record;
-    row_tuple->table_  = table_;
+    row_tuple->record_      = record;
+    row_tuple->table_       = table_;
+    row_tuple->table_alias_ = table_alias_;
     // for (const FieldExpr *field_expr : speces_) {
     //   row_tuple->speces_.push_back(new FieldExpr(field_expr->field()));
     // }
@@ -233,15 +267,20 @@ public:
     return RC::SUCCESS;
   }
 
+  TupleType type() const override { return TupleType::ROW_TUPLE; }
+
   Record &record() { return *record_; }
 
   const Record &record() const { return *record_; }
 
   const Table &table() const { return *table_; }
 
+  const Table *get_table() const { return table_; }
+
 private:
-  Record      *record_ = nullptr;
-  const Table *table_  = nullptr;
+  Record      *record_      = nullptr;
+  const Table *table_       = nullptr;
+  std::string  table_alias_ = "";
 
   // 旧版的tuple的field是由query_field一路往后传的，也就是限制了tuple的可选列
   // std::vector<FieldExpr *> speces_;
@@ -269,6 +308,8 @@ public:
   }
 
   void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
+
+  Tuple *get_tuple() { return tuple_; }
 
   // const std::vector<TupleCellSpec *> &get_speces() const { return speces_; }
   // void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
@@ -318,6 +359,8 @@ public:
     tuple = project_tuple;
     return RC::SUCCESS;
   }
+
+  TupleType type() const override { return TupleType::PROJECT_TUPLE; }
 
 public:
   void set_is_func(bool is_func) { is_func_ = is_func; }
@@ -374,6 +417,8 @@ public:
     return RC::INTERNAL;
   }
 
+  TupleType type() const override { return TupleType::EXPRESSION_TUPLE; }
+
 private:
   const std::vector<std::unique_ptr<Expression>> &expressions_;
 };
@@ -410,8 +455,94 @@ public:
     return RC::INTERNAL;
   }
 
+  TupleType type() const override { return TupleType::VALUELIST_TUPLE; }
+
 private:
   std::vector<Value> cells_;
+};
+
+/**
+ * @brief 从视图中查询组成的Tuple
+ * @ingroup Tuple
+ */
+class ViewTuple : public Tuple
+{
+public:
+  ViewTuple()          = default;
+  virtual ~ViewTuple() = default;
+
+  void set_cells(const std::vector<Value> &cells) { cells_ = cells; }
+
+  virtual int cell_num() const override { return static_cast<int>(cells_.size()); }
+
+  virtual RC cell_at(int index, Value &cell) const override
+  {
+    if (index < 0 || index >= cell_num()) {
+      return RC::NOTFOUND;
+    }
+
+    cell = cells_[index];
+    return RC::SUCCESS;
+  }
+
+  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override
+  {
+    const char *table_name = spec.table_name();
+    const char *field_name = spec.field_name();
+    if (0 != strcmp(table_name, table_->name())) {
+      return RC::NOTFOUND;
+    }
+
+    auto ret = table_->table_meta().field(field_name);
+    if (nullptr == ret) {
+      return RC::NOTFOUND;
+    }
+    return cell_at(table_->table_meta().find_field_index_of_user_field_by_name(field_name), cell);
+  }
+
+  RC clone(Tuple *&tuple) const override
+  {
+    ViewTuple *view_tuple = new ViewTuple();
+    view_tuple->table_    = table_;
+    view_tuple->cells_    = cells_;
+    if (view_tuple->tuple_ != nullptr) {
+      tuple_->clone(view_tuple->tuple_);
+    }
+
+    tuple = view_tuple;
+    return RC::SUCCESS;
+  }
+
+  TupleType type() const override { return TupleType::VIEW_TUPLE; }
+
+  void set_table(Table *table) { table_ = table; }
+
+  Table *get_table() { return table_; }
+
+  void set_tuple(Tuple *tuple) { tuple_ = tuple; }
+
+  Tuple *get_tuple() { return tuple_; }
+
+  void add_view_map(const Table *cur_view, const Table *last_view_or_table)
+  {
+    view_map_.emplace_back(cur_view, last_view_or_table);
+  }
+
+  std::vector<std::pair<const Table *, const Table *>> &get_view_map() { return view_map_; }
+
+  void add_all_field_maps(std::map<std::string, std::string> &field_map) { all_field_maps_.emplace_back(field_map); }
+
+  std::vector<std::map<std::string, std::string>> &get_all_field_maps() { return all_field_maps_; }
+
+private:
+  std::vector<Value> cells_;
+  Table             *table_;
+  Tuple             *tuple_;  // 最下层view创建时基于的那个table的Row Tuple
+                              // 强转可以拿到Row Tuple
+                              // 最后拿到Record
+                              // 在视图update/delete时需要用到
+  std::vector<std::pair<const Table *, const Table *>> view_map_;        // 最前面的是最下层的
+  std::vector<std::map<std::string, std::string>>      all_field_maps_;  // 最前面的是最下层的
 };
 
 /**
@@ -450,6 +581,8 @@ public:
 
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
+    // TODO: 自连接时spec无法判断来自左或右
+    // 问题来源应该是是alias的问题，tuplecellsepc没有考虑到alias
     RC rc = left_->find_cell(spec, value);
     if (rc == RC::SUCCESS || rc != RC::NOTFOUND) {
       return rc;
@@ -466,6 +599,8 @@ public:
     tuple = joined_tuple;
     return RC::SUCCESS;
   }
+
+  TupleType type() const override { return TupleType::JOINED_TUPLE; }
 
 private:
   Tuple *left_  = nullptr;

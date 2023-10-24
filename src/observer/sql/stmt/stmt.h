@@ -35,6 +35,7 @@ class Db;
   DEFINE_ENUM_ITEM(INSERT)       \
   DEFINE_ENUM_ITEM(UPDATE)       \
   DEFINE_ENUM_ITEM(DELETE)       \
+  DEFINE_ENUM_ITEM(CREATE_VIEW)  \
   DEFINE_ENUM_ITEM(CREATE_TABLE) \
   DEFINE_ENUM_ITEM(DROP_TABLE)   \
   DEFINE_ENUM_ITEM(CREATE_INDEX) \
@@ -87,6 +88,8 @@ public:
 
 public:
   static RC create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt);
+
+  static RC create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::string &sql);
 
 private:
 };

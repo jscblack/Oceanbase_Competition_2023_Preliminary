@@ -37,7 +37,7 @@ RC DescTableExecutor::execute(SQLStageEvent *sql_event)
       "desc table executor can not run this command: %d",
       static_cast<int>(stmt->type()));
 
-  DescTableStmt *desc_table_stmt = static_cast<DescTableStmt *>(stmt);
+  DescTableStmt *desc_table_stmt = dynamic_cast<DescTableStmt *>(stmt);
 
   SqlResult *sql_result = session_event->sql_result();
 

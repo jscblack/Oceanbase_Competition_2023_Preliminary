@@ -21,12 +21,13 @@ RC PredicateRewriteRule::rewrite(std::unique_ptr<LogicalOperator> &oper, bool &c
   if (child_opers.size() != 1) {
     return RC::SUCCESS;
   }
-
+  // 为什么这里需要先判断childer().size(), 但predicate_pushdown_rewriter是先判断是否为predicate?
+  // 这里是处理作为儿子结点的predicate,predicate_pushdown是处理自己. (有差别吗?)
   auto &child_oper = child_opers.front();
   if (child_oper->type() != LogicalOperatorType::PREDICATE) {
     return RC::SUCCESS;
   }
-
+  // 只负责重写一个表达式的场景
   std::vector<std::unique_ptr<Expression>> &expressions = child_oper->expressions();
   if (expressions.size() != 1) {
     return RC::SUCCESS;
@@ -40,7 +41,7 @@ RC PredicateRewriteRule::rewrite(std::unique_ptr<LogicalOperator> &oper, bool &c
   // 如果仅有的一个子节点是predicate
   // 并且这个子节点可以判断为恒为TRUE，那么可以省略这个子节点，并把他的子节点们（就是孙子节点）接管过来
   // 如果可以判断恒为false，那么就可以删除子节点
-  auto value_expr = static_cast<ValueExpr *>(expr.get());
+  auto value_expr = dynamic_cast<ValueExpr *>(expr.get());
   bool bool_value = value_expr->get_value().get_boolean();
   if (true == bool_value) {
     std::vector<std::unique_ptr<LogicalOperator>> grand_child_opers;

@@ -27,7 +27,9 @@ class Table;
 class TableScanPhysicalOperator : public PhysicalOperator
 {
 public:
-  TableScanPhysicalOperator(Table *table, bool readonly) : table_(table), readonly_(readonly) {}
+  TableScanPhysicalOperator(Table *table, bool readonly, const std::string &table_alias = "")
+      : table_(table), readonly_(readonly), table_alias_(table_alias)
+  {}
 
   virtual ~TableScanPhysicalOperator() = default;
 
@@ -47,9 +49,10 @@ private:
   RC filter(RowTuple &tuple, bool &result);
 
 private:
-  Table                                   *table_    = nullptr;
-  Trx                                     *trx_      = nullptr;
-  bool                                     readonly_ = false;
+  Table                                   *table_       = nullptr;
+  std::string                              table_alias_ = "";
+  Trx                                     *trx_         = nullptr;
+  bool                                     readonly_    = false;
   RecordFileScanner                        record_scanner_;
   Record                                   current_record_;
   RowTuple                                 tuple_;

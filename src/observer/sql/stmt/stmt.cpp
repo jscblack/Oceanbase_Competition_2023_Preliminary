@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/create_index_stmt.h"
 #include "sql/stmt/create_table_stmt.h"
+#include "sql/stmt/create_view_stmt.h"
 #include "sql/stmt/delete_stmt.h"
 #include "sql/stmt/desc_table_stmt.h"
 #include "sql/stmt/drop_table_stmt.h"
@@ -110,6 +111,18 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
     default: {
       LOG_INFO("Command::type %d doesn't need to create statement.", sql_node.flag);
     } break;
+  }
+  return RC::UNIMPLENMENT;
+}
+
+RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt, const std::string &sql)
+{
+  stmt = nullptr;
+
+  if (sql_node.flag == SCF_CREATE_VIEW) {
+    return CreateViewStmt::create(db, sql_node.create_view, stmt, sql);
+  } else {
+    LOG_INFO("Command::type %d doesn't need to create statement with sql.", sql_node.flag);
   }
   return RC::UNIMPLENMENT;
 }

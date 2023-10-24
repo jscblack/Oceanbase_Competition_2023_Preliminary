@@ -31,7 +31,7 @@ using namespace std;
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
-  return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
+  return tuple.find_cell(TupleCellSpec(table_name(), field_name(), alias_.c_str()), value);
 }
 
 RC ValueExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
@@ -161,23 +161,6 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
       result = (cmp_result > 0);
     } break;
     // TODO: IS和IS NOT的比较，不需要cast，直接比较
-    // case IS_ENUM: {
-    //   // null is null
-    //   if (left.is_null() && right.is_null()) {
-    //     result = true;
-    //     break;
-    //   }
-    //   result = (cmp_result == 0);
-    // } break;
-    // case IS_NOT_ENUM: {
-    //   // value is not null
-    //   // null is not value
-    //   if (left.is_null() && right.is_null()) {
-    //     result = false;
-    //     break;
-    //   }
-    //   result = (cmp_result != 0);
-    // } break;
     default: {
       LOG_WARN("unsupported comparison. %d", comp_);
       rc = RC::INTERNAL;
@@ -230,8 +213,8 @@ RC ComparisonExpr::compare_value(const Value &left, const std::vector<Value> &ri
 RC ComparisonExpr::try_get_value(Value &cell) const
 {
   if (left_->type() == ExprType::VALUE && right_->type() == ExprType::VALUE) {
-    ValueExpr   *left_value_expr  = static_cast<ValueExpr *>(left_.get());
-    ValueExpr   *right_value_expr = static_cast<ValueExpr *>(right_.get());
+    ValueExpr   *left_value_expr  = dynamic_cast<ValueExpr *>(left_.get());
+    ValueExpr   *right_value_expr = dynamic_cast<ValueExpr *>(right_.get());
     const Value &left_cell        = left_value_expr->get_value();
     const Value &right_cell       = right_value_expr->get_value();
 
@@ -342,43 +325,6 @@ Expression *ComparisonExpr::clone() const
 {
   return new ComparisonExpr(comp_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>(right_->clone()));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// ConjunctionExpr 时代的眼泪，被LogiCalcExpr取代
-
-// ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &children)
-//     : conjunction_type_(type), children_(std::move(children))
-// {}
-
-// RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
-
-// RC ConjunctionExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
-// {
-//   RC rc = RC::SUCCESS;
-//   if (children_.empty()) {
-//     value.set_boolean(true);
-//     return rc;
-//   }
-
-//   Value tmp_value;
-//   for (const unique_ptr<Expression> &expr : children_) {
-//     rc = expr->get_value(tuples, tmp_value);
-//     if (rc != RC::SUCCESS) {
-//       LOG_WARN("failed to get value by child expression. rc=%s", strrc(rc));
-//       return rc;
-//     }
-//     bool bool_value = tmp_value.get_boolean();
-//     if ((conjunction_type_ == Type::AND && !bool_value) || (conjunction_type_ == Type::OR && bool_value)) {
-//       value.set_boolean(bool_value);
-//       return rc;
-//     }
-//   }
-
-//   bool default_value = (conjunction_type_ == Type::AND);
-//   value.set_boolean(default_value);
-//   return rc;
-// }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -499,7 +445,7 @@ RC SelectExpr::rewrite_expr(Expression *&original_expr, const Tuple *tuple)
   if (original_expr == nullptr) {
     return RC::SUCCESS;
   }
-  const RowTuple *row_tuple = static_cast<const RowTuple *>(tuple);
+  const RowTuple *row_tuple = dynamic_cast<const RowTuple *>(tuple);
   RC              rc        = RC::SUCCESS;
   if (original_expr->type() == ExprType::COMPARISON) {
     // comp节点
@@ -597,7 +543,7 @@ RC SelectExpr::rewrite_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
   // 基于select_stmt_和tuples_，重写select_stmt_，得到rewrited_stmt
   // 需要注意的是，在这里把stmt里面的filter_stmt 与外部已知match的部分给他替换了
   // todo 重写，现在先做无依赖的
-  const RowTuple *row_tuple   = static_cast<const RowTuple *>(tuple);
+  const RowTuple *row_tuple   = dynamic_cast<const RowTuple *>(tuple);
   SelectStmt     *select_stmt = dynamic_cast<SelectStmt *>(rewrited_stmt);
   RC              rc          = RC::SUCCESS;
   // 只要还有filter_unit，就一直处理
@@ -620,7 +566,7 @@ RC SelectExpr::recover_expr(Expression *&rewrited_expr, const Tuple *tuple)
   if (rewrited_expr == nullptr) {
     return RC::SUCCESS;
   }
-  const RowTuple *row_tuple = static_cast<const RowTuple *>(tuple);
+  const RowTuple *row_tuple = dynamic_cast<const RowTuple *>(tuple);
   RC              rc        = RC::SUCCESS;
   if (rewrited_expr->type() == ExprType::COMPARISON) {
     // comp节点
@@ -700,7 +646,7 @@ RC SelectExpr::recover_expr(Expression *&rewrited_expr, const Tuple *tuple)
 
 RC SelectExpr::recover_stmt(Stmt *&rewrited_stmt, const Tuple *tuple)
 {
-  const RowTuple *row_tuple   = static_cast<const RowTuple *>(tuple);
+  const RowTuple *row_tuple   = dynamic_cast<const RowTuple *>(tuple);
   SelectStmt     *select_stmt = dynamic_cast<SelectStmt *>(rewrited_stmt);
   RC              rc          = RC::SUCCESS;
   // 只要还有filter_unit，就一直处理
@@ -888,10 +834,10 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 {
   RC rc = RC::SUCCESS;
   if (func_type_ == FuncName::LENGTH_FUNC_NUM) {
-    if(expr_list_.size() != 1) {
+    if (expr_list_.size() != 1) {
       return RC::FUNC_EXPR_ERROR;
     }
-    // ASSERT(expr_list_.size() == 1, "Function(Length) must have only one arguement");
+
     Expression *expr = expr_list_[0].get();
     if (expr->value_type() != AttrType::CHARS) {
       return RC::FUNC_EXPR_ERROR;
@@ -909,7 +855,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   }
 
   if (func_type_ == FuncName::ROUND_FUNC_NUM) {
-    if(!(expr_list_.size() == 2 || expr_list_.size() == 1)) {
+    if (!(expr_list_.size() == 2 || expr_list_.size() == 1)) {
       return RC::FUNC_EXPR_ERROR;
     }
     // ASSERT(expr_list_.size() == 2 || expr_list_.size() == 1, "Function(Round) must have exact two arguement");
@@ -945,7 +891,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
   }
 
   if (func_type_ == FuncName::DATE_FUNC_NUM) {
-    if(expr_list_.size() != 2) {
+    if (expr_list_.size() != 2) {
       return RC::FUNC_EXPR_ERROR;
     }
     Expression *date_expr = expr_list_[0].get();
@@ -958,7 +904,7 @@ RC FunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
 
     rc = date_str.auto_cast(AttrType::DATES);
     if (OB_FAIL(rc)) {
-      if(rc == RC::VALUE_DATE_INVALID) {
+      if (rc == RC::VALUE_DATE_INVALID) {
         return RC::FUNC_EXPR_ERROR;
       }
       return rc;
@@ -1245,16 +1191,12 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
       // divied by zero
       if (target_type == AttrType::INTS) {
         if (right_value.get_int() == 0) {
-          // NOTE:
-          // 设置为整数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为整数最大值。
           value.set_type(NONE);
         } else {
           value.set_int(left_value.get_int() / right_value.get_int());
         }
       } else {
         if (right_value.get_float() > -EPSILON && right_value.get_float() < EPSILON) {
-          // NOTE:
-          // 设置为浮点数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为浮点数最大值。
           value.set_type(NONE);
         } else {
           value.set_float(left_value.get_float() / right_value.get_float());
@@ -1271,6 +1213,14 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
     } break;
 
     case ArithOp::POSITIVE: {
+      if (target_type == AttrType::INTS) {
+        value.set_int(left_value.get_int());
+      } else {
+        value.set_float(left_value.get_float());
+      }
+    } break;
+
+    case ArithOp::PAREN: {
       if (target_type == AttrType::INTS) {
         value.set_int(left_value.get_int());
       } else {
@@ -1297,7 +1247,7 @@ RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) const
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE) {
+  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE && arithmetic_type_ != PAREN) {
     rc = right_->get_value(tuple, right_value);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
@@ -1319,7 +1269,7 @@ RC ArithmeticExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) c
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE) {
+  if (arithmetic_type_ != POSITIVE && arithmetic_type_ != NEGATIVE && arithmetic_type_ != PAREN) {
     rc = right_->get_value(tuples, right_value);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
@@ -1355,7 +1305,7 @@ RC ArithmeticExpr::try_get_value(Value &value) const
 
 Expression *ArithmeticExpr::clone() const
 {
-  if (arithmetic_type_ == POSITIVE || arithmetic_type_ == NEGATIVE) {
+  if (arithmetic_type_ == POSITIVE || arithmetic_type_ == NEGATIVE || arithmetic_type_ == PAREN) {
     return new ArithmeticExpr(arithmetic_type_, unique_ptr<Expression>(left_->clone()), unique_ptr<Expression>());
   }
 
@@ -1379,8 +1329,6 @@ Expression *AggregationExpr::clone() const
 RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
 {
   if (tuples.empty()) {
-    // LOG_WARN("get value of tuples empty");
-    // return RC::INTERNAL;
     if (agg_type_ == FuncName::COUNT_FUNC_ENUM) {
       value.set_int(0);
     } else {
@@ -1395,20 +1343,12 @@ RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) 
 
   // 强转field expression，判断是否是count(*)
   FieldExpr *child_cast = dynamic_cast<FieldExpr *>(child_.get());
-  if (child_cast->field().meta() == nullptr) {  // FIXME: 这里合并处理了table()是否为空的情况，即目前没有区分*.*  *  t.*
+  if (child_cast->field().meta() == nullptr) {
+    // 这里合并处理了table()是否为空的情况，即目前没有区分*.*  *  t.*
     TupleCellSpec tcs(nullptr, nullptr);
     do_count_aggregate(tuples, value, tcs);
     return RC::SUCCESS;
   }
-
-  // int                                             idx         = 0;
-  // const std::vector<std::unique_ptr<Expression>> &expressions = tpl_cast->expressions();
-  // for (idx = 0; idx < tpl_cast->cell_num(); idx++) {
-  //   if (child_cast->alias(true) == expressions[idx]->alias(true)) {  // FIXME: 不确定这里的判断会不会漏掉情况
-  //     break;
-  //   }
-  // }
-  // LOG_DEBUG("========== idx = %d ========== log by tyh", idx);
 
   TupleCellSpec tcs(child_cast->table_name(), child_cast->field_name());
 
@@ -1437,8 +1377,7 @@ RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &
 
   for (auto t : tuples) {
     Value cur_value;
-    // RC    rc = t->cell_at(idx, cur_value);
-    RC rc = t->find_cell(tcs, cur_value);
+    RC    rc = t->find_cell(tcs, cur_value);
     if (rc != RC::SUCCESS) {
       return rc;
     }
@@ -1452,12 +1391,10 @@ RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &
     return RC::SUCCESS;
   }
 
-  // tuples[0]->cell_at(tcs, value);
   tuples[0]->find_cell(tcs, value);
 
   for (auto t : tuples) {
     Value cur_value;
-    // t->cell_at(idx, cur_value);
     t->find_cell(tcs, cur_value);
     if (cur_value.compare(value) > 0) {
       value = cur_value;
@@ -1474,12 +1411,10 @@ RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &
     return RC::SUCCESS;
   }
 
-  // 检查是否均为null
   bool all_null = true;
   for (auto t : tuples) {
     Value cur_value;
-    // RC    rc = t->cell_at(idx, cur_value);
-    RC rc = t->find_cell(tcs, cur_value);
+    RC    rc = t->find_cell(tcs, cur_value);
     if (rc != RC::SUCCESS) {
       return rc;
     }
@@ -1493,12 +1428,10 @@ RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &
     return RC::SUCCESS;
   }
 
-  // tuples[0]->cell_at(idx, value);
   tuples[0]->find_cell(tcs, value);
 
   for (auto t : tuples) {
     Value cur_value;
-    // t->cell_at(idx, cur_value);
     t->find_cell(tcs, cur_value);
     if (cur_value.compare(value) < 0) {
       value = cur_value;
@@ -1511,15 +1444,13 @@ RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value
 {
   int count = 0;
 
-  if (tcs.table_name() == nullptr && tcs.field_name() == nullptr) {  // count(*)
-    LOG_DEBUG("========== do count(*) ========== log by tyh");
+  if (tcs.table_name() == nullptr && tcs.field_name() == nullptr) {
     count = tuples.size();
   } else {
     // 检查是否为空
     if (!tuples.empty()) {
       for (auto t : tuples) {
         Value cur_value;
-        // t->cell_at(idx, cur_value);
         t->find_cell(tcs, cur_value);
         if (!cur_value.is_null()) {
           count++;
@@ -1545,7 +1476,6 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
   AttrType attr_type;
   for (auto t : tuples) {
     Value cur_value;
-    // t->cell_at(idx, cur_value);
     t->find_cell(tcs, cur_value);
     if (!cur_value.is_null()) {
       attr_type = cur_value.attr_type();
@@ -1565,7 +1495,6 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
     int sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      // t->cell_at(idx, cur_value);
       t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         sum += cur_value.get_int();
@@ -1581,7 +1510,6 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
     float sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      // t->cell_at(idx, cur_value);
       t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         sum += cur_value.get_float();
@@ -1593,7 +1521,6 @@ RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &
     float sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      // t->cell_at(idx, cur_value);
       t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         cur_value.str_to_number();
@@ -1627,7 +1554,6 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
   AttrType attr_type;
   for (auto t : tuples) {
     Value cur_value;
-    // t->cell_at(idx, cur_value);
     t->find_cell(tcs, cur_value);
     if (!cur_value.is_null()) {
       all_null  = false;
@@ -1645,7 +1571,6 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
     int sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      // t->cell_at(idx, cur_value);
       t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         sum += cur_value.get_int();
@@ -1656,7 +1581,6 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
     float sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      // t->cell_at(idx, cur_value);
       t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         sum += cur_value.get_float();
@@ -1667,7 +1591,6 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
     float sum = 0;
     for (auto t : tuples) {
       Value cur_value;
-      // t->cell_at(idx, cur_value);
       t->find_cell(tcs, cur_value);
       if (!cur_value.is_null()) {
         cur_value.str_to_number();
@@ -1686,315 +1609,3 @@ RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &
 
   return RC::SUCCESS;
 }
-
-// 废弃代码*********************************************************BEGIN
-// RC AggregationExpr::get_value(const std::vector<Tuple *> &tuples, Value &value) const
-// {
-//   if (tuples.empty()) {
-//     LOG_WARN("get value of tuples empty");
-//     return RC::INTERNAL;
-//   }
-
-//   Tuple        *tpl      = tuples.front();
-//   ProjectTuple *tpl_cast = dynamic_cast<ProjectTuple *>(tpl);
-
-//   if (field_.table() != nullptr && field_.meta() == nullptr) {  // 特殊判断count(*)
-//     do_count_aggregate(tuples, value, -1);
-//     return RC::SUCCESS;
-//   }
-
-//   int                                 idx    = 0;
-//   const std::vector<TupleCellSpec *> &speces = tpl_cast->get_speces();
-//   for (idx = 0; idx < speces.size(); idx++) {
-//     LOG_DEBUG("========== field_.table_name() = %s ==========",field_.table_name());
-//     LOG_DEBUG("========== fields_[idx].table_name() = %s ==========",speces[idx]->table_name());
-//     LOG_DEBUG("========== field_.field_name() = %s ==========",field_.field_name());
-//     LOG_DEBUG("========== fields_[idx].field_name() = %s ==========",speces[idx]->field_name());
-//     if (strcmp(field_.table_name(), speces[idx]->table_name()) == 0 &&
-//         strcmp(field_.field_name(), speces[idx]->field_name()) == 0) {
-//       // potential bug: field_.field_name()不一定是直接返回field_meta.field_name()
-//       // 基本确认目前不是bug，field_meta()如果为nullptr只是为了标记tuple schema的 '*'
-//       break;
-//     }
-//   }
-
-//   LOG_DEBUG("========== idx = %d ==========", idx);
-
-//   RC rc = RC::SUCCESS;
-//   if (aggregation_func_ == "MAX") {
-//     rc = do_max_aggregate(tuples, value, idx);
-//   } else if (aggregation_func_ == "MIN") {
-//     rc = do_min_aggregate(tuples, value, idx);
-//   } else if (aggregation_func_ == "COUNT") {
-//     rc = do_count_aggregate(tuples, value, idx);
-//   } else if (aggregation_func_ == "AVG") {
-//     rc = do_avg_aggregate(tuples, value, idx);
-//   } else if (aggregation_func_ == "SUM") {
-//     rc = do_sum_aggregate(tuples, value, idx);
-//   } else {
-//     rc = RC::INVALID_ARGUMENT;
-//   }
-//   return rc;
-// }
-
-// Expression *AggregationExpr::clone() const { return new AggregationExpr(field_, aggregation_func_); }
-
-// RC AggregationExpr::do_max_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
-// {
-//   LOG_DEBUG("========== In AggregationExpr::do_max_aggregate(const std::vector<Tuple*> &tuples, Value &value)
-//   ==========");
-
-//   // 检查是否为空
-//   if (tuples.empty()) {
-//     value.set_type(field_.attr_type());
-//     return RC::SUCCESS;
-//   }
-
-//   // 检查是否均为null
-//   bool all_null = true;
-//   for (auto t : tuples) {
-//     Value cur_value;
-//     RC    rc = t->cell_at(idx, cur_value);
-//     if (rc != RC::SUCCESS) {
-//       return rc;
-//     }
-//     if (!cur_value.is_null()) {
-//       all_null = false;
-//       break;
-//     }
-//   }
-//   if (all_null) {
-//     value.set_type(AttrType::NONE);
-//     return RC::SUCCESS;
-//   }
-
-//   tuples[0]->cell_at(idx, value);
-
-//   for (auto t : tuples) {
-//     Value cur_value;
-//     t->cell_at(idx, cur_value);
-//     if (cur_value.compare(value) > 0) {
-//       value = cur_value;
-//     }
-//   }
-// }
-
-// RC AggregationExpr::do_min_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
-// {
-//   LOG_DEBUG("========== In AggregationExpr::do_min_aggregate(const std::vector<Tuple*> &tuples, Value &value)
-//   ==========");
-
-//   // 检查是否为空
-//   if (tuples.empty()) {
-//     value.set_type(field_.attr_type());
-//     return RC::SUCCESS;
-//   }
-
-//   // 检查是否均为null
-//   bool all_null = true;
-//   for (auto t : tuples) {
-//     Value cur_value;
-//     RC    rc = t->cell_at(idx, cur_value);
-//     if (rc != RC::SUCCESS) {
-//       return rc;
-//     }
-//     if (!cur_value.is_null()) {
-//       all_null = false;
-//       break;
-//     }
-//   }
-//   if (all_null) {
-//     value.set_type(AttrType::NONE);
-//     return RC::SUCCESS;
-//   }
-
-//   tuples[0]->cell_at(idx, value);
-
-//   for (auto t : tuples) {
-//     Value cur_value;
-//     t->cell_at(idx, cur_value);
-//     if (cur_value.compare(value) < 0) {
-//       value = cur_value;
-//     }
-//   }
-// }
-
-// RC AggregationExpr::do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
-// {
-//   LOG_DEBUG("========== In AggregationExpr::do_count_aggregate(const std::vector<Tuple*> &tuples, Value &value)
-//   ==========");
-
-//   int count = 0;
-
-//   if (idx == -1) {  // count(*)
-//     LOG_DEBUG("========== do_count(*) ==========");
-//     count = tuples.size();
-//   } else {
-//     // 检查是否为空
-//     if (!tuples.empty()) {
-//       for (auto t : tuples) {
-//         Value cur_value;
-//         t->cell_at(idx, cur_value);
-//         if (!cur_value.is_null()) {
-//           count++;
-//         }
-//       }
-//     }
-//   }
-
-//   value.set_int(count);
-//   return RC::SUCCESS;
-// }
-
-// RC AggregationExpr::do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
-// {
-//   LOG_DEBUG("========== In AggregationExpr::do_avg_aggregate(const std::vector<Tuple*> &tuples, Value &value)
-//   ==========");
-
-//   // 检查是否为空
-//   if (tuples.empty()) {
-//     value.set_type(field_.attr_type());
-//     return RC::SUCCESS;
-//   }
-
-//   // 检查是否均为null
-//   bool all_null = true;
-//   for (auto t : tuples) {
-//     Value cur_value;
-//     t->cell_at(idx, cur_value);
-//     if (!cur_value.is_null()) {
-//       all_null = false;
-//       break;
-//     }
-//   }
-//   if (all_null) {
-//     value.set_type(AttrType::NONE);
-//     return RC::SUCCESS;
-//   }
-
-//   int   cnt = 0;
-//   Value attr_value;
-//   tuples[0]->cell_at(idx, attr_value);
-//   AttrType attr_type = attr_value.attr_type();
-//   if (attr_type == INTS) {
-//     int sum = 0;
-//     for (auto t : tuples) {
-//       Value cur_value;
-//       t->cell_at(idx, cur_value);
-//       if (!cur_value.is_null()) {
-//         sum += cur_value.get_int();
-//         cnt++;
-//       }
-//     }
-//     if (sum % cnt == 0) {
-//       value.set_int(sum / cnt);
-//     } else {
-//       value.set_float(static_cast<float>(sum) / cnt);
-//     }
-//   } else if (attr_type == FLOATS) {
-//     float sum = 0;
-//     for (auto t : tuples) {
-//       Value cur_value;
-//       t->cell_at(idx, cur_value);
-//       if (!cur_value.is_null()) {
-//         sum += cur_value.get_float();
-//         cnt++;
-//       }
-//     }
-//     value.set_float(sum / cnt);
-//   } else if (attr_type == CHARS) {
-//     for (auto t : tuples) {
-//       float sum = 0;
-//       Value cur_value;
-//       t->cell_at(idx, cur_value);
-//       if (!cur_value.is_null()) {
-//         cur_value.str_to_number();
-//         if (cur_value.attr_type() == INTS) {
-//           sum += cur_value.get_int();
-//           cnt++;
-//         } else {
-//           sum += cur_value.get_float();
-//           cnt++;
-//         }
-//       }
-//       value.set_float(sum / cnt);
-//     }
-//   } else {  // 其余类型无法求和
-//     return RC::INVALID_ARGUMENT;
-//   }
-
-//   return RC::SUCCESS;
-// }
-
-// RC AggregationExpr::do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, int idx) const
-// {
-//   LOG_DEBUG("========== In AggregationExpr::do_sum_aggregate(const std::vector<Tuple*> &tuples, Value &value)
-//   ==========");
-
-//   // 检查是否为空
-//   if (tuples.empty()) {
-//     value.set_type(field_.attr_type());
-//     return RC::SUCCESS;
-//   }
-
-//   // 检查是否均为null
-//   bool all_null = true;
-//   for (auto t : tuples) {
-//     Value cur_value;
-//     t->cell_at(idx, cur_value);
-//     if (!cur_value.is_null()) {
-//       all_null = false;
-//       break;
-//     }
-//   }
-//   if (all_null) {
-//     value.set_type(AttrType::NONE);
-//     return RC::SUCCESS;
-//   }
-
-//   Value attr_value;
-//   tuples[0]->cell_at(idx, attr_value);
-//   AttrType attr_type = attr_value.attr_type();
-//   if (attr_type == INTS) {
-//     int sum = 0;
-//     for (auto t : tuples) {
-//       Value cur_value;
-//       t->cell_at(idx, cur_value);
-//       if (!cur_value.is_null()) {
-//         sum += cur_value.get_int();
-//       }
-//     }
-//     value.set_int(sum);
-//   } else if (attr_type == FLOATS) {
-//     float sum = 0;
-//     for (auto t : tuples) {
-//       Value cur_value;
-//       t->cell_at(idx, cur_value);
-//       if (!cur_value.is_null()) {
-//         sum += cur_value.get_float();
-//       }
-//     }
-//     value.set_float(sum);
-//   } else if (attr_type == CHARS) {
-//     for (auto t : tuples) {
-//       float sum = 0;
-//       Value cur_value;
-//       t->cell_at(idx, cur_value);
-//       if (!cur_value.is_null()) {
-//         cur_value.str_to_number();
-//         if (cur_value.attr_type() == INTS) {
-//           sum += cur_value.get_int();
-//         } else {
-//           sum += cur_value.get_float();
-//         }
-//       }
-//       value.set_float(sum);
-//     }
-//   } else {  // 其余类型无法求和
-//     return RC::INVALID_ARGUMENT;
-//   }
-
-//   return RC::SUCCESS;
-// }
-
-// 废弃代码*********************************************************END

@@ -37,7 +37,7 @@ RC ShowIndexExecutor::execute(SQLStageEvent *sql_event)
       "show index executor can not run this command: %d",
       static_cast<int>(stmt->type()));
 
-  ShowIndexStmt *show_index_stmt = static_cast<ShowIndexStmt *>(stmt);
+  ShowIndexStmt *show_index_stmt = dynamic_cast<ShowIndexStmt *>(stmt);
 
   SqlResult *sql_result = session_event->sql_result();
 

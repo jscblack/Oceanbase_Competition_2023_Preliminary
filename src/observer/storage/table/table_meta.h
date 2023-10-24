@@ -39,6 +39,9 @@ public:
 
   RC init(int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[]);
 
+  RC init(
+      int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[], const std::string &sql);
+
   RC add_index(const IndexMeta &index);
 
 public:
@@ -48,9 +51,12 @@ public:
   const FieldMeta              *field(int index) const;
   const FieldMeta              *field(const char *name) const;
   int                           find_field_index_by_name(const char *name) const;
+  int                           find_field_index_of_user_field_by_name(const char *name) const;
   const FieldMeta              *find_field_by_offset(int offset) const;
   const std::vector<FieldMeta> *field_metas() const { return &fields_; }
   bool                          is_field_null(const char *data, const char *field_name) const;
+  bool                          is_view() const { return is_view_; }
+  const std::string            &view_sql() const { return view_sql_; }
 
   auto             trx_fields() const -> const std::pair<const FieldMeta *, int>;
   const FieldMeta *null_field() const;
@@ -82,4 +88,7 @@ protected:
   std::vector<IndexMeta> indexes_;
 
   int record_size_ = 0;
+
+  bool        is_view_;
+  std::string view_sql_;
 };

@@ -114,8 +114,6 @@ bool IndexMeta::is_unique() const { return type_ == IndexType::Unique; }
 
 const char *IndexMeta::name() const { return name_.c_str(); }
 
-// const char *IndexMeta::field() const { return field_.c_str(); }
-
 const std::vector<std::string> &IndexMeta::fields() const { return fields_; }
 
 void IndexMeta::desc(std::ostream &os) const

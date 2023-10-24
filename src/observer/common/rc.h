@@ -49,6 +49,7 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(SCHEMA_FIELD_MISSING)        \
   DEFINE_RC(SCHEMA_FIELD_TYPE_MISMATCH)  \
   DEFINE_RC(SCHEMA_INDEX_NAME_REPEAT)    \
+  DEFINE_RC(SCHEMA_VIEW_NOT_SIMPLE)      \
   DEFINE_RC(IOERR_READ)                  \
   DEFINE_RC(IOERR_WRITE)                 \
   DEFINE_RC(IOERR_ACCESS)                \
@@ -79,6 +80,7 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(VALUE_DATE_INVALID)          \
   DEFINE_RC(VALUE_CAST_FAILED)           \
   DEFINE_RC(VALUE_NOT_NUMBER)            \
+  DEFINE_RC(CONCURRENCY_UPDATE_FAIL)     \
   DEFINE_RC(SUBQUERY_EXEC_FAILED)        \
   DEFINE_RC(LOGBUF_FULL)                 \
   DEFINE_RC(EXPR_TYPE_MISMATCH)          \

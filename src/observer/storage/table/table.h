@@ -51,6 +51,18 @@ public:
       const AttrInfoSqlNode attributes[]);
 
   /**
+   * 创建一个视图
+   * @param path 元数据保存的文件(完整路径)
+   * @param name 表名
+   * @param base_dir 表数据存放的路径
+   * @param attribute_count 字段个数
+   * @param attributes 字段：只有name有效
+   *
+   */
+  RC create(int32_t table_id, const char *path, const char *name, const char *base_dir, int attribute_count,
+      const AttrInfoSqlNode attributes[], const std::string &sql);
+
+  /**
    * 删除一个表
    * @param path 元数据保存的文件(完整路径)
    */
@@ -77,13 +89,13 @@ public:
    * @details 在表文件和索引中插入关联数据。这里只管在表中插入数据，不关心事务相关操作。
    * @param record[in/out] 传入的数据包含具体的数据，插入成功会通过此字段返回RID
    */
-  RC insert_record(Record &record);
+  RC insert_record(Trx *trx, Record &record, bool is_update);
   RC delete_record(const Record &record);
   /**
    * @brief 在当前的表中更新一条记录
    */
-  RC update_record(const Record &record, const char *data);
-  RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
+  RC update_record(Trx *trx, const Record &record, const char *data);
+  RC visit_record(const RID &rid, bool readonly, std::function<RC(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);
 
   RC recover_insert_record(Record &record);

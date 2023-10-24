@@ -122,6 +122,78 @@ RC Table::create(int32_t table_id, const char *path, const char *name, const cha
   return rc;
 }
 
+RC Table::create(int32_t table_id, const char *path, const char *name, const char *base_dir, int attribute_count,
+    const AttrInfoSqlNode attributes[], const std::string &sql)
+{
+  if (table_id < 0) {
+    LOG_WARN("invalid table id. table_id=%d, table_name=%s", table_id, name);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  if (common::is_blank(name)) {
+    LOG_WARN("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+  LOG_INFO("Begin to create table %s:%s", base_dir, name);
+
+  if (attribute_count <= 0 || nullptr == attributes) {
+    LOG_WARN("Invalid arguments. table_name=%s, attribute_count=%d, attributes=%p", name, attribute_count, attributes);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  RC rc = RC::SUCCESS;
+
+  // 使用 table_name.table记录一个表的元数据
+  // 判断表文件是否已经存在
+  int fd = ::open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+  if (fd < 0) {
+    if (EEXIST == errno) {
+      LOG_ERROR("Failed to create table file, it has been created. %s, EEXIST, %s", path, strerror(errno));
+      return RC::SCHEMA_TABLE_EXIST;
+    }
+    LOG_ERROR("Create table file failed. filename=%s, errmsg=%d:%s", path, errno, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  close(fd);
+
+  // 创建文件
+  if ((rc = table_meta_.init(table_id, name, attribute_count, attributes, sql)) != RC::SUCCESS) {
+    LOG_ERROR("Failed to init table meta. name:%s, ret:%d", name, rc);
+    return rc;  // delete table file
+  }
+
+  std::fstream fs;
+  fs.open(path, std::ios_base::out | std::ios_base::binary);
+  if (!fs.is_open()) {
+    LOG_ERROR("Failed to open file for write. file name=%s, errmsg=%s", path, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  // 记录元数据到文件中
+  table_meta_.serialize(fs);
+  fs.close();
+
+  std::string        data_file = table_data_file(base_dir, name);
+  BufferPoolManager &bpm       = BufferPoolManager::instance();
+  rc                           = bpm.create_file(data_file.c_str());
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to create disk buffer pool of data file. file name=%s", data_file.c_str());
+    return rc;
+  }
+
+  rc = init_record_handler(base_dir);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to create table %s due to init record handler failed.", data_file.c_str());
+    // don't need to remove the data_file
+    return rc;
+  }
+
+  base_dir_ = base_dir;
+  LOG_INFO("Successfully create table %s:%s", base_dir, name);
+  return rc;
+}
+
 RC Table::drop(const char *path)
 {
   LOG_INFO("Begin to drop table %s", name());
@@ -213,7 +285,7 @@ RC Table::open(const char *meta_file, const char *base_dir)
   return rc;
 }
 
-RC Table::insert_record(Record &record)
+RC Table::insert_record(Trx *trx, Record &record, bool is_update)
 {
   RC rc = RC::SUCCESS;
   // 检查索引中是否有存在的项
@@ -245,9 +317,9 @@ RC Table::insert_record(Record &record)
       // 如果有，那就不构成重复
       for (auto rid : rids) {
         RecordPageHandler record_page_handler;
+        Record            tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, false /*readonly*/, &tmp_record);
         record_page_handler.cleanup();
-        Record tmp_record;
-        rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
         if (rc != RC::SUCCESS) {
           LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
                       name(), strrc(rc));
@@ -260,10 +332,43 @@ RC Table::insert_record(Record &record)
         }
       }
 
-      if (rids.size() >= 1) {
-        LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
-                  name(), index->index_meta().name(), strrc(rc));
-        return RC::UNIQUE_INDEX_CONFLICT;
+      int visible_counter = 0;
+      for (auto rid : rids) {
+        RecordPageHandler record_page_handler;
+        Record            tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, false /*readonly*/, &tmp_record);
+        record_page_handler.cleanup();
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
+                      name(), strrc(rc));
+          return rc;
+        }
+        if (nullptr != trx) {
+          rc = trx->visit_record(this, tmp_record, true);
+          if (rc == RC::SUCCESS) {  // 可见
+            visible_counter++;
+          }
+        } else {
+          visible_counter++;  // 兼容load data的设计
+        }
+      }
+
+      if (is_update) {
+        if (visible_counter == 1) {
+          // 第一次update调用的insert环节，此前当前最新版本没有进入operationSet，所以能看到一个版本
+          // 成功进入后续的插入索引环节
+        } else {
+          if (visible_counter == 0) {
+            ASSERT(false, "insert new record when update, there must be an old visible record.");
+            exit(0);
+            return RC::INTERNAL;
+          }
+          return RC::UNIQUE_INDEX_CONFLICT;
+        }
+      } else {
+        if (visible_counter >= 1) {
+          return RC::UNIQUE_INDEX_CONFLICT;
+        }
       }
     }
   }
@@ -276,6 +381,7 @@ RC Table::insert_record(Record &record)
 
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) {  // 可能出现了键值重复
+    exit(0);                // 不知道如何处理
     RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false /*error_on_not_exists*/);
     if (rc2 != RC::SUCCESS) {
       LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
@@ -290,7 +396,7 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
-RC Table::visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor)
+RC Table::visit_record(const RID &rid, bool readonly, std::function<RC(Record &)> visitor)
 {
   return record_handler_->visit_record(rid, readonly, visitor);
 }
@@ -301,9 +407,10 @@ RC Table::get_record(const RID &rid, Record &record)
   char     *record_data = (char *)malloc(record_size);
   ASSERT(nullptr != record_data, "failed to malloc memory. record data size=%d", record_size);
 
-  auto copier = [&record, record_data, record_size](Record &record_src) {
+  auto copier = [&record, record_data, record_size](Record &record_src) -> RC {
     memcpy(record_data, record_src.data(), record_size);
     record.set_rid(record_src.rid());
+    return RC::SUCCESS;
   };
   RC rc = record_handler_->visit_record(rid, true /*readonly*/, copier);
   if (rc != RC::SUCCESS) {
@@ -556,7 +663,7 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> fields_meta, con
 
   /// 内存中有一份元数据，磁盘文件也有一份元数据。修改磁盘文件时，先创建一个临时文件，写入完成后再rename为正式文件
   /// 这样可以防止文件内容不完整
-  // 创建元数据临时文件
+  /// 创建元数据临时文件
   std::string  tmp_file = table_meta_file(base_dir_.c_str(), name()) + ".tmp";
   std::fstream fs;
   fs.open(tmp_file, std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
@@ -602,7 +709,7 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
-RC Table::update_record(const Record &record, const char *data)
+RC Table::update_record(Trx *trx, const Record &record, const char *data)
 {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
@@ -651,9 +758,9 @@ RC Table::update_record(const Record &record, const char *data)
       rids.remove_if([&record](const RID &rid) { return rid == record.rid(); });
       for (auto rid : rids) {
         RecordPageHandler record_page_handler;
-        record_page_handler.cleanup();
-        Record tmp_record;
+        Record            tmp_record;
         rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
+        record_page_handler.cleanup();
         if (rc != RC::SUCCESS) {
           LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
                       name(), strrc(rc));
@@ -665,9 +772,24 @@ RC Table::update_record(const Record &record, const char *data)
           }
         }
       }
-      if (rids.size() >= 1) {
-        LOG_ERROR("Found duplicated key in unique index. table name=%s, index name=%s, rc=%s",
-                  name(), index->index_meta().name(), strrc(rc));
+      int visible_counter = 0;
+      for (auto rid : rids) {
+        RecordPageHandler record_page_handler;
+        Record            tmp_record;
+        rc = record_handler_->get_record(record_page_handler, &rid, true /*readonly*/, &tmp_record);
+        record_page_handler.cleanup();
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get record from record handler. table name=%s, rc=%s",
+                      name(), strrc(rc));
+          return rc;
+        }
+        rc = trx->visit_record(this, tmp_record, true);
+        if (rc == RC::SUCCESS) {  // 可见
+          visible_counter++;
+        }
+      }
+      if (visible_counter >= 1) {
+        // Update调用前，之前可见的版本也不可见了
         return RC::UNIQUE_INDEX_CONFLICT;
       }
     }

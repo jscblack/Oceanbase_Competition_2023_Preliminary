@@ -30,6 +30,7 @@ TrxKit *TrxKit::create(const char *name)
 {
   if (common::is_blank(name) || 0 == strcasecmp(name, "vacuous")) {
     return new VacuousTrxKit();
+    // return new MvccTrxKit();
   }
 
   if (0 == strcasecmp(name, "mvcc")) {

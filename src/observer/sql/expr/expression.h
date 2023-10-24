@@ -21,22 +21,11 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "sql/parser/value.h"
 #include "sql/stmt/stmt.h"
-// #include "sql/stmt/select_stmt.h"
 #include "storage/field/field.h"
 
 class Tuple;
 class FilterStmt;
 class TupleCellSpec;
-
-/**
-//  * @brief 判别一个expr及其儿子中是否有符合条件的选项，有则返回true
-//  *
-//  * @param expr
-//  * @param judge
-//  * @return true
-//  * @return false
-//  */
-// bool judge_attr_expr(Expression *expr, std::function<bool(ExprType)> judge);
 
 /**
  * @defgroup Expression
@@ -158,13 +147,11 @@ public:
   /**
    * @brief 表达式在表头的输出，根据with_table_name来决定是否返回表名（单表时忽略所有表名）
    */
-  virtual const std::string alias(bool with_table_name) const
-  {
-    ASSERT(false, "Expr::const std::string alias(bool with_table_name) const: UNIMPLEMENT");
-    return "";
-  };
+  virtual const std::string alias(bool with_table_name) const = 0;
 
+protected:
   std::string alias_ = "";  // 最顶层的alias
+
 private:
   std::string name_;
 };
@@ -179,7 +166,7 @@ public:
   FieldExpr() = default;
   FieldExpr(const Table *table, const FieldMeta *field) : field_(table, field) {}
   FieldExpr(const Field &field) : field_(field) {}
-  FieldExpr(const FieldExpr &expr) : field_(expr.field_) {}
+  FieldExpr(const FieldExpr &expr) : field_(expr.field_) { alias_ = expr.alias_; }
   FieldExpr &operator=(const FieldExpr &expr)
   {
     field_ = expr.field_;
@@ -209,11 +196,6 @@ public:
       return alias_;
     }
     if (with_table_name) {
-      // if (std::string(field_.table_name()) == "") {
-      //   return field_.table_name() + std::string(".") + field_.field_name();
-      // } else {
-      //   return field_.field_name();
-      // }
       return field_.table_name() + std::string(".") + field_.field_name();
     } else {
       return field_.field_name();
@@ -310,11 +292,15 @@ public:
 
   Expression *clone() const override { return new ValueListExpr(*this); }
 
+  const std::string alias(bool with_table_name) const override
+  {
+    LOG_WARN("ValueListExpr::alias(bool with_table_name) const: UNIMPLEMENT, %s:%d ", __FILE__, __LINE__);
+    return "";
+  }
+
 private:
   std::vector<Value> value_list_;
 };
-
-// TODO 这个后面会是一个expression
 
 /**
  * @brief 类型转换表达式
@@ -339,6 +325,12 @@ public:
   std::unique_ptr<Expression> &child() { return child_; }
 
   Expression *clone() const override;
+
+  const std::string alias(bool with_table_name) const override
+  {
+    LOG_WARN("CastExpr::alias(bool with_table_name) const: UNIMPLEMENT, %s:%d ", __FILE__, __LINE__);
+    return "";
+  }
 
 private:
   RC cast(const Value &value, Value &cast_value) const;
@@ -393,6 +385,12 @@ public:
   RC compare_value(const Value &left, const std::vector<Value> &right, bool &value) const;
 
   Expression *clone() const override;
+
+  const std::string alias(bool with_table_name) const override
+  {
+    LOG_WARN("ComparisonExpr::alias(bool with_table_name) const: UNIMPLEMENT, %s:%d ", __FILE__, __LINE__);
+    return "";
+  }
 
   /**
    * @brief 用于ConditionSqlNode转换为Expression时，自动转换类型并检测可比性
@@ -532,6 +530,12 @@ public:
 
   Expression *clone() const override { return new SelectExpr(*this); }
 
+  const std::string alias(bool with_table_name) const override
+  {
+    LOG_WARN("SelectExpr::alias(bool with_table_name) const: UNIMPLEMENT, %s:%d ", __FILE__, __LINE__);
+    return "";
+  }
+
 private:
   Stmt *select_stmt_;  // select子查询的语句
 };
@@ -562,6 +566,12 @@ public:
   std::unique_ptr<Expression> &right() { return right_; }
 
   Expression *clone() const override;
+
+  const std::string alias(bool with_table_name) const override
+  {
+    LOG_WARN("LogicalCalcExpr::alias(bool with_table_name) const: UNIMPLEMENT, %s:%d ", __FILE__, __LINE__);
+    return "";
+  }
 
 private:
   LogiOp                      logi_;
@@ -628,7 +638,7 @@ public:
           LOG_WARN("func date_format has improper argument number");
           return RC::FUNC_EXPR_ERROR;
         }
-        // 判断是否可以转成date，得拿出tuple之后才知道？ 
+        // 判断是否可以转成date，得拿出tuple之后才知道？
         // Field可以看fieldmeta
         // 由于日期不能参与算术运算，所以【0】必须是field或value
         if (expr_list[0]->type() != ExprType::FIELD && expr_list[0]->type() != ExprType::VALUE) {
@@ -641,7 +651,7 @@ public:
           Value v;
           expr_list[0]->try_get_value(v);
           rc = v.auto_cast(AttrType::DATES);
-          if(OB_FAIL(rc)) {
+          if (OB_FAIL(rc)) {
             return rc;
           }
         }
@@ -716,7 +726,6 @@ public:
   AttrType value_type() const override;
 
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) const override;
-  // RC get_value(const Tuple &tuple, Value &value) const override; // 旧版get_value 经由sub-query更新后已废弃
   RC get_value(const std::vector<Tuple *> &tuples, Value &value) const override;
   RC try_get_value(Value &value) const override;
 
@@ -731,10 +740,12 @@ public:
    * @return true 合法
    * @return false 非法，需要报错
    */
-  // TODO 未完成，未处理NULL， 未判断表达式类型是否可计算
   static bool is_legal_subexpr(ArithOp type, const Expression *left, const Expression *right)
   {
-
+    if (type == ArithOp::PAREN) {
+      // 忽略括号
+      return true;
+    }
     if (nullptr == left) {
       return false;
     } else if (nullptr == right) {
@@ -778,6 +789,9 @@ public:
       case ArithOp::POSITIVE: {
         return left_alias;
       } break;
+      case ArithOp::PAREN: {
+        return "(" + left_alias + ")";
+      } break;
       default: {
         ASSERT(false, "ArithmeticExpr::const std::string alias(bool with_table_name) UNREACHABLE!!!");
         return "";
@@ -786,8 +800,6 @@ public:
   }
 
 private:
-  // TODO: 尚未处理运行时错误
-  // 例如 子表达式返回超出预期的值（一个vector而非单行，NULL值），除零错误，
   RC calc_value(const Value &left_value, const Value &right_value, Value &value) const;
 
 private:
@@ -846,27 +858,7 @@ public:
   RC get_value(const std::vector<Tuple *> &tuples,
       Value &value) const override;  // 传入分组的所有tuples，返回聚合运算之后的Value
 
-  // 废弃代码*********************************************************BEGIN
-  // AggregationExpr(const Table *table, const FieldMeta *field, const std::string &aggregation_func)
-  //     : field_(table, field), aggregation_func_(aggregation_func)
-  // {}
-  // AggregationExpr(const Field &field, const std::string &aggregation_func)
-  //     : field_(field), aggregation_func_(aggregation_func)
-  // {}
-  // AttrType value_type() const override { return field_.attr_type(); }
-
-  // Field       &field() { return field_; }
-  // std::string &aggregation_func() { return aggregation_func_; }
-
-  // const Field       &field() const { return field_; }
-  // const std::string &aggregation_func() const { return aggregation_func_; }
-
-  // const char *table_name() const { return field_.table_name(); }
-  // const char *field_name() const { return field_.field_name(); }
-  // 废弃代码*********************************************************END
-
 private:
-  // TODO: 应该彻底Expression化，接收一个sub_expr，不假定其类型
   FuncName                    agg_type_;
   std::unique_ptr<Expression> child_;
 
@@ -875,9 +867,4 @@ private:
   RC do_count_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const;
   RC do_avg_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const;
   RC do_sum_aggregate(const std::vector<Tuple *> &tuples, Value &value, TupleCellSpec &tcs) const;
-
-  // 废弃代码*********************************************************BEGIN
-  // Field       field_;
-  // std::string aggregation_func_;
-  // 废弃代码*********************************************************END
 };

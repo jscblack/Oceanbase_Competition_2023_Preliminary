@@ -46,7 +46,7 @@ ConditionSqlNode *create_arith_condition(ArithOp type, ConditionSqlNode *left_co
   ConditionSqlNode *ret = new ConditionSqlNode;
   ret->type = ARITH;
   ret->arith = type;
-  if(type == ArithOp::NEGATIVE || type == ArithOp::POSITIVE) {
+  if(type == ArithOp::NEGATIVE || type == ArithOp::POSITIVE || type == ArithOp::PAREN) {
     ret->binary = false;
     ret->left_cond = left_cond;
   } else {
@@ -103,6 +103,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
         TABLE
         TABLES
         INDEX
+        VIEW
         CALC
         SELECT
         DESC
@@ -148,8 +149,8 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
         AND
         SET
         ON
-        LOAD
-        DATA
+        LOAD_DATA
+        /* DATA */
         INFILE
         EXPLAIN
         EQ
@@ -257,6 +258,7 @@ ConditionSqlNode *create_compare_condition(CompOp op, ConditionSqlNode *left_con
 %type <sql_node>            insert_stmt
 %type <sql_node>            update_stmt
 %type <sql_node>            delete_stmt
+%type <sql_node>            create_view_stmt
 %type <sql_node>            create_table_stmt
 %type <sql_node>            drop_table_stmt
 %type <sql_node>            show_tables_stmt
@@ -307,6 +309,7 @@ command_wrapper:
   | insert_stmt
   | update_stmt
   | delete_stmt
+  | create_view_stmt
   | create_table_stmt
   | drop_table_stmt
   | show_tables_stmt
@@ -364,7 +367,13 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
       $$ = new ParsedSqlNode(SCF_DROP_TABLE);
       $$->drop_table.relation_name = $3;
       free($3);
-    };
+    }
+    | DROP VIEW ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $3;
+      free($3);
+    }
+    ;
 show_tables_stmt:
     SHOW TABLES {
       $$ = new ParsedSqlNode(SCF_SHOW_TABLES);
@@ -428,7 +437,7 @@ drop_index_stmt:      /*drop index 语句的语法解析树*/
 nullable_marker:
     /* empty */
     {
-      $$ = false;
+      $$ = true;
     }
     | UNNULLABLE
     {
@@ -448,6 +457,30 @@ as_marker:
     | AS
     {
       $$ = true;
+    }
+    ;
+
+create_view_stmt:
+    CREATE VIEW ID as_marker select_stmt
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_VIEW);
+      $$->create_view.view_name = $3;
+      free($3);
+
+      $$->create_view.from_select = $5->selection;
+    }
+    | CREATE VIEW ID LBRACE rel_attr attr_list RBRACE as_marker select_stmt
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_VIEW);
+      $$->create_view.view_name = $3;
+      free($3);
+      if($6!=nullptr){
+        $$->create_view.attr_names.swap(*$6);
+      }
+      $$->create_view.attr_names.emplace_back(*$5);
+      std::reverse($$->create_view.attr_names.begin(), $$->create_view.attr_names.end());
+      
+      $$->create_view.from_select = $9->selection;
     }
     ;
 
@@ -1137,9 +1170,7 @@ a_expr:
     ;
 c_expr:
     LBRACE a_expr RBRACE {
-      $$ = $2;
-      // $$->alias = $4;
-      // free($4);
+      $$ = create_arith_condition(PAREN, $2, nullptr);
     } 
     | function {
       $$ = $1;
@@ -1670,16 +1701,16 @@ where:
     ; */
 
 load_data_stmt:
-    LOAD DATA INFILE SSS INTO TABLE ID 
+    LOAD_DATA INFILE SSS INTO TABLE ID 
     {
-      char *tmp_file_name = common::substr($4, 1, strlen($4) - 2);
+      char *tmp_file_name = common::substr($3, 1, strlen($3) - 2);
       
       $$ = new ParsedSqlNode(SCF_LOAD_DATA);
-      $$->load_data.relation_name = $7;
+      $$->load_data.relation_name = $6;
       $$->load_data.file_name = tmp_file_name;
-      free($7);
+      free($6);
       free(tmp_file_name);
-      free($4);
+      free($3);
     }
     ;
 

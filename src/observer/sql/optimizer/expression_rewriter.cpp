@@ -85,12 +85,12 @@ RC ExpressionRewriter::rewrite_expression(std::unique_ptr<Expression> &expr, boo
     } break;
 
     case ExprType::CAST: {
-      std::unique_ptr<Expression> &child_expr = (static_cast<CastExpr *>(expr.get()))->child();
+      std::unique_ptr<Expression> &child_expr = (dynamic_cast<CastExpr *>(expr.get()))->child();
       rc                                      = rewrite_expression(child_expr, change_made);
     } break;
 
     case ExprType::COMPARISON: {
-      auto                         comparison_expr = static_cast<ComparisonExpr *>(expr.get());
+      auto                         comparison_expr = dynamic_cast<ComparisonExpr *>(expr.get());
       std::unique_ptr<Expression> &left_expr       = comparison_expr->left();
       std::unique_ptr<Expression> &right_expr      = comparison_expr->right();
 
@@ -112,7 +112,7 @@ RC ExpressionRewriter::rewrite_expression(std::unique_ptr<Expression> &expr, boo
     } break;
 
     case ExprType::LOGICALCALC: {
-      auto                         logical_calc_expr = static_cast<LogicalCalcExpr *>(expr.get());
+      auto                         logical_calc_expr = dynamic_cast<LogicalCalcExpr *>(expr.get());
       std::unique_ptr<Expression> &left_expr         = logical_calc_expr->left();
       std::unique_ptr<Expression> &right_expr        = logical_calc_expr->right();
       bool                         left_change_made  = false;

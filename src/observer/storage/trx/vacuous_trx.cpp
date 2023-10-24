@@ -32,13 +32,13 @@ void VacuousTrxKit::all_trxes(std::vector<Trx *> &trxes) { return; }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RC VacuousTrx::insert_record(Table *table, Record &record) { return table->insert_record(record); }
+RC VacuousTrx::insert_record(Table *table, Record &record) { return table->insert_record(this, record, false); }
 
 RC VacuousTrx::delete_record(Table *table, Record &record) { return table->delete_record(record); }
 
 RC VacuousTrx::update_record(Table *table, Record &record, const char *data)
 {
-  return table->update_record(record, data);
+  return table->update_record(this, record, data);
 }
 
 RC VacuousTrx::visit_record(Table *table, Record &record, bool readonly) { return RC::SUCCESS; }

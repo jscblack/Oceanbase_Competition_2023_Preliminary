@@ -107,15 +107,34 @@ RC UpdatePhysicalOperator::next()
         }
       }
     }
+    Table *original_table = table_;
 
-    RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
+    if (table_->table_meta().is_view()) {
+      // 拿上来的一定是view tuple
+      if (TupleType::VIEW_TUPLE != tuple->type()) {
+        return RC::INTERNAL;
+      }
+      ViewTuple *view_tuple = dynamic_cast<ViewTuple *>(tuple);
+
+      original_table = const_cast<Table *>(view_tuple->get_view_map().begin()->second);
+
+      for (auto iter = view_tuple->get_all_field_maps().rbegin(); iter != view_tuple->get_all_field_maps().rend();
+           iter++) {
+        for (auto &attr_name : attr_names_) {
+          attr_name = iter->at(attr_name);
+        }
+      }
+      tuple = view_tuple->get_tuple();
+    }
+
+    RowTuple *row_tuple = dynamic_cast<RowTuple *>(tuple);
     Record   &record    = row_tuple->record();
 
     const char *old_data = record.data();
     // record的rid不会发生变化，只会更改其中的数据
     // 但是需要注意的是，这会对index有影响
     // 根据old_data去构造一个new_data
-    const TableMeta &table_meta  = table_->table_meta();
+    const TableMeta &table_meta  = original_table->table_meta();
     int              record_size = table_meta.record_size();
     char            *new_data    = (char *)malloc(record_size);
     const FieldMeta *null_field  = table_meta.null_field();
@@ -165,11 +184,12 @@ RC UpdatePhysicalOperator::next()
       }
     }
 
-    rc = trx_->update_record(table_, record, new_data);
+    rc = trx_->update_record(original_table, record, new_data);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;
     }
+    free(new_data);
   }
 
   return RC::RECORD_EOF;
@@ -180,5 +200,6 @@ RC UpdatePhysicalOperator::close()
   if (!children_.empty()) {
     children_[0]->close();
   }
+
   return RC::SUCCESS;
 }

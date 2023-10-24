@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/select_stmt.h"
 #include "common/lang/string.h"
 #include "common/log/log.h"
+#include "sql/parser/parse.h"
 #include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/having_filter_stmt.h"
 #include "storage/db/db.h"
@@ -29,22 +30,24 @@ SelectStmt::~SelectStmt()
   }
 }
 
-// static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
-// {
-//   const TableMeta &table_meta = table->table_meta();
-//   const int        field_num  = table_meta.field_num();
-//   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-//     field_metas.push_back(Field(table, table_meta.field(i)));
-//   }
-// }
-
-static void wildcard_fields(Table *table, std::vector<Expression *> &field_metas)
+/**
+ * @brief
+ *
+ * @param [in] table
+ * @param [in] alias 注意，如果只有单表，即使select from t as a; 也不要设置alias（因为不会输出表名）；
+ * 并且alias是表名的alias
+ * @param [out] field_metas
+ */
+static void wildcard_fields(Table *table, const std::string &alias, std::vector<Expression *> &field_metas)
 {
   const TableMeta &table_meta = table->table_meta();
   const int        field_num  = table_meta.field_num();
   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
     Expression *field_expr = new FieldExpr(table, table_meta.field(i));
     field_metas.emplace_back(field_expr);
+    if (alias != "") {
+      field_metas[field_metas.size() - 1]->set_alias(alias + "." + table_meta.field(i)->name());  // 默认为""
+    }
   }
 }
 
@@ -115,7 +118,7 @@ RC select_get_table_and_field(Db *db, Table *default_table, std::unordered_map<s
 }
 
 /**
- * @brief 讲select ... from 将投影列表表达式化
+ * @brief select ... from 将投影列表表达式化
  *
  * @param db
  * @param default_table
@@ -138,11 +141,11 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
     } break;
 
     case FIELD: {
-      // 得把真实的表名填入，不能为STAR, 似乎无需特殊处理STAR，因为找不到
-      // if (cond->attr.attribute_name == "*" || cond->attr.relation_name == "*") {
-      //   LOG_WARN("STAR * cannot be subexpr of field");
-      //   return RC::SCHEMA_FIELD_MISSING;
-      // }
+      // 得把真实的表名填入，不能为STAR, 但似乎无需特殊处理STAR，因为目前找不到
+      if (cond->attr.attribute_name == "*" || cond->attr.relation_name == "*") {
+        LOG_WARN("STAR * cannot be subexpr of field");
+        return RC::SCHEMA_FIELD_MISSING;
+      }
       has_field              = true;
       Table           *table = nullptr;
       const FieldMeta *field = nullptr;
@@ -238,7 +241,7 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
       } else if (cond->func >= FuncName::LENGTH_FUNC_NUM &&
                  cond->func <= FuncName::DATE_FUNC_NUM) {    // function, 暂不考虑 MAX和MIN
         std::vector<std::unique_ptr<Expression>> func_args;  // 虽然目前仅支持两参数，但还是叫参数列表
-        Expression *first_arg;
+        Expression                              *first_arg;
         rc = attr_cond_to_expr(db, default_table, tables, cond->left_cond, first_arg, has_aggregation, has_field);
         func_args.push_back(std::unique_ptr<Expression>(first_arg));
         if (cond->right_cond != nullptr) {
@@ -267,37 +270,6 @@ RC attr_cond_to_expr(Db *db, Table *default_table, std::unordered_map<std::strin
   expr->set_alias(cond->alias);  // 默认为""
   return rc;
 }
-
-// /**
-//  * @brief 判别一个expr及其儿子中是否有符合条件的选项，有则返回true; 想法很好但没实现child的访问统一接口，故而搁置
-//  *
-//  * @param expr
-//  * @param judge
-//  * @return true
-//  * @return false
-//  */
-// bool judge_attr_expr(Expression *expr, std::function<bool(ExprType)> judge)
-// {
-//   switch (expr->type()) {
-//     // 没有子表达式
-//     case ExprType::FIELD:
-//     case ExprType::SELECT:
-//     case ExprType::VALUE:
-//     case ExprType::VALUELIST: {
-//       return judge(expr->type());
-//     } break;
-//     case ExprType::AGGREGATION: {
-//       return judge(expr->type()) || judge_attr_expr(expr->child_,judge);
-//     }
-//     case ExprType::ARITHMETIC:
-//     case ExprType::FUNCTION:
-//     case ExprType::CAST:
-//     case ExprType::LOGICALCALC:
-//     case ExprType::COMPARISON:
-//     default:
-//     break;
-//   }
-// }
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
@@ -331,10 +303,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect tables in `from` statement
-  std::vector<Table *>                                    tables;
-  std::unordered_map<std::string, Table *>                table_map;
-  std::unordered_map<std::string, std::string>            alias_to_tablename;
-  const std::vector<std::pair<std::string, std::string>> &relation_to_alias = select_sql.relation_to_alias;
+  std::vector<Table *>                             tables;
+  std::unordered_map<std::string, Table *>         table_map;
+  std::unordered_map<std::string, std::string>     alias_to_tablename;
+  std::vector<std::pair<std::string, std::string>> relation_to_alias(select_sql.relation_to_alias);
   std::unordered_map<std::string, Table *> stash_table_map;  // 暂存的table_map，解决跨内外层表名(alias)重复时，暂存一下
 
   for (size_t i = 0; i < select_sql.relation_to_alias.size(); i++) {
@@ -404,8 +376,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         if (common::is_blank(cond.attr.relation_name.c_str())) {  // 表名为空
           if (cond.attr.attribute_name == "*") {                  // 表名为空，且列名为* [].*
             // 将tables展开
-            for (Table *table : tables) {
-              wildcard_fields(table, query_fields_expressions);
+            for (int i = 0; i < tables.size(); i++) {
+              if (tables.size() > 1) {
+                wildcard_fields(tables[i], relation_to_alias[i].second, query_fields_expressions);
+              } else {
+                wildcard_fields(tables[i], "", query_fields_expressions);
+              }
             }
           } else {                     // 表名为空，且列名不为*, [].col
             if (tables.size() != 1) {  // table_name从from中获取，from的table必须唯一
@@ -422,8 +398,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           if (cond.attr.relation_name == "*") {     // 表名为*
             if (cond.attr.attribute_name == "*") {  // *.*
               // 将tables展开
-              for (Table *table : tables) {
-                wildcard_fields(table, query_fields_expressions);
+              for (int i = 0; i < tables.size(); i++) {
+                if (tables.size() > 1) {
+                  wildcard_fields(tables[i], relation_to_alias[i].second, query_fields_expressions);
+                } else {
+                  wildcard_fields(tables[i], "", query_fields_expressions);
+                }
               }
             } else {  // *.col
               LOG_WARN("invalid field name while table is *. attr=%s", cond.attr.attribute_name.c_str());
@@ -436,7 +416,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
               return rc;
             }
             if (cond.attr.attribute_name == "*") {  // t.*
-              wildcard_fields(table, query_fields_expressions);
+              // 得先找到它的alias，或者应该就用relation_name? // 得判断它的table数量
+              if (tables.size() > 1) {
+                wildcard_fields(table, cond.attr.relation_name, query_fields_expressions);
+              } else {
+                wildcard_fields(table, "", query_fields_expressions);
+              }
             } else {  // t.col
               RC rc = attr_cond_to_expr(db, default_table, &table_map, &cond, expr, has_aggregation, has_field);
               if (OB_FAIL(rc)) {
@@ -463,24 +448,15 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
-  RC          rc          = FilterStmt::create(db, default_table, &table_map_, select_sql.conditions, filter_stmt);
+  RC rc = FilterStmt::create(db, default_table, &table_map_, relation_to_alias, select_sql.conditions, filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
     return rc;
   }
 
   // group_by + aggregate 相关的语法合法性检测
-  if (select_sql.groups.empty()) {  // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
-    // bool has_normal_field = false;
-    // bool has_agg_field    = false;
-    // for (auto query_fields_expr : query_fields_expressions) {
-    //   if (query_fields_expr->type() == ExprType::FIELD) {
-    //     has_normal_field = true;
-    //   }
-    //   if (query_fields_expr->type() == ExprType::AGGREGATION) {
-    //     has_agg_field = true;
-    //   }
-    // }
+  if (select_sql.groups.empty()) {
+    // 在没有group by语句时，如果有聚合，则一定不能有非聚合的属性出现
     if (attr_has_aggregation && attr_has_only_field) {
       LOG_WARN("Aggregated-attr cannot appear with normal-attr without group-by");
       return RC::SQL_SYNTAX;
@@ -538,7 +514,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       }
     }
 
-    if (have_agg) {  // 存在聚合时，非聚合属性必须∈{group by id}
+    if (have_agg) {
+      // 存在聚合时，非聚合属性必须∈{group by id}
       // 在有group by语句时，如果有聚合，则非聚合的属性一定要作为group by的属性，
       // 对于非聚合属性，确认是group by的属性
       for (auto field_expr : not_agg_query_fields) {
@@ -572,7 +549,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect group by fields
-  // std::vector<Field>        group_by_fields;
   std::vector<Expression *> group_by_fields_expressions;
   {
     for (int i = 0; i < static_cast<int>(select_sql.groups.size()); i++) {
@@ -605,7 +581,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           Table *table = iter->second;
           if (0 == strcmp(field_name, "*")) {
             // wildcard_fields(table, group_by_fields);
-            wildcard_fields(table, group_by_fields_expressions);
+            // FIXME 暂时没有考虑ALIAS
+            wildcard_fields(table, "", group_by_fields_expressions);
           } else {
             const FieldMeta *field_meta = table->table_meta().field(field_name);
             if (nullptr == field_meta) {
@@ -631,7 +608,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           return RC::SCHEMA_FIELD_MISSING;
         }
 
-        // group_by_fields.push_back(Field(table, field_meta));
         Expression *field_expr = new FieldExpr(table, field_meta);
         group_by_fields_expressions.emplace_back(field_expr);
       }
@@ -642,7 +618,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // FIXME: 目前Having仍然用的是旧版的condition，过不了编，需要重新调整
   HavingFilterStmt *having_filter_stmt = nullptr;
   {
-    RC rc = HavingFilterStmt::create(db, default_table, &table_map, select_sql.havings, having_filter_stmt);
+    RC rc = HavingFilterStmt::create(
+        db, default_table, &table_map, relation_to_alias, select_sql.havings, having_filter_stmt);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot construct having filter stmt");
       return rc;
@@ -655,10 +632,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     for (int i = static_cast<int>(select_sql.orders.size()) - 1; i >= 0; i--) {
       const RelAttrSqlNode &order_attr = select_sql.orders.at(i).attr;
       bool                  is_asc     = select_sql.orders.at(i).is_asc;
-
-      // if (0 != strcmp(order_attr.aggregation_func.c_str(), "")) {  // 处理一下aggregate的特殊场景
-      //   return RC::SQL_SYNTAX;
-      // }
 
       if (common::is_blank(order_attr.relation_name.c_str()) &&
           0 == strcmp(order_attr.attribute_name.c_str(), "*")) {  // 表名为空且查询*
@@ -706,20 +679,54 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
   }
 
+  // 看一下tables中是否有视图
+  // 如果有，在这里执行创建视图的sql语句的parse和resolve
+  std::vector<Stmt *> view_stmts;
+  for (Table *table : tables) {
+    if (table->table_meta().is_view()) {
+      // 1. view-sql : parse
+      const std::string &view_sql = table->table_meta().view_sql();
+      ParsedSqlResult    parsed_view_sql_result;
+
+      parse(view_sql.c_str(), &parsed_view_sql_result);
+
+      if (parsed_view_sql_result.sql_nodes().empty()) {
+        LOG_WARN("create view sql parsed result empty");
+        return RC::INTERNAL;
+      }
+      if (parsed_view_sql_result.sql_nodes().size() > 1) {
+        LOG_WARN("got multi sql commands but only 1 will be handled");
+      }
+
+      // 2. view-sql : resolve
+      std::unique_ptr<ParsedSqlNode> unique_ptr_sql_node = std::move(parsed_view_sql_result.sql_nodes().front());
+      if (unique_ptr_sql_node->flag == SCF_ERROR) {
+        return RC::SQL_SYNTAX;
+        ;
+      }
+      ParsedSqlNode *sql_node  = unique_ptr_sql_node.get();
+      Stmt          *view_stmt = nullptr;
+      RC             rc        = Stmt::create_stmt(db, *sql_node, view_stmt);
+      if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
+        LOG_WARN("failed to create view_stmt. rc=%d:%s", rc, strrc(rc));
+        return rc;
+      }
+      view_stmts.emplace_back(view_stmt);
+    }
+  }
+
   // everything alright, set select_stmt
   SelectStmt *select_stmt = new SelectStmt();
-  // TODO add expression copy
   {
     select_stmt->tables_.swap(tables);
     select_stmt->query_fields_expressions_.swap(query_fields_expressions);
-    // select_stmt->query_fields_.swap(query_fields);
     select_stmt->filter_stmt_ = filter_stmt;
-    // select_stmt->aggregation_func_.swap(aggregation_func);
     select_stmt->group_by_fields_expressions_.swap(group_by_fields_expressions);
-    // select_stmt->group_by_fields_.swap(group_by_fields);
     select_stmt->having_filter_stmt_ = having_filter_stmt;
     select_stmt->order_by_.swap(order_by);
     select_stmt->has_aggregation_ = attr_has_aggregation;
+    select_stmt->view_stmts_.swap(view_stmts);
+    select_stmt->relation_to_alias_.swap(relation_to_alias);
   }
 
   stmt = select_stmt;
