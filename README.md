@@ -1,10 +1,18 @@
 # 原OO动团队
 
-# MiniOB 参赛队伍 
+# MiniOB 参赛队伍
 
-@蒋世超 @仝一恒 @骆远辉
+## 你说得对，但是OceanBase是一款由...
+
+* @蒋世超 https://github.com/jscblack
+* @仝一恒 https://github.com/tong1heng
+* @骆远辉 https://github.com/Losk-x
 
 冲！
+
+# 参赛经历
+
+待补充...
 
 ## MiniOB 概述
 
